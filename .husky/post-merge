@@ -1,0 +1,7 @@
+# Check if package-lock.json was changed in the last merge
+changed_files="$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD)"
+
+if echo "$changed_files" | grep -q "package-lock.json"; then
+  echo "📦 package-lock.json changed. Updating dependencies..."
+  npm install
+fi
