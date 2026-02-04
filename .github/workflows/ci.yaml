@@ -6,31 +6,35 @@ on:
   pull_request:
     branches: [master]
 
-jobs:
-  quality_gate:
-    name: "🔍 Lint & Security Audit"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-      - run: npm ci
-      - run: npx secretlint "**/*"
-      - run: npm run lint
+permissions:
+  contents: read
 
-  build:
-    name: "🏗️ Production Build"
-    needs: quality_gate # Only runs if Job 1 passes
+jobs:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: 🛰️ Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-      - run: npm ci
-      - run: npm run build
-        env:
-          # DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🔐 Secret Scan (Secretlint)
+        run: npx secretlint "**/*"
+
+      - name: 🔍 Linting & Sonar Audit
+        run: npm run lint
+
+      - name: 🏗️ Next.js Build Check
+        run: npm run build
+        # If your build needs env vars, add an env: section here
+
+      - name: ✅ Clean up Cache
+        if: always()
+        run: rm -rf .next/cache
