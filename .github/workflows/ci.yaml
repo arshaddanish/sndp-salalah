@@ -7,13 +7,17 @@ on:
   pull_request:
     # Trigger checks when a PR is opened or updated targeting master
     branches: [master]
+    types: [opened, synchronize, reopened]
 
 jobs:
-  # JOB 1: Automatically open a PR if one doesn't exist
+  # JOB 1: Only opens the PR if it's missing
   auto_pr:
     name: '🚀 Conditional PR'
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +43,7 @@ jobs:
           branch: ${{ github.ref_name }}
 
   # JOB 2: Run Lint and Build
-  # This ONLY runs on the Pull Request event
+  # This runs on every single commit in the PR
   quality_gate:
     name: '🔍 Lint & Build Check'
     if: github.event_name == 'pull_request'
