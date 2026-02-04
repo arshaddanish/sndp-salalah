@@ -30,8 +30,7 @@ jobs:
 
       - name: 🏗️ Next.js Build Check
         run: npm run build
-        env:
-          # If your build needs env vars, add them here
+        # If your build needs env vars, add an env: section here
 
       - name: ✅ Clean up Cache
         if: always()
