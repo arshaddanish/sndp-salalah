@@ -1,0 +1,38 @@
+name: "CI Pipeline"
+
+on:
+  push:
+    branches: [arshad]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🛰️ Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🔐 Secret Scan (Secretlint)
+        run: npx secretlint "**/*"
+
+      - name: 🔍 Linting & Sonar Audit
+        run: npm run lint
+
+      - name: 🏗️ Next.js Build Check
+        run: npm run build
+        env:
+          # If your build needs env vars, add them here
+
+      - name: ✅ Clean up Cache
+        if: always()
+        run: rm -rf .next/cache
