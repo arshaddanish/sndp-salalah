@@ -1,36 +1,47 @@
-name: "CI Pipeline"
+name: "Automated PR & Quality Gate"
 
 on:
   push:
-    branches: [arshad]
+    # Trigger on any branch except master
+    branches-ignore: [master]
   pull_request:
+    # Trigger checks when a PR is opened or updated targeting master
     branches: [master]
 
-permissions:
-  contents: read
-
 jobs:
-  build-and-test:
+  # JOB 1: Automatically open a PR if one doesn't exist
+  auto_pr:
+    name: "🚀 Auto-Create Pull Request"
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: master
+          title: "feat: update from ${{ github.ref_name }}"
+          body: "Automated PR created by GitHub Actions."
+          branch: ${{ github.ref_name }} # Ensures it updates existing PRs
+
+  # JOB 2: Run Lint and Build
+  # This ONLY runs on the Pull Request event
+  quality_gate:
+    name: "🔍 Lint & Build Check"
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: 🛰️ Checkout Code
-        uses: actions/checkout@v4
-
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-
-      - name: 📦 Install Dependencies
-        run: npm ci
-
-      - name: 🔐 Secret Scan (Secretlint)
-        run: npx secretlint "**/*"
-
-      - name: 🔍 Linting & Sonar Audit
-        run: npm run lint
-
-      - name: 🏗️ Next.js Build Check
-        run: npm run build
-        # If your build needs env vars, add an env: section here
+      - run: npm ci
+      - run: npx secretlint "**/*"
+      - run: npm run lint
+      - run: npm run build
