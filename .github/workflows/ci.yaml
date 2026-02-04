@@ -34,7 +34,3 @@ jobs:
       - name: 🏗️ Next.js Build Check
         run: npm run build
         # If your build needs env vars, add an env: section here
-
-      - name: ✅ Clean up Cache
-        if: always()
-        run: rm -rf .next/cache
