@@ -1,4 +1,4 @@
-name: "Automated PR & Quality Gate"
+name: 'Automated PR & Quality Gate'
 
 on:
   push:
@@ -11,28 +11,37 @@ on:
 jobs:
   # JOB 1: Automatically open a PR if one doesn't exist
   auto_pr:
-    name: "🚀 Auto-Create Pull Request"
+    name: '🚀 Conditional PR'
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      
+
+      # 1. Check if a PR already exists for this branch
+      - name: Check for existing PR
+        id: check_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use the GitHub CLI to see if there's an open PR from this branch to master
+          PR_COUNT=$(gh pr list --head ${{ github.ref_name }} --base master --state open --json number | jq '. | length')
+          echo "count=$PR_COUNT" >> $GITHUB_OUTPUT
+
+      # 2. ONLY try to create a PR if the count is 0
       - name: Create Pull Request
+        if: steps.check_pr.outputs.count == '0'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: master
-          title: "feat: update from ${{ github.ref_name }}"
-          body: "Automated PR created by GitHub Actions."
-          branch: ${{ github.ref_name }} # Ensures it updates existing PRs
+          title: 'feat: update from ${{ github.ref_name }}'
+          body: 'Automated PR created by GitHub Actions.'
+          branch: ${{ github.ref_name }}
 
   # JOB 2: Run Lint and Build
   # This ONLY runs on the Pull Request event
   quality_gate:
-    name: "🔍 Lint & Build Check"
+    name: '🔍 Lint & Build Check'
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
