@@ -25,22 +25,55 @@ jobs:
       - name: Check for existing PR
         id: check_pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Use the GitHub CLI to see if there's an open PR from this branch to master
-          PR_COUNT=$(gh pr list --head ${{ github.ref_name }} --base master --state open --json number | jq '. | length')
-          echo "count=$PR_COUNT" >> $GITHUB_OUTPUT
+          set -e
+          REPO="${{ github.repository }}"
+          HEAD="${{ github.ref_name }}"
+          BASE="master"
+
+          # Fetch open PRs from this branch to master
+          RESPONSE=$(curl -sS \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "${{ github.api_url }}/repos/$REPO/pulls?state=open&head=${{ github.repository_owner }}:$HEAD&base=$BASE")
+
+          COUNT=$(printf '%s' "$RESPONSE" | python - << 'PY'
+import json, sys
+data = sys.stdin.read().strip()
+if not data:
+    print(0)
+else:
+    try:
+        arr = json.loads(data)
+        print(len(arr))
+    except Exception:
+        print(0)
+PY
+)
+
+          echo "Found existing PR count: $COUNT"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
 
       # 2. ONLY try to create a PR if the count is 0
       - name: Create Pull Request
         if: steps.check_pr.outputs.count == '0'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: master
-          title: 'feat: update from ${{ github.ref_name }}'
-          body: 'Automated PR created by GitHub Actions.'
-          branch: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/pulls" \
+            -d @- <<EOF
+          {
+            "title": "feat: update from ${{ github.ref_name }}",
+            "head": "${{ github.ref_name }}",
+            "base": "master",
+            "body": "Automated PR created by GitHub Actions."
+          }
+EOF
 
   # JOB 2: Run Lint and Build
   # This runs on every single commit in the PR
