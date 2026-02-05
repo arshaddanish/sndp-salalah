@@ -73,7 +73,6 @@ PY
             "base": "master",
             "body": "Automated PR created by GitHub Actions."
           }
-EOF
 
   # JOB 2: Run Lint and Build
   # This runs on every single commit in the PR
