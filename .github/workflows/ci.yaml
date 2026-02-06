@@ -13,6 +13,11 @@ jobs:
   # JOB 1: Only opens the PR if it's missing
   pull-request:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+      
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
