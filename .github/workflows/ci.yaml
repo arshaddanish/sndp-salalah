@@ -2,54 +2,52 @@ name: 'Automated PR & Quality Gate'
 
 on:
   push:
-    # Trigger on any branch except master
     branches-ignore: [master]
   pull_request:
-    # Trigger checks when a PR is opened or updated targeting master
     branches: [master]
-    types: [opened, synchronize, reopened]
+
+# Prevents the workflow from running twice on the same branch simultaneously
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # JOB 1: Only opens the PR if it's missing
-  auto_pr:
-    name: '🚀 Conditional PR'
+  pull-request:
+    name: 'Ensuring PR Exists'
+    # Only run PR creation on "push" events.
+    # If it's already a "pull_request" event, the PR obviously exists.
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      # 1. Check if a PR already exists for this branch
-      - name: Check for existing PR
-        id: check_pr
+      - name: Auto-create Pull Request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Use the GitHub CLI to see if there's an open PR from this branch to master
-          PR_COUNT=$(gh pr list --head ${{ github.ref_name }} --base master --state open --json number | jq '. | length')
-          echo "count=$PR_COUNT" >> $GITHUB_OUTPUT
+          PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --base master --state open --json number --jq '.[0].number')
 
-      # 2. ONLY try to create a PR if the count is 0
-      - name: Create Pull Request
-        if: steps.check_pr.outputs.count == '0'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: master
-          title: 'feat: update from ${{ github.ref_name }}'
-          body: 'Automated PR created by GitHub Actions.'
-          branch: ${{ github.ref_name }}
+          if [ -z "$PR_EXISTS" ]; then
+            echo "Creating new PR for branch: ${{ github.ref_name }}"
+            gh pr create \
+              --base master \
+              --head "${{ github.ref_name }}" \
+              --title "Auto-PR: ${{ github.ref_name }}" \
+              --body "Automated PR created by CI pipeline."
+          else
+            echo "PR already exists. Proceeding to quality gate."
+          fi
 
-  # JOB 2: Run Lint and Build
-  # This runs on every single commit in the PR
   quality_gate:
     name: '🔍 Lint & Build Check'
-    if: github.event_name == 'pull_request'
+    # This runs if Job 1 finishes OR if Job 1 was skipped (because it's already a PR event)
+    needs: [pull-request]
+    if: always() && (needs.pull-request.result == 'success' || needs.pull-request.result == 'skipped')
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
 
