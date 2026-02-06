@@ -17,7 +17,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -45,7 +45,6 @@ jobs:
   # This runs on every single commit in the PR
   quality_gate:
     name: '🔍 Lint & Build Check'
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
