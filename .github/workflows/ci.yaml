@@ -6,16 +6,15 @@ on:
   pull_request:
     branches: [master]
 
-# Prevents the workflow from running twice on the same branch simultaneously
+# Prevents duplicate runs on the same branch
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # JOB 1: Ensures a PR exists with a descriptive title
   pull-request:
     name: 'Ensuring PR Exists'
-    # Only run PR creation on "push" events.
-    # If it's already a "pull_request" event, the PR obviously exists.
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -24,28 +23,43 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to get git logs for the PR body
 
       - name: Auto-create Pull Request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 1. Get the latest commit subject for the Title
+          PR_TITLE=$(git log -1 --pretty=%s)
+          
+          # 2. Get the last 3 commits for the Body summary
+          CHANGE_LOG=$(git log -3 --pretty=format:"- %s")
+          
+          # 3. Check if an open PR already exists
           PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --base master --state open --json number --jq '.[0].number')
 
           if [ -z "$PR_EXISTS" ]; then
-            echo "Creating new PR for branch: ${{ github.ref_name }}"
+            echo "Creating new PR: $PR_TITLE"
             gh pr create \
               --base master \
               --head "${{ github.ref_name }}" \
-              --title "Auto-PR: ${{ github.ref_name }}" \
-              --body "Automated PR created by CI pipeline."
+              --title "$PR_TITLE" \
+              --body "### 🚀 Automated Change Summary
+              
+              This PR was generated for branch: \`${{ github.ref_name }}\`.
+
+              **Latest Changes:**
+              $CHANGE_LOG"
           else
-            echo "PR already exists. Proceeding to quality gate."
+            echo "PR #$PR_EXISTS already exists. Skipping creation."
           fi
 
+  # JOB 2: Run Lint and Build (The Quality Gate)
   quality_gate:
     name: '🔍 Lint & Build Check'
-    # This runs if Job 1 finishes OR if Job 1 was skipped (because it's already a PR event)
     needs: [pull-request]
+    # Runs if Job 1 succeeds OR if Job 1 was skipped (Manual PR/GitHub UI Edit)
     if: always() && (needs.pull-request.result == 'success' || needs.pull-request.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
