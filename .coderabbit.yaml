@@ -1,2 +1,8 @@
 reviews:
+  auto_review:
+    enabled: true # Triggers review on PR open
+    auto_incremental_review: true # Triggers review on PR update
   request_changes_workflow: true
+  profile: chill # Options: chill, assertive
+  high_level_summary: true # Include PR-level summary
+  review_status: true # Show review progress
