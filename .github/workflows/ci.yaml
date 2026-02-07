@@ -23,8 +23,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Required to get git logs for the PR body
 
       - name: Auto-create Pull Request
         env:
@@ -32,11 +30,8 @@ jobs:
         run: |
           # 1. Get the latest commit subject for the Title
           PR_TITLE=$(git log -1 --pretty=%s)
-          
-          # 2. Get the last 3 commits for the Body summary
-          CHANGE_LOG=$(git log -3 --pretty=format:"- %s")
-          
-          # 3. Check if an open PR already exists
+
+          # 2. Check if an open PR already exists
           PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --base master --state open --json number --jq '.[0].number')
 
           if [ -z "$PR_EXISTS" ]; then
@@ -44,13 +39,7 @@ jobs:
             gh pr create \
               --base master \
               --head "${{ github.ref_name }}" \
-              --title "$PR_TITLE" \
-              --body "### 🚀 Automated Change Summary
-              
-              This PR was generated for branch: \`${{ github.ref_name }}\`.
-
-              **Latest Changes:**
-              $CHANGE_LOG"
+              --title "$PR_TITLE"
           else
             echo "PR #$PR_EXISTS already exists. Skipping creation."
           fi
