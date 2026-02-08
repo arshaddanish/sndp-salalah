@@ -2,11 +2,9 @@ name: 'Automated PR & Quality Gate'
 
 on:
   push:
-    branches-ignore: [master]
-  pull_request:
-    branches: [master]
+    branches-ignore: [master] # Prevents running on the merge to master
 
-# Prevents duplicate runs on the same branch
+# Prevents duplicate runs if you push multiple times quickly
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -39,7 +37,8 @@ jobs:
             gh pr create \
               --base master \
               --head "${{ github.ref_name }}" \
-              --title "$PR_TITLE"
+              --title "$PR_TITLE" \
+              --body ""
           else
             echo "PR #$PR_EXISTS already exists. Skipping creation."
           fi
@@ -48,7 +47,7 @@ jobs:
   quality_gate:
     name: '🔍 Lint & Build Check'
     needs: [pull-request]
-    # Runs if Job 1 succeeds OR if Job 1 was skipped (Manual PR/GitHub UI Edit)
+    # This runs on every push to a non-master branch
     if: always() && (needs.pull-request.result == 'success' || needs.pull-request.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
@@ -56,12 +55,10 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: 'package.json'
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
