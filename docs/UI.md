@@ -9,18 +9,18 @@ This document serves as a map for developers and AI to understand the required u
 
 ## Screen Routing Map
 
-| Screen Name            | Route Path            | Primary Purpose       | Key Features / KPIs                                                                       |
-| ---------------------- | --------------------- | --------------------- | ----------------------------------------------------------------------------------------- |
-| **Login**              | `/login`              | Authentication        | Secure entry via username/password                                                        |
-| **Dashboard**          | `/`                   | High-level summary    | Total Members, Near Expiry Members, Cash in Bank, Cash in Hand, YTD total Income/Expense  |
-| **Members List**       | `/members`            | View & Filter members | Visual Active/Expired tags, Date-range filters, **One-Click Excel Export**, Member Search |
-| **Member Profile**     | `/members/[id]`       | Detailed view         | Full demographic info, uploaded photo, personal payment history                           |
-| **New Member**         | `/members/new`        | Registration          | Forms with strict validation (Civil ID uniqueness)                                        |
-| **Branches (Shakhas)** | `/members/shakhas`    | Setup                 | CRUD management for branch locations                                                      |
-| **Finances / Ledger**  | `/finance`            | Statement List        | Unified list of all transactions, custom search & filters.                                |
-| **Record Transaction** | `/finance/new`        | Entry form            | Select type (Income/Expense), Category, Payment Mode (Cash/Bank), attach receipt          |
-| **Finance Categories** | `/finance/categories` | System config         | CRUD operations for Transaction Categories                                                |
-| **Financial Reports**  | `/finance/reports`    | One-click Insights    | Daily Collection, Monthly Summary, Category-wise Breakdown                                |
+| Screen Name            | Route Path            | Primary Purpose       | Key Features / KPIs                                                                        |
+| ---------------------- | --------------------- | --------------------- | ------------------------------------------------------------------------------------------ |
+| **Login**              | `/login`              | Authentication        | Secure entry via username/password                                                         |
+| **Dashboard**          | `/`                   | High-level summary    | Total Members, Near Expiry Members, Cash in Bank, Cash in Hand, YTD total Income/Expense   |
+| **Members List**       | `/members`            | View & Filter members | Visual Active/Expired tags, Date-range filters, **One-Click Excel Export**, Member Search  |
+| **Member Profile**     | `/members/[id]`       | Detailed view         | Full demographic info, uploaded photo, personal payment history, **Renew Membership Form** |
+| **New Member**         | `/members/new`        | Registration          | Forms with strict validation (Civil ID uniqueness)                                         |
+| **Branches (Shakhas)** | `/members/shakhas`    | Setup                 | CRUD management for branch locations                                                       |
+| **Finances / Ledger**  | `/finance`            | Statement List        | Unified list of all transactions, custom search & filters.                                 |
+| **Record Transaction** | `/finance/new`        | Entry form            | **General Income/Expense only** (Membership fees are paid via Member Profile)              |
+| **Finance Categories** | `/finance/categories` | System config         | CRUD operations for Transaction Categories                                                 |
+| **Financial Reports**  | `/finance/reports`    | One-click Insights    | Daily Collection, Monthly Summary, Category-wise Breakdown                                 |
 
 ---
 

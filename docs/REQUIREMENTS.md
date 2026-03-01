@@ -31,15 +31,15 @@
 
 ### User Stories
 
-- **As an admin**, I want to record a membership fee payment for a member, so their payment history is tracked accurately.
+- **As an admin**, I want to record a membership fee payment directly from the Member's Profile, so I don't have to navigate to a separate finance page to renew someone.
 - **As an admin**, I want to manually set the new expiry date when entering a membership fee payment, giving me final control over the membership period.
-- **As an admin**, I want to record general income (e.g., Donations) and expenses (e.g., Event Costs, Rent), so all cash flow is tracked in one system.
+- **As an admin**, I want to record general income (e.g., Donations) and expenses (e.g., Event Costs, Rent) from the Finance module, so all cash flow is tracked in one system.
 - **As an admin**, I want to attach a bill, receipt, or screenshot directly to a transaction, so we have audit proof of the payment.
 - **As an admin**, I want to view a chronological "Statement List" of all transactions (fees, income, expenses), so I can review the organization's financial health.
 - **As an admin**, I want to create, edit, and delete custom Transaction Categories, so I can label cash flow according to our changing organizational needs.
 - **As an admin**, I want the system to automatically track "Cash in Hand" and "Cash in Bank" totals, so I always know our current liquidity.
 - **As an admin**, I want to generate predefined one-click reports (e.g., Daily Collection Report, Monthly Income/Expense Summary, Category-wise Breakdown), so I don't have to manually apply filters for my most common accounting tasks.
-- **As an admin**, I want to search transactions by name, comment, or amount, and filter by date range or category, so I can generate quick custom financial reports.
+- **As an admin**, I want to search transactions by name, remarks, or amount, and filter by date range or category, so I can generate quick custom financial reports.
 
 ### Key Rules
 
@@ -68,3 +68,4 @@
 ### User Stories
 
 - **As a super admin**, I want to log in using a secure username and password, so unauthorized persons cannot access member data.
+- **As a super admin**, I want to manage custom Roles (e.g., 'Data Entry', 'Viewer') with specific permissions, so I can restrict what other admins can see or edit (Role-Based Access Control).
