@@ -48,15 +48,16 @@ graph TB
 
 ## Key Architectural Decisions
 
-| Decision         | Choice                      | Rationale                                                      |
-| ---------------- | --------------------------- | -------------------------------------------------------------- |
-| **Framework**    | Next.js 16 App Router       | Server components, built-in routing, API routes in one package |
-| **Rendering**    | Server Components (default) | Less JS shipped, direct DB access                              |
-| **Mutations**    | Server Actions              | Type-safe, no REST boilerplate                                 |
-| **ORM**          | Drizzle                     | Lightweight, SQL-first, zero codegen                           |
-| **Auth**         | Auth.js v5 (Credentials)    | Free, middleware integration                                   |
-| **File Storage** | AWS S3 + pre-signed URLs    | Direct upload, server stays lightweight                        |
-| **Deployment**   | Vercel                      | Zero-config, PR previews                                       |
+| Decision         | Choice                      | Rationale                                                            |
+| ---------------- | --------------------------- | -------------------------------------------------------------------- |
+| **Framework**    | Next.js 16 App Router       | Server components, built-in routing, API routes in one package       |
+| **Rendering**    | Server Components (default) | Less JS shipped, direct DB access                                    |
+| **Mutations**    | Server Actions              | Type-safe, no REST boilerplate                                       |
+| **ORM**          | Drizzle                     | Lightweight, SQL-first, zero codegen                                 |
+| **Auth**         | Auth.js v5 (Credentials)    | Free, middleware integration                                         |
+| **File Storage** | AWS S3 + pre-signed URLs    | Direct upload, server stays lightweight                              |
+| **Deployment**   | Vercel                      | Zero-config, PR previews                                             |
+| **Pkg Manager**  | pnpm 10                     | Performance (symlinks), strict dependencies, better for mono/modular |
 
 ---
 
