@@ -13,7 +13,7 @@ const Button = React.forwardRef<
     <button
       ref={ref}
       className={cn(
-        'focus-visible:ring-accent/5 inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-4 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+        'focus-visible:ring-accent/5 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-4 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
         {
           'bg-accent hover:bg-accent-hover text-white': variant === 'primary',
           'text-text-primary border-border hover:bg-surface-hover border bg-white':
