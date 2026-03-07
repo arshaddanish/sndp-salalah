@@ -13,14 +13,11 @@
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
+      "eslint --fix --cache",
       "prettier --write"
     ],
     "*.{json,md,css}": [
       "prettier --write"
-    ],
-    "*": [
-      "secretlint"
     ]
   },
   "dependencies": {

@@ -34,13 +34,15 @@ jobs:
 
           if [ -z "$PR_EXISTS" ]; then
             echo "Creating new PR: $PR_TITLE"
-            gh pr create \
+            NEW_PR=$(gh pr create \
               --base master \
               --head "${{ github.ref_name }}" \
               --title "$PR_TITLE" \
-              --body ""
+              --body "")
+            gh pr comment "$NEW_PR" --body "@coderabbitai review"
           else
-            echo "PR #$PR_EXISTS already exists. Skipping creation."
+            echo "PR #$PR_EXISTS already exists. Triggering review."
+            gh pr comment "$PR_EXISTS" --body "@coderabbitai review"
           fi
 
   # JOB 2: Run Lint and Build (The Quality Gate)
