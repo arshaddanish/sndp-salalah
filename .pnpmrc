@@ -1,0 +1,13 @@
+# Enforces engines in package.json
+engine-strict=true
+
+# Optimization for Next.js/React projects
+public-hoist-pattern[]=*eslint*
+public-hoist-pattern[]=*prettier*
+public-hoist-pattern[]=*@types*
+
+# Better handling of peer dependencies
+auto-install-peers=true
+
+# Ensures pnpm uses standard symlinks
+symlink=true

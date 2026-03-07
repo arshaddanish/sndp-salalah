@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "prepare": "husky",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "preinstall": "npx only-allow pnpm"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -49,5 +50,10 @@
     "secretlint": "^11.3.1",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": "^25.4.0",
+    "pnpm": ">=10.0.0"
   }
 }
