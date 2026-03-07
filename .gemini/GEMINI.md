@@ -32,3 +32,36 @@ This file contains repository-specific instructions for the Antigravity AI assis
 - Always use `camelCase` for variables/functions and `PascalCase` for React components.
 - Database columns/tables should be strictly `snake_case`.
 - Prefer Server Actions over API Routes (`/api`) unless building a public webhook.
+
+## 5. File & Folder Conventions
+
+- **Pages**: `app/(portal)/[feature]/page.tsx` (Server Components)
+- **Components**: `src/components/ui/` (reusable) and `src/components/features/` (domain-specific)
+- **Server Actions**: `src/lib/actions/[feature].ts`
+- **DB Schema**: `src/lib/db/schema.ts`
+- **DB Connection**: `src/lib/db/index.ts`
+- **Validations**: `src/lib/validations/[feature].ts`
+- **Auth Config**: `src/lib/auth/index.ts`
+- **Types**: `src/types/[feature].ts`
+
+## 6. Error Handling Pattern
+
+- Server Actions must return `{ success: boolean; error?: string; data?: T }`.
+- Never throw from Server Actions; always return structured responses.
+- Use try/catch with Drizzle for database-level constraint violations (e.g., unique `civil_id_no`).
+- Log errors server-side with `console.error()` before returning the user-friendly message.
+
+## 7. Next.js Patterns
+
+- **Server Components are the default.** Never add `'use client'` unless the component needs interactivity (forms, click handlers, dropdowns, modals).
+- **Data fetching happens in Server Components** — use Drizzle queries directly. Never use `useEffect` + `fetch` for data that can be loaded server-side.
+- **Mutations use Server Actions** — defined in `src/lib/actions/` with `'use server'` directive. Call `revalidatePath()` after every mutation.
+- **Client Components should be small** — extract only the interactive part into a Client Component in `src/components/`, pass server-fetched data as props.
+- **Metadata exports** — every page must export a `metadata` object with `title` and `description` for SEO.
+
+## 8. UI & Design Rules
+
+- **CRITICAL:** Before building ANY UI component, you MUST read `docs/DESIGN.md`. This file contains the color palette, typography, component patterns, and anti-patterns.
+- Use semantic color tokens (e.g., `--color-accent`, `--color-danger`) — never raw Tailwind colors.
+- Use `Inter` font via `next/font/google` — not the default Geist fonts.
+- Use `lucide-react` for icons — no other icon library.
