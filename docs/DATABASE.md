@@ -29,6 +29,7 @@ Based on the new requirements (Finance Module, Membership Duplicate Prevention, 
 erDiagram
     users {
         text id PK "cuid()"
+        text username UK "Admin login"
         text email UK
         text name
         text password_hash
@@ -208,7 +209,8 @@ _(Standard Auth.js table for Admin access and session management. Included to sh
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `text` | PK, `cuid()` | |
-| `email` | `text` | UNIQUE, NOT NULL | Admin login |
+| `username` | `text` | UNIQUE, NOT NULL | Admin login |
+| `email` | `text` | UNIQUE, NOT NULL | |
 | `password_hash` | `text` | NOT NULL | bcrypt/argon2 hash |
 | `role_id` | `text` | FK → roles, NOT NULL | Links to RBAC system |
 | `created_at` | `timestamp` | NOT NULL | |
