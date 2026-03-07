@@ -15,7 +15,7 @@ We chose **PostgreSQL 16** as the primary database.
 1.  **Strict Data Integrity**: PostgreSQL provides superior support for unique constraints (e.g., `civil_id_no`), foreign keys, and ACID compliance, which are critical for financial data.
 2.  **Unified Ledger Pattern**: The requirement for a chronological statement list of all income and expenses is best served by a relational model with efficient indexing on date and amount.
 3.  **Drizzle ORM Compatibility**: PostgreSQL has excellent support in Drizzle ORM, allowing for a SQL-first approach with full Type Safety.
-4.  **Ecological support**: PostgreSQL is widely supported on platforms like Vercel (via Neon) and has a vast ecosystem of tools for migration and monitoring.
+4.  **Ecosystem support**: PostgreSQL is widely supported on platforms like Vercel (via Neon) and has a vast ecosystem of tools for migration and monitoring.
 
 ## Consequences
 
