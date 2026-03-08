@@ -14,7 +14,6 @@ export function LoginForm() {
     e.preventDefault();
     setIsLoading(true);
 
-    // eslint-disable-next-line
     // TODO: Replace this mock authentication with real auth flow:
     // 1. Validate form inputs (username, password) from the form elements
     // 2. Call your authentication endpoint/service:

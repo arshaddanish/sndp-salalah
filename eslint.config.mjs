@@ -9,7 +9,13 @@ import sonarjs from "eslint-plugin-sonarjs";
 const eslintConfig = defineConfig([
   js.configs.recommended,
 
-  sonarjs.configs.recommended,
+  {
+    ...sonarjs.configs.recommended,
+    rules: {
+      ...sonarjs.configs.recommended.rules,
+      "sonarjs/todo-tag": "warn"
+    }
+  },
 
   ...nextVitals,
   ...nextTs,
