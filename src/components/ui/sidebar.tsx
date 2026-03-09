@@ -52,6 +52,7 @@ export function Sidebar() {
 
       <div className="border-border border-t p-4">
         <button className="text-text-secondary hover:bg-surface-hover hover:text-text-primary group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors">
+          {/* TODO: Add logout functionality */}
           <LogOut className="text-text-secondary group-hover:text-text-primary h-4 w-4 shrink-0" />
           Logout
         </button>

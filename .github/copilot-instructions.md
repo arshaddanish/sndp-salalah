@@ -19,6 +19,7 @@ This file contains repository-specific instructions for the GitHub Copilot assis
 - **Database ORM:** Drizzle ORM (PostgreSQL).
 - **Authentication:** Auth.js v5 (Credentials Provider).
 - **Validation:** Zod (always validate env vars and form inputs).
+  > **Note:** Some of these dependencies are planned and will be installed progressively as features are built out.
 
 ## 3. Database Design Rules
 
@@ -83,8 +84,8 @@ This file contains repository-specific instructions for the GitHub Copilot assis
 
 ## 11. Collaboration Workflow
 
-- Always use `manage_todo_list` for multi-step tasks to track progress.
+- Track multi-step tasks explicitly.
 - Confirm file edits and implementation details before proceeding.
-- Use parallel tool calls for independent operations (read multiple files simultaneously).
+- Batch independent reads/operations when tooling supports it.
 - Provide brief, fact-based updates on completed work.
 - Stop implementation only when the task is fully complete.
