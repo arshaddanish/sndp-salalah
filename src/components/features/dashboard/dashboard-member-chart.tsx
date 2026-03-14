@@ -6,10 +6,10 @@ import { Card } from '@/components/ui/card';
 import type { MemberStatusData } from '@/types/dashboard';
 
 const COLORS = {
-  active: '#10b981', // green (success)
-  nearExpiry: '#f59e0b', // orange (warning)
-  expired: '#ef4444', // red (danger)
-  lifetime: '#8b5cf6', // purple (lifetime)
+  active: 'var(--color-success)',
+  nearExpiry: 'var(--color-warning)',
+  expired: 'var(--color-danger)',
+  lifetime: 'var(--color-lifetime)',
 };
 
 interface PieLabelProps {
@@ -96,7 +96,9 @@ export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData
           <div className="text-text-secondary mb-1 text-[10px] font-medium tracking-wider uppercase">
             Lifetime
           </div>
-          <div className="text-accent text-sm font-semibold">{data.lifetime.toLocaleString()}</div>
+          <div className="text-lifetime text-sm font-semibold">
+            {data.lifetime.toLocaleString()}
+          </div>
         </div>
       </div>
     </Card>
