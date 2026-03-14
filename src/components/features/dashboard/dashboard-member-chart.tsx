@@ -71,6 +71,21 @@ export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData
         </PieChart>
       </ResponsiveContainer>
 
+      <div className="sr-only" aria-live="polite">
+        <h4>Member Status Distribution</h4>
+        <ul>
+          {chartData.map((item) => {
+            const total = data.active + data.nearExpiry + data.expired + data.lifetime;
+            const percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
+            return (
+              <li key={item.name}>
+                {item.name}: {item.value.toLocaleString()} members ({percentage}%)
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
       <div className="border-border mt-4 grid grid-cols-4 gap-2 border-t pt-4">
         <div>
           <div className="text-text-secondary mb-1 text-[10px] font-medium tracking-wider uppercase">
