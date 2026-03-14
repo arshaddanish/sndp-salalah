@@ -25,7 +25,7 @@ This file contains repository-specific instructions for the Antigravity AI assis
 - Follow the "Unified Ledger Pattern" for finances (use the `transactions` table).
 - Enforce strict uniqueness (e.g., `civil_id_no`) at the database level.
 - Do not store computed statuses (e.g., Active/Expired). Derive them dynamically (e.g., `expiry > CURRENT_DATE`).
-- Use strict financial precision (`numeric(10,2)`) for all money values.
+- Use strict ISO precision (`numeric(10,3)`) for all OMR monetary values. Display with 0 decimals on Dashboard/Summaries for visual clarity, but maintain 3 decimals in detailed transaction lists.
 
 ## 4. Code Quality & Formatting
 

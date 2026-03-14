@@ -3,23 +3,25 @@
 @theme inline {
   --font-sans: var(--font-inter);
 
-  --color-bg: #f8f8f8;
+  --color-bg: #f4f4f5;
   --color-surface: #ffffff;
-  --color-surface-hover: #f3f3f3;
+  --color-surface-hover: #f4f4f5;
   --color-surface-raised: #ffffff;
-  --color-border: #e5e5e5;
-
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #6b7280;
-  --color-text-muted: #9ca3af;
-  --color-text-on-dark: #f5f5f5;
-  --color-text-on-dark-secondary: #a0a0a0;
-
-  --color-accent: #d4940a;
-  --color-accent-hover: #b87d08;
-  --color-accent-light: #fff8e7;
-  --color-accent-subtle: rgba(212, 148, 10, 0.1);
-  --color-accent-border: rgba(212, 148, 10, 0.3);
+  --color-border: #e4e4e7;
+  --color-text-primary: #18181b;
+  --color-text-secondary: #52525b;
+  --color-text-muted: #a1a1aa;
+  --color-text-on-dark: #fafafa;
+  --color-text-on-dark-secondary: #d4d4d8;
+  --color-accent: #f59e0b;
+  --color-accent-hover: #d97706;
+  --color-accent-light: #fef3c7;
+  --color-accent-subtle: rgba(245, 158, 11, 0.15);
+  --color-accent-border: rgba(245, 158, 11, 0.3);
+  --color-sidebar-bg: #ffffff;
+  --color-sidebar-text-primary: #18181b;
+  --color-sidebar-text-secondary: #52525b;
+  --color-sidebar-hover-bg: #f4f4f5;
 
   --color-success: #16a34a;
   --color-success-bg: #f0fdf4;
