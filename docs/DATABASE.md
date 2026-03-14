@@ -108,7 +108,7 @@ erDiagram
 
     transactions {
         text id PK "cuid()"
-        numeric amount "DECIMAL(10,2)"
+        numeric amount "DECIMAL(10,3)"
         text type "ENUM: income, expense"
         text category_id FK "→ transaction_categories"
         text payment_mode "Cash, Bank Transfer, etc."
@@ -166,7 +166,7 @@ erDiagram
 | `id`               | `text`          | PK, `cuid()`                |                                                     |
 | `type`             | `text`          | NOT NULL                    | `income` or `expense`                               |
 | `category_id`      | `text`          | FK → transaction_categories | Links to dynamic category                           |
-| `amount`           | `numeric(10,2)` | NOT NULL                    | Strict financial precision                          |
+| `amount`           | `numeric(10,3)` | NOT NULL                    | Strict financial precision                          |
 | `transaction_date` | `date`          | NOT NULL                    | For chronological statement list                    |
 | `payment_mode`     | `text`          | NOT NULL                    | **`cash` or `bank` (Vital for Liquidity Tracking)** |
 | `paid_to`          | `text`          | nullable                    | Name of vendor/person (used if expense)             |
