@@ -1,6 +1,6 @@
-# AI Developer Instructions (COPILOT.md)
+# AI Developer Instructions (AGENTS.md)
 
-This file contains repository-specific instructions for the GitHub Copilot assistant. These rules must be followed across all sessions and tasks.
+This file contains repository-specific instructions for the Codex agent. These rules must be followed across all sessions and tasks.
 
 ## 1. Documentation-First Approach (Proactive Updates)
 
