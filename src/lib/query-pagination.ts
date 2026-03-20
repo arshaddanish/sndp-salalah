@@ -24,7 +24,7 @@ const parsePositiveInt = (value: string | null | undefined, fallback: number) =>
     return fallback;
   }
 
-  return parsed;
+  return Math.floor(parsed);
 };
 
 export function normalizePagination(

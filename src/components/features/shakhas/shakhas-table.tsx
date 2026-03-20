@@ -30,6 +30,7 @@ const columns: ColumnDef<Shakha>[] = [
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Edit shakha"
               className="text-accent hover:text-accent-hover hover:bg-accent-subtle h-8 w-8"
               // TODO: Replace console.log with actual edit logic (e.g., open edit modal or navigate to edit page)
               onClick={() => {
@@ -43,7 +44,8 @@ const columns: ColumnDef<Shakha>[] = [
             <Button
               variant="ghost"
               size="icon"
-              className="text-danger hover:bg-danger-bg h-8 w-8 hover:text-red-700"
+              aria-label="Delete shakha"
+              className="text-danger hover:bg-danger-bg hover:text-danger h-8 w-8"
               // TODO: Replace console.log with actual delete logic (e.g., open confirmation dialog and call delete API)
               onClick={() => {
                 if (confirm('Are you sure you want to delete this shakha?')) {

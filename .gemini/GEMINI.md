@@ -58,10 +58,18 @@ This file contains repository-specific instructions for the Antigravity AI assis
 - **Mutations use Server Actions** — defined in `src/lib/actions/` with `'use server'` directive. Call `revalidatePath()` after every mutation.
 - **Client Components should be small** — extract only the interactive part into a Client Component in `src/components/`, pass server-fetched data as props.
 - **Metadata exports** — every page must export a `metadata` object with `title` and `description` for SEO.
+- **Metadata reminder** - before finishing any new or updated page, confirm `export const metadata` is present near the top of the module to avoid review comments.
 
 ## 8. UI & Design Rules
+
+- Accessibility: icon-only buttons must include descriptive `aria-label` text.
+- Accessibility: form controls must have associated labels (use <label htmlFor>, aria-labelledby, or aria-label).
 
 - **CRITICAL:** Before building ANY UI component, you MUST read `docs/DESIGN.md`. This file contains the color palette, typography, component patterns, and anti-patterns.
 - Use semantic color tokens (e.g., `--color-accent`, `--color-danger`) — never raw Tailwind colors.
 - Use `Inter` font via `next/font/google` — not the default Geist fonts.
 - Use `lucide-react` for icons — no other icon library.
+
+## 9. Instruction Sync
+
+- Instruction sync - keep AGENTS.md, .github/copilot-instructions.md, and .gemini/GEMINI.md aligned; when updating one, update all three.

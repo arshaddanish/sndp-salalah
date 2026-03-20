@@ -8,6 +8,10 @@ import { normalizePagination } from '@/lib/query-pagination';
 import type { ListShakhasRequest } from '@/types/filters/shakhas';
 
 export const dynamic = 'force-dynamic';
+export const metadata = {
+  title: 'Shakhas | SNDP Salalah',
+  description: 'Manage shakha records in the SNDP Salalah portal',
+};
 
 export default async function ShakhasPage({
   searchParams,
@@ -25,6 +29,7 @@ export default async function ShakhasPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-text-primary text-2xl font-bold">Shakhas</h1>
+        {/* TODO: Implement add shakha form */}
         <Button size="sm">
           <Plus />
           Add Shakha

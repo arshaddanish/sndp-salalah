@@ -21,8 +21,6 @@ export type PaginationState = {
  * @param pageSize Items per page
  * @param totalCount Total count after filters (from API/server action)
  * @returns Normalized pagination state for table components
- *
- * ```
  */
 export function calculatePaginationState(
   page: number,
