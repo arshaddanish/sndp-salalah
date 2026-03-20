@@ -7,7 +7,7 @@
  * All paginated endpoints should return data in this format
  */
 export type PaginationResponse<T> = {
-  data: T[];
+  items: T[];
   totalCount: number;
 };
 

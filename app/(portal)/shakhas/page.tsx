@@ -21,9 +21,14 @@ export default async function ShakhasPage({
   const resolvedSearchParams = (await searchParams) ?? {};
   const { page, pageSize } = normalizePagination(resolvedSearchParams);
 
-  const { data: paginatedRows, totalCount } = await fetchShakhas(page, pageSize);
+  const shakhasResult = await fetchShakhas(page, pageSize);
+  const paginatedRows = shakhasResult.success ? (shakhasResult.data?.items ?? []) : [];
+  const totalCount = shakhasResult.success ? (shakhasResult.data?.totalCount ?? 0) : 0;
 
   const { totalRows, pageCount, pageIndex } = calculatePaginationState(page, pageSize, totalCount);
+  const errorMessage = shakhasResult.success
+    ? null
+    : (shakhasResult.error ?? 'Unable to load shakhas. Please try again.');
 
   return (
     <div className="space-y-6">
@@ -35,6 +40,8 @@ export default async function ShakhasPage({
           Add Shakha
         </Button>
       </div>
+
+      {errorMessage ? <p className="text-danger text-sm">{errorMessage}</p> : null}
 
       <ShakhasTable
         rows={paginatedRows}
