@@ -47,7 +47,7 @@ This file contains repository-specific instructions for the Antigravity AI assis
 ## 6. Error Handling Pattern
 
 - Server Actions must return `{ success: boolean; error?: string; data?: T }`.
-- Never throw from Server Actions; always return structured responses.
+- Allow framework control-flow throws such as `redirect()` / `notFound()`, and let unexpected failures surface to the route's error handling.
 - Use try/catch with Drizzle for database-level constraint violations (e.g., unique `civil_id_no`).
 - Log errors server-side with `console.error()` before returning the user-friendly message.
 
