@@ -2,15 +2,18 @@
 
 import { type ColumnDef } from '@tanstack/react-table';
 import { Edit2, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
-import { type Shakha } from '@/lib/mock-data/shakhas';
+import { type ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
 import type { PaginatedTableProps } from '@/types/pagination';
 
-const columns: ColumnDef<Shakha>[] = [
+import { EditShakhaDialog } from './edit-shakha-dialog';
+
+const columns: ColumnDef<ShakhaWithMemberCount>[] = [
   {
     id: 'serial',
     header: 'S.No',
@@ -21,46 +24,67 @@ const columns: ColumnDef<Shakha>[] = [
     header: 'Shakha',
   },
   {
+    accessorKey: 'memberCount',
+    header: 'Members',
+    cell: ({ row }) => (
+      <span className="text-text-secondary text-sm font-medium">{row.original.memberCount}</span>
+    ),
+  },
+  {
     id: 'actions',
     header: () => <div className="text-right whitespace-nowrap">Actions</div>,
     cell: ({ row }) => {
-      return (
-        <div className="flex justify-end gap-2 sm:gap-4">
-          <Tooltip content="Edit Shakha">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Edit shakha"
-              className="text-accent hover:text-accent-hover hover:bg-accent-subtle h-8 w-8"
-              // TODO: Replace console.log with actual edit logic (e.g., open edit modal or navigate to edit page)
-              onClick={() => {
-                console.log('Edit', row.original.id);
-              }}
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Delete Shakha">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete shakha"
-              className="text-danger hover:bg-danger-bg hover:text-danger h-8 w-8"
-              // TODO: Replace console.log with actual delete logic (e.g., open confirmation dialog and call delete API)
-              onClick={() => {
-                if (confirm('Are you sure you want to delete this shakha?')) {
-                  console.log('Delete', row.original.id);
-                }
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </Tooltip>
-        </div>
-      );
+      return <ShakhaRowActions shakha={row.original} />;
     },
   },
 ];
+
+/**
+ * Row-level actions for each shakha (edit/delete)
+ */
+function ShakhaRowActions({ shakha }: Readonly<{ shakha: ShakhaWithMemberCount }>) {
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  return (
+    <>
+      <div className="flex justify-end gap-2 sm:gap-4">
+        <Tooltip content="Edit Shakha">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Edit shakha"
+            className="text-accent hover:text-accent-hover hover:bg-accent-subtle h-8 w-8"
+            onClick={() => setIsEditDialogOpen(true)}
+          >
+            <Edit2 className="h-4 w-4" />
+          </Button>
+        </Tooltip>
+        <Tooltip content="Delete Shakha">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Delete shakha"
+            className="text-danger hover:bg-danger-bg hover:text-danger h-8 w-8"
+            onClick={() => {
+              // TODO: Implement delete shakha action with confirmation and DB call
+              if (confirm('Are you sure you want to delete this shakha?')) {
+                console.log('Delete', shakha.id);
+              }
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </Tooltip>
+      </div>
+
+      <EditShakhaDialog
+        shakha={shakha}
+        isOpen={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+      />
+    </>
+  );
+}
 
 /**
  * Shakhas Table Component
@@ -73,7 +97,7 @@ export function ShakhasTable({
   pageSize,
   pageIndex,
   pageCount,
-}: Readonly<PaginatedTableProps<Shakha>>) {
+}: Readonly<PaginatedTableProps<ShakhaWithMemberCount>>) {
   const { onPaginationChange, isPending } = useQueryPagination({
     page: pageIndex + 1,
     pageSize,

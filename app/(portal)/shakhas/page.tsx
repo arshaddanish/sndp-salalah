@@ -10,7 +10,7 @@ import type { ListShakhasRequest } from '@/types/filters/shakhas';
 export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Shakhas | SNDP Salalah',
-  description: 'Manage shakha records in the SNDP Salalah portal',
+  description: 'Manage shakhas (branches) and view assigned member counts',
 };
 
 export default async function ShakhasPage({
