@@ -73,7 +73,7 @@ export function DataTable<TData, TValue>({
   const currentPageSize = currentPagination.pageSize;
   const currentPageIndex = currentPagination.pageIndex;
   const totalRows = manualPagination
-    ? (rowCount ?? table.getPageCount() * currentPageSize)
+    ? (rowCount ?? Math.max(0, table.getPageCount() * currentPageSize))
     : table.getFilteredRowModel().rows.length;
 
   const setPageIndex = (nextPageIndex: number) => {
