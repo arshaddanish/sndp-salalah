@@ -171,8 +171,11 @@ export function DataTable<TData, TValue>({
             {isLoading ? <Skeleton className="h-4 w-16" /> : `Total: ${totalRows}`}
           </div>
           <div className="border-border flex items-center gap-2 border-l pl-4">
-            <span className="text-text-muted hidden sm:inline">Rows per page</span>
+            <label htmlFor="rows-per-page-select" className="text-text-muted hidden sm:inline">
+              Rows per page
+            </label>
             <select
+              id="rows-per-page-select"
               value={currentPageSize}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
