@@ -232,8 +232,8 @@ export function DataTable<TData, TValue>({
             <Button
               variant="secondary"
               className="hidden h-8 w-8 items-center justify-center p-0 lg:flex"
-              onClick={() => setPageIndex(table.getPageCount() - 1)}
-              disabled={!table.getCanNextPage() || isLoading}
+              onClick={() => setPageIndex(Math.max(0, table.getPageCount() - 1))}
+              disabled={!table.getCanNextPage() || isLoading || table.getPageCount() < 1}
             >
               <span className="sr-only">Go to last page</span>
               <ChevronsRight className="h-4 w-4" />
