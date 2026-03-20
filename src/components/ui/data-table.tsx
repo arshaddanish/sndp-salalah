@@ -197,7 +197,7 @@ export function DataTable<TData, TValue>({
               <Skeleton className="ml-auto h-4 w-20" />
             ) : (
               <>
-                Page {currentPageIndex + 1} of {table.getPageCount() || 1}
+                Page {currentPageIndex + 1} of {Math.max(1, table.getPageCount())}
               </>
             )}
           </div>
