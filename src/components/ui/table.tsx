@@ -3,11 +3,35 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full h-full overflow-auto rounded-lg border border-border">
-      <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
-    </div>
-  ),
+  ({ className, children, ...props }, ref) => {
+    const childElements = React.Children.toArray(children) as React.ReactElement[];
+    const hasHeader = childElements.some((child) => {
+      if (!React.isValidElement(child)) {
+        return false;
+      }
+
+      if (typeof child.type === 'string') {
+        return child.type === 'thead';
+      }
+
+      return (child.type as { displayName?: string }).displayName === 'TableHeader';
+    });
+
+    return (
+      <div className="border-border relative h-full w-full overflow-auto rounded-lg border">
+        <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props}>
+          {!hasHeader ? (
+            <thead className="sr-only">
+              <tr>
+                <th scope="col">Data</th>
+              </tr>
+            </thead>
+          ) : null}
+          {children}
+        </table>
+      </div>
+    );
+  },
 );
 Table.displayName = 'Table';
 
@@ -15,7 +39,14 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn('bg-surface-hover sticky top-0 z-10 shadow-[0_1px_0_0_rgba(0,0,0,0.05)] border-b border-border', className)} {...props} />
+  <thead
+    ref={ref}
+    className={cn(
+      'bg-surface-hover border-border sticky top-0 z-10 border-b shadow-[0_1px_0_0_rgba(0,0,0,0.05)]',
+      className,
+    )}
+    {...props}
+  />
 ));
 TableHeader.displayName = 'TableHeader';
 
@@ -65,4 +96,4 @@ const TableCell = React.forwardRef<
 ));
 TableCell.displayName = 'TableCell';
 
-export { Table, TableBody, TableCell,TableHead, TableHeader, TableRow };
+export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow };
