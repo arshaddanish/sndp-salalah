@@ -87,7 +87,13 @@ This file contains repository-specific instructions for the GitHub Copilot assis
 - Add comments only for non-obvious logic.
 - Use meaningful variable and function names that self-document the code.
 
-## 11. Collaboration Workflow
+## 11. Generic CRUD UX Rules
+
+- **Edit dialog dirty state:** Primary action (Save/Update) must remain disabled until the form is dirty (at least one meaningful value changed).
+- **Pending mutation close lock:** While create/update/delete is pending, dialogs must block all close paths: Cancel button, close icon, overlay click, and Escape key.
+- **Keyboard parity in edit flows:** Prefer `<form onSubmit>` for edit dialogs so Enter key submits consistently.
+
+## 12. Collaboration Workflow
 
 - Track multi-step tasks explicitly.
 - Confirm file edits and implementation details before proceeding.

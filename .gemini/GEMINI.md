@@ -75,3 +75,9 @@ This file contains repository-specific instructions for the Antigravity AI assis
 ## 9. Instruction Sync
 
 - Instruction sync - keep AGENTS.md, .github/copilot-instructions.md, and .gemini/GEMINI.md aligned; when updating one, update all three.
+
+## 10. Generic CRUD UX Rules
+
+- **Edit dialog dirty state:** Primary action (Save/Update) must remain disabled until the form is dirty (at least one meaningful value changed).
+- **Pending mutation close lock:** While create/update/delete is pending, dialogs must block all close paths: Cancel button, close icon, overlay click, and Escape key.
+- **Keyboard parity in edit flows:** Prefer `<form onSubmit>` for edit dialogs so Enter key submits consistently.
