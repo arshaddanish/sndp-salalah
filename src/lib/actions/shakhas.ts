@@ -109,8 +109,7 @@ export async function updateShakha(
       };
     }
 
-    const currentNormalizedName = normalizeShakhaName(MOCK_SHAKHAS[shakhaIndex]!.name);
-    if (normalizedName === currentNormalizedName) {
+    if (sanitizedName === MOCK_SHAKHAS[shakhaIndex]!.name) {
       const unchangedShakha = MOCK_SHAKHAS[shakhaIndex]!;
       return {
         success: true,
