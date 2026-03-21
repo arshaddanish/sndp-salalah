@@ -67,14 +67,19 @@ export function EditShakhaDialog({
     }
 
     startTransition(async () => {
-      const result = await updateShakha(shakha.id, newName);
+      try {
+        const result = await updateShakha(shakha.id, name);
 
-      if (!result.success) {
-        setError(result.error || 'Failed to update shakha');
-        return;
+        if (!result.success) {
+          setError(result.error || 'Failed to update shakha');
+          return;
+        }
+
+        onOpenChange(false);
+      } catch (error) {
+        console.error('Error invoking updateShakha:', error);
+        setError('Failed to update shakha');
       }
-
-      onOpenChange(false);
     });
   };
 
