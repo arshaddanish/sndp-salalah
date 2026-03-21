@@ -32,7 +32,7 @@ export function EditShakhaDialog({
   const [isPending, startTransition] = useTransition();
 
   const hasMembers = shakha.memberCount > 0;
-  const nameHasChanged = name !== shakha.name;
+  const nameHasChanged = name.trim() !== shakha.name.trim();
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
     if (isPending && !nextOpen) {
@@ -68,8 +68,7 @@ export function EditShakhaDialog({
 
     startTransition(async () => {
       try {
-        const result = await updateShakha(shakha.id, name);
-
+        const result = await updateShakha(shakha.id, newName);
         if (!result.success) {
           setError(result.error || 'Failed to update shakha');
           return;
