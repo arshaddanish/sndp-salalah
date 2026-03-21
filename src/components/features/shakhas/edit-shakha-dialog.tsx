@@ -88,11 +88,14 @@ export function EditShakhaDialog({
 
         <div className="space-y-4">
           <div className="space-y-1.5 text-left">
-            <label className="text-text-secondary text-sm font-medium" htmlFor="shakha-name">
+            <label
+              className="text-text-secondary text-sm font-medium"
+              htmlFor={`shakha-name-${shakha.id}`}
+            >
               Shakha Name
             </label>
             <Input
-              id="shakha-name"
+              id={`shakha-name-${shakha.id}`}
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
