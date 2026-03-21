@@ -109,6 +109,18 @@ export async function updateShakha(
       };
     }
 
+    const currentNormalizedName = normalizeShakhaName(MOCK_SHAKHAS[shakhaIndex]!.name);
+    if (normalizedName === currentNormalizedName) {
+      const unchangedShakha = MOCK_SHAKHAS[shakhaIndex]!;
+      return {
+        success: true,
+        data: {
+          ...unchangedShakha,
+          memberCount: countMembersForShakha(shakhaId),
+        },
+      };
+    }
+
     const hasDuplicateName = MOCK_SHAKHAS.some(
       (shakha) => shakha.id !== shakhaId && normalizeShakhaName(shakha.name) === normalizedName,
     );
@@ -126,7 +138,6 @@ export async function updateShakha(
     revalidatePath('/shakhas');
 
     const updatedShakha = MOCK_SHAKHAS[shakhaIndex]!;
-    revalidatePath('/shakhas');
     return {
       success: true,
       data: {
