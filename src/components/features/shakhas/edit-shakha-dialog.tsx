@@ -42,8 +42,8 @@ export function EditShakhaDialog({
     onOpenChange(nextOpen);
   };
 
-  const handleValidation = () => {
-    const result = shakhaNameSchema.safeParse({ name });
+  const handleValidation = (nextName: string) => {
+    const result = shakhaNameSchema.safeParse({ name: nextName });
     if (!result.success) {
       const firstError = result.error.issues[0];
       setError(firstError?.message || 'Validation failed');
@@ -52,20 +52,22 @@ export function EditShakhaDialog({
     return true;
   };
 
-  const handleSave = () => {
+  const handleSaveForm = (formData: FormData) => {
     setError(null);
 
-    if (!handleValidation()) {
+    if (isPending || isSaveDisabled) {
       return;
     }
 
-    if (!nameHasChanged) {
-      onOpenChange(false);
+    const rawName = formData.get('name');
+    const newName = typeof rawName === 'string' ? rawName : '';
+
+    if (!handleValidation(newName)) {
       return;
     }
 
     startTransition(async () => {
-      const result = await updateShakha(shakha.id, name);
+      const result = await updateShakha(shakha.id, newName);
 
       if (!result.success) {
         setError(result.error || 'Failed to update shakha');
@@ -86,13 +88,20 @@ export function EditShakhaDialog({
           <DialogTitle>Edit Shakha</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleSaveForm(new FormData(event.currentTarget));
+          }}
+        >
           <div className="space-y-1.5 text-left">
             <label className="text-text-secondary text-sm font-medium" htmlFor="shakha-name">
               Shakha Name
             </label>
             <Input
               id="shakha-name"
+              name="name"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -117,6 +126,7 @@ export function EditShakhaDialog({
               <label className="mt-3 flex cursor-pointer items-center gap-2">
                 <input
                   type="checkbox"
+                  name="confirm"
                   checked={confirmationChecked}
                   onChange={(e) => setConfirmationChecked(e.target.checked)}
                   disabled={isPending}
@@ -129,20 +139,20 @@ export function EditShakhaDialog({
               </label>
             </div>
           )}
-        </div>
-
-        <DialogFooter>
-          <Button
-            variant="secondary"
-            onClick={() => handleDialogOpenChange(false)}
-            disabled={isPending}
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={isSaveDisabled}>
-            {isPending ? 'Saving...' : 'Save'}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => handleDialogOpenChange(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaveDisabled}>
+              {isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
