@@ -1,12 +1,18 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { MOCK_MEMBERS } from '@/lib/mock-data/members';
 import { MOCK_SHAKHAS, type ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
-import { updateShakhaSchema } from '@/lib/validations/shakhas';
+import {
+  createShakhaSchema,
+  deleteShakhaSchema,
+  updateShakhaSchema,
+} from '@/lib/validations/shakhas';
 import type { ActionResult } from '@/types/actions';
 import type { PaginationResponse } from '@/types/pagination';
 
-// TODO: Replace the mock data logic with actual DB integration
+// Scaffolded mock-data implementation; replace with DB integration when persistence layer is available.
 
 /**
  * Count members assigned to a specific shakha
@@ -15,6 +21,19 @@ import type { PaginationResponse } from '@/types/pagination';
  */
 function countMembersForShakha(shakhaId: string): number {
   return MOCK_MEMBERS.filter((member) => member.shakha_id === shakhaId).length;
+}
+
+function normalizeShakhaName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function getNextShakhaId(): string {
+  const maxId = MOCK_SHAKHAS.reduce((currentMax, shakha) => {
+    const parsedId = Number.parseInt(shakha.id, 10);
+    return Number.isNaN(parsedId) ? currentMax : Math.max(currentMax, parsedId);
+  }, 0);
+
+  return String(maxId + 1);
 }
 
 /**
@@ -68,7 +87,6 @@ export async function updateShakha(
   newName: string,
 ): Promise<ActionResult<ShakhaWithMemberCount>> {
   try {
-    // Validate input
     const validationResult = updateShakhaSchema.safeParse({ id: shakhaId, name: newName });
 
     if (!validationResult.success) {
@@ -79,7 +97,9 @@ export async function updateShakha(
       };
     }
 
-    // Find the shakha in mock data
+    const sanitizedName = validationResult.data.name;
+    const normalizedName = normalizeShakhaName(sanitizedName);
+
     const shakhaIndex = MOCK_SHAKHAS.findIndex((s) => s.id === shakhaId);
 
     if (shakhaIndex === -1) {
@@ -89,11 +109,22 @@ export async function updateShakha(
       };
     }
 
-    // Update the shakha name (mock implementation - modifies in-place)
-    MOCK_SHAKHAS[shakhaIndex]!.name = newName;
+    const hasDuplicateName = MOCK_SHAKHAS.some(
+      (shakha) => shakha.id !== shakhaId && normalizeShakhaName(shakha.name) === normalizedName,
+    );
+
+    if (hasDuplicateName) {
+      return {
+        success: false,
+        error: 'A shakha with this name already exists.',
+      };
+    }
+
+    MOCK_SHAKHAS[shakhaIndex]!.name = sanitizedName;
     MOCK_SHAKHAS[shakhaIndex]!.updated_at = new Date();
 
-    // Return the updated shakha with member count
+    revalidatePath('/shakhas');
+
     const updatedShakha = MOCK_SHAKHAS[shakhaIndex]!;
     return {
       success: true,
@@ -107,6 +138,119 @@ export async function updateShakha(
     return {
       success: false,
       error: 'An unexpected error occurred while updating the shakha',
+    };
+  }
+}
+
+/**
+ * Create a new shakha with zero assigned members
+ *
+ * @param name name of the new shakha
+ * @returns ActionResult with created shakha data or error message
+ */
+export async function createShakha(name: string): Promise<ActionResult<ShakhaWithMemberCount>> {
+  try {
+    const validationResult = createShakhaSchema.safeParse({ name });
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message || 'Invalid input',
+      };
+    }
+
+    const sanitizedName = validationResult.data.name;
+    const normalizedName = normalizeShakhaName(sanitizedName);
+    const hasDuplicateName = MOCK_SHAKHAS.some(
+      (shakha) => normalizeShakhaName(shakha.name) === normalizedName,
+    );
+
+    if (hasDuplicateName) {
+      return {
+        success: false,
+        error: 'A shakha with this name already exists.',
+      };
+    }
+
+    const createdShakha: ShakhaWithMemberCount = {
+      id: getNextShakhaId(),
+      name: sanitizedName,
+      created_at: new Date(),
+      updated_at: new Date(),
+      memberCount: 0,
+    };
+
+    MOCK_SHAKHAS.unshift({
+      id: createdShakha.id,
+      name: createdShakha.name,
+      created_at: createdShakha.created_at,
+      updated_at: createdShakha.updated_at,
+    });
+
+    revalidatePath('/shakhas');
+
+    return {
+      success: true,
+      data: createdShakha,
+    };
+  } catch (error) {
+    console.error('Error creating shakha:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while creating the shakha',
+    };
+  }
+}
+
+/**
+ * Delete a shakha when it has no assigned members
+ *
+ * @param shakhaId ID of the shakha to delete
+ * @returns ActionResult with deleted ID or business error message
+ */
+export async function deleteShakha(shakhaId: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    const validationResult = deleteShakhaSchema.safeParse({ id: shakhaId });
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message || 'Invalid input',
+      };
+    }
+
+    const shakhaIndex = MOCK_SHAKHAS.findIndex((shakha) => shakha.id === shakhaId);
+
+    if (shakhaIndex === -1) {
+      return {
+        success: false,
+        error: 'Shakha not found',
+      };
+    }
+
+    const memberCount = countMembersForShakha(shakhaId);
+    if (memberCount > 0) {
+      return {
+        success: false,
+        error: `This shakha has ${memberCount} assigned member${memberCount === 1 ? '' : 's'}. Delete those members first before deleting this shakha.`,
+      };
+    }
+
+    MOCK_SHAKHAS.splice(shakhaIndex, 1);
+
+    revalidatePath('/shakhas');
+
+    return {
+      success: true,
+      data: { id: shakhaId },
+    };
+  } catch (error) {
+    console.error('Error deleting shakha:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while deleting the shakha',
     };
   }
 }

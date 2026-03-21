@@ -1,7 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { type Dispatch, type SetStateAction, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -19,7 +18,7 @@ import { shakhaNameSchema } from '@/lib/validations/shakhas';
 interface EditShakhaDialogProps {
   shakha: ShakhaWithMemberCount;
   isOpen: boolean;
-  onOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  onOpenChange: Dispatch<SetStateAction<boolean>>;
 }
 
 export function EditShakhaDialog({
@@ -27,7 +26,6 @@ export function EditShakhaDialog({
   isOpen,
   onOpenChange,
 }: Readonly<EditShakhaDialogProps>) {
-  const router = useRouter();
   const [name, setName] = useState(shakha.name);
   const [error, setError] = useState<string | null>(null);
   const [confirmationChecked, setConfirmationChecked] = useState(false);
@@ -66,10 +64,7 @@ export function EditShakhaDialog({
         return;
       }
 
-      // Refresh the list and close dialog on success
-      router.refresh();
       onOpenChange(false);
-      setConfirmationChecked(false);
     });
   };
 

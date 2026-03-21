@@ -58,6 +58,8 @@ This file contains repository-specific instructions for the Codex agent. These r
 - **Data fetching happens in Server Components** — use Drizzle queries directly. Never use `useEffect` + `fetch` for data that can be loaded server-side.
 - **Mutations use Server Actions** — defined in `src/lib/actions/` with `'use server'` directive. Call `revalidatePath()` after every mutation.
 - **Client Components should be small** — extract only the interactive part into a Client Component in `src/components/`, pass server-fetched data as props.
+- **Own temporary UI state at the smallest interactive lifecycle** — for dialogs, drawers, and local forms, prefer dedicated components whose state is created on mount and discarded on unmount.
+- **Prefer lifecycle ownership over reset workarounds** — avoid parent-owned render keys and manual cleanup/reset logic to simulate fresh dialog or form state unless a library constraint makes that unavoidable.
 - **Metadata exports** — every page must export a `metadata` object with `title` and `description` for SEO.
 - **Metadata reminder** - before finishing any new or updated page, confirm `export const metadata` is present near the top of the module to avoid review comments.
 

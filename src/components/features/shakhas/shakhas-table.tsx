@@ -11,6 +11,7 @@ import { useQueryPagination } from '@/hooks/use-query-pagination';
 import { type ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
 import type { PaginatedTableProps } from '@/types/pagination';
 
+import { DeleteShakhaDialog } from './delete-shakha-dialog';
 import { EditShakhaDialog } from './edit-shakha-dialog';
 
 const columns: ColumnDef<ShakhaWithMemberCount>[] = [
@@ -44,6 +45,7 @@ const columns: ColumnDef<ShakhaWithMemberCount>[] = [
  */
 function ShakhaRowActions({ shakha }: Readonly<{ shakha: ShakhaWithMemberCount }>) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   return (
     <>
@@ -65,23 +67,27 @@ function ShakhaRowActions({ shakha }: Readonly<{ shakha: ShakhaWithMemberCount }
             size="icon"
             aria-label="Delete shakha"
             className="text-danger hover:bg-danger-bg hover:text-danger h-8 w-8"
-            onClick={() => {
-              // TODO: Implement delete shakha action with confirmation and DB call
-              if (confirm('Are you sure you want to delete this shakha?')) {
-                console.log('Delete', shakha.id);
-              }
-            }}
+            onClick={() => setIsDeleteDialogOpen(true)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
         </Tooltip>
       </div>
 
-      <EditShakhaDialog
-        shakha={shakha}
-        isOpen={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
-      />
+      {isEditDialogOpen ? (
+        <EditShakhaDialog
+          shakha={shakha}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+        />
+      ) : null}
+      {isDeleteDialogOpen ? (
+        <DeleteShakhaDialog
+          shakha={shakha}
+          isOpen={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+        />
+      ) : null}
     </>
   );
 }
