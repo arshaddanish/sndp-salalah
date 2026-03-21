@@ -126,6 +126,7 @@ export async function updateShakha(
     revalidatePath('/shakhas');
 
     const updatedShakha = MOCK_SHAKHAS[shakhaIndex]!;
+    revalidatePath('/shakhas');
     return {
       success: true,
       data: {
