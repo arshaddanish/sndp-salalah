@@ -34,6 +34,14 @@ export function EditShakhaDialog({
   const hasMembers = shakha.memberCount > 0;
   const nameHasChanged = name !== shakha.name;
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (isPending && !nextOpen) {
+      return;
+    }
+
+    onOpenChange(nextOpen);
+  };
+
   const handleValidation = () => {
     const result = shakhaNameSchema.safeParse({ name });
     if (!result.success) {
@@ -72,7 +80,7 @@ export function EditShakhaDialog({
   const isSaveDisabled = isPending || !isFormValid;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Shakha</DialogTitle>
@@ -124,7 +132,11 @@ export function EditShakhaDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isPending}>
+          <Button
+            variant="secondary"
+            onClick={() => handleDialogOpenChange(false)}
+            disabled={isPending}
+          >
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isSaveDisabled}>

@@ -24,6 +24,14 @@ export function CreateShakhaDialog({ isOpen, onOpenChange }: Readonly<CreateShak
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (isPending && !nextOpen) {
+      return;
+    }
+
+    onOpenChange(nextOpen);
+  };
+
   const handleCreate = () => {
     setError(null);
 
@@ -47,7 +55,7 @@ export function CreateShakhaDialog({ isOpen, onOpenChange }: Readonly<CreateShak
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create Shakha</DialogTitle>
@@ -71,7 +79,11 @@ export function CreateShakhaDialog({ isOpen, onOpenChange }: Readonly<CreateShak
         </div>
 
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isPending}>
+          <Button
+            variant="secondary"
+            onClick={() => handleDialogOpenChange(false)}
+            disabled={isPending}
+          >
             Cancel
           </Button>
           <Button onClick={handleCreate} disabled={isPending}>

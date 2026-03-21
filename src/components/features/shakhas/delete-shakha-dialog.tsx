@@ -30,6 +30,14 @@ export function DeleteShakhaDialog({
 
   const hasMembers = shakha.memberCount > 0;
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (isPending && !nextOpen) {
+      return;
+    }
+
+    onOpenChange(nextOpen);
+  };
+
   const handleDelete = () => {
     setError(null);
 
@@ -53,7 +61,7 @@ export function DeleteShakhaDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{hasMembers ? 'Cannot Delete Shakha' : 'Delete Shakha'}</DialogTitle>
@@ -77,7 +85,11 @@ export function DeleteShakhaDialog({
         {error ? <p className="text-danger text-xs">{error}</p> : null}
 
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isPending}>
+          <Button
+            variant="secondary"
+            onClick={() => handleDialogOpenChange(false)}
+            disabled={isPending}
+          >
             Cancel
           </Button>
           <Button variant="danger" onClick={handleDelete} disabled={isPending || hasMembers}>
