@@ -146,14 +146,33 @@ export async function updateTransactionCategory(
 
     const normalizedNextName = normalizeCategoryName(validationResult.data.name);
     const normalizedCurrentName = normalizeCategoryName(targetCategory.name);
+    const typeHasChanged = validationResult.data.type !== targetCategory.type;
 
-    if (normalizedNextName === normalizedCurrentName) {
+    if (normalizedNextName === normalizedCurrentName && !typeHasChanged) {
       const unchangedCategory = { ...targetCategory };
       return {
         success: true,
         data: unchangedCategory,
       };
     }
+
+    // Only check for duplicate names if name actually changed
+    if (normalizedNextName !== normalizedCurrentName) {
+      const hasDuplicateName = MOCK_TRANSACTION_CATEGORIES.some(
+        (category) =>
+          category.id !== id && normalizeCategoryName(category.name) === normalizedNextName,
+      );
+
+      if (hasDuplicateName) {
+        return {
+          success: false,
+          error: 'A category with this name already exists.',
+        };
+      }
+    }
+
+    targetCategory.name = validationResult.data.name;
+    targetCategory.type = validationResult.data.type;
 
     const hasDuplicateName = MOCK_TRANSACTION_CATEGORIES.some(
       (category) =>
