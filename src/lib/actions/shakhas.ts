@@ -95,6 +95,7 @@ export async function updateShakha(
 
     // Return the updated shakha with member count
     const updatedShakha = MOCK_SHAKHAS[shakhaIndex]!;
+    revalidatePath('/shakhas');
     return {
       success: true,
       data: {
