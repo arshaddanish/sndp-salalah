@@ -2,6 +2,14 @@
 
 export type MemberStatus = 'active' | 'expired' | 'lifetime' | 'near-expiry';
 
+export type MemberFamilyMember = {
+  id: string;
+  name: string;
+  relation: string | null;
+  dob: Date | null;
+  created_at: Date;
+};
+
 export type Member = {
   id: string;
   member_code: number;
@@ -16,20 +24,44 @@ export type Member = {
   blood_group: string | null;
   profession: string | null;
   shakha_id: string;
+  residential_area?: string | null;
+  passport_no?: string | null;
+  address_india?: string | null;
+  tel_no_india?: string | null;
+  is_family_in_oman?: boolean;
+  application_no?: string | null;
+  received_on?: Date | null;
+  submitted_by?: string | null;
+  shakha_india?: string | null;
+  checked_by?: string | null;
+  approved_by?: string | null;
+  president?: string | null;
+  secretary?: string | null;
+  union?: string | null;
+  district?: string | null;
+  family_members?: MemberFamilyMember[];
   expiry: Date | null;
   created_at: Date;
 };
 
 export const getMemberStatus = (expiry: Date | null): MemberStatus => {
   if (!expiry) return 'lifetime';
+
+  // Normalize today to start-of-day for day-granularity comparison
   const today = new Date();
-  if (expiry < today) return 'expired';
+  today.setHours(0, 0, 0, 0);
+
+  // Clone and normalize expiry to start-of-day to avoid mutating caller-provided Date
+  const normalizedExpiry = new Date(expiry);
+  normalizedExpiry.setHours(0, 0, 0, 0);
+
+  if (normalizedExpiry < today) return 'expired';
 
   // Calculate if expiring within 30 days
-  const thirtyDaysFromNow = new Date();
+  const thirtyDaysFromNow = new Date(today);
   thirtyDaysFromNow.setDate(today.getDate() + 30);
 
-  if (expiry <= thirtyDaysFromNow) return 'near-expiry';
+  if (normalizedExpiry <= thirtyDaysFromNow) return 'near-expiry';
 
   return 'active';
 };
@@ -176,7 +208,7 @@ export const MOCK_MEMBERS: Member[] = [
       civil_id_no: (20000000 + id).toString(),
       name:
         names[i % names.length] +
-        (i > names.length ? ` ${String.fromCharCode(65 + (i % 26))}` : ''),
+        (i > names.length ? ` ${String.fromCodePoint(65 + (i % 26))}` : ''),
       dob: new Date(1970 + (i % 30), i % 12, (i % 28) + 1),
       email: `member${id}@example.com`,
       photo_key: null,
