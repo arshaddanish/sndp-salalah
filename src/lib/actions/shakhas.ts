@@ -246,7 +246,7 @@ export async function deleteShakha(shakhaId: string): Promise<ActionResult<{ id:
     if (memberCount > 0) {
       return {
         success: false,
-        error: `This shakha has ${memberCount} assigned member${memberCount === 1 ? '' : 's'}. Delete those members first before deleting this shakha.`,
+        error: `This shakha has ${memberCount} assigned member${memberCount === 1 ? '' : 's'}. Delete ${memberCount === 1 ? 'that member' : 'those members'} first before deleting this shakha.`,
       };
     }
 
