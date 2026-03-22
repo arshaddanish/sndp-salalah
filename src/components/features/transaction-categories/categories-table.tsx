@@ -54,6 +54,15 @@ const columns: ColumnDef<TransactionCategoryWithUsageCount>[] = [
     ),
   },
   {
+    accessorKey: 'transactionCount',
+    header: 'Transactions',
+    cell: ({ row }) => (
+      <span className="text-text-secondary text-sm font-medium">
+        {row.original.transactionCount}
+      </span>
+    ),
+  },
+  {
     id: 'actions',
     header: () => <div className="text-right whitespace-nowrap">Actions</div>,
     cell: ({ row }) => <CategoryRowActions category={row.original} />,
