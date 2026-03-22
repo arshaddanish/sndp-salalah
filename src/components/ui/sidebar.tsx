@@ -27,7 +27,10 @@ export function Sidebar() {
 
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            item.href === '/'
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.name}
@@ -42,7 +45,9 @@ export function Sidebar() {
               <item.icon
                 className={cn(
                   'h-4 w-4 shrink-0',
-                  isActive ? 'text-accent' : 'text-sidebar-text-secondary group-hover:text-sidebar-text-primary',
+                  isActive
+                    ? 'text-accent'
+                    : 'text-sidebar-text-secondary group-hover:text-sidebar-text-primary',
                 )}
               />
               {item.name}

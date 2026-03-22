@@ -19,6 +19,7 @@ This file contains repository-specific instructions for the Antigravity AI assis
 - **Database ORM:** Drizzle ORM (PostgreSQL).
 - **Authentication:** Auth.js v5 (Credentials Provider).
 - **Validation:** Zod (always validate env vars and form inputs).
+  > **Note:** Some of these dependencies are planned and will be installed progressively as features are built out.
 
 ## 3. Database Design Rules
 
@@ -46,7 +47,7 @@ This file contains repository-specific instructions for the Antigravity AI assis
 
 ## 6. Error Handling Pattern
 
-- Server Actions must return `{ success: boolean; error?: string; data?: T }`.
+- For expected business failures, Server Actions should return `{ success: boolean; error?: string; data?: T }`.
 - Allow framework control-flow throws such as `redirect()` / `notFound()`, and let unexpected failures surface to the route's error handling.
 - Use try/catch with Drizzle for database-level constraint violations (e.g., unique `civil_id_no`).
 - Log errors server-side with `console.error()` before returning the user-friendly message.
@@ -64,14 +65,39 @@ This file contains repository-specific instructions for the Antigravity AI assis
 
 ## 8. UI & Design Rules
 
-- Accessibility: icon-only buttons must include descriptive `aria-label` text.
-- Accessibility: form controls must have associated labels (use <label htmlFor>, aria-labelledby, or aria-label).
-
-- **CRITICAL:** Before building ANY UI component, you MUST read `docs/DESIGN.md`. This file contains the color palette, typography, component patterns, and anti-patterns.
+- **CRITICAL:** Before building ANY UI component, read `docs/DESIGN.md`. This file contains the color palette, typography, component patterns, and anti-patterns.
 - Use semantic color tokens (e.g., `--color-accent`, `--color-danger`) — never raw Tailwind colors.
 - Use `Inter` font via `next/font/google` — not the default Geist fonts.
 - Use `lucide-react` for icons — no other icon library.
 
-## 9. Instruction Sync
+## 9. Testing & Validation
 
+- Add TODO comments for unimplemented features or scaffolding code.
+- Always validate form inputs using Zod schemas **before** making API calls.
+- Use FormData API with `name` attributes for form input handling (not controlled components for simple forms).
+- Handle loading and error states gracefully with user-friendly messages.
+
+## 10. Code Review Standards
+
+- Follow ESLint and Prettier rules (configured in project).
+- Use semantic HTML and ensure accessibility compliance.
+- Accessibility: icon-only buttons must include descriptive `aria-label` text.
+- Accessibility: form controls must have associated labels (use <label htmlFor>, aria-labelledby, or aria-label).
+- Avoid duplication — extract reusable utilities and components.
+- Add comments only for non-obvious logic.
+- Use meaningful variable and function names that self-document the code.
+
+## 11. Generic CRUD UX Rules
+
+- **Edit dialog dirty state:** Primary action (Save/Update) must remain disabled until the form is dirty (at least one meaningful value changed).
+- **Pending mutation close lock:** While create/update/delete is pending, dialogs must block all close paths: Cancel button, close icon, overlay click, and Escape key.
+- **Keyboard parity in edit flows:** Prefer `<form onSubmit>` for edit dialogs so Enter key submits consistently.
+
+## 12. Collaboration Workflow
+
+- Track multi-step tasks explicitly.
+- Confirm file edits and implementation details before proceeding.
+- Batch independent reads/operations when tooling supports it.
+- Provide brief, fact-based updates on completed work.
+- Stop implementation only when the task is fully complete.
 - Instruction sync - keep AGENTS.md, .github/copilot-instructions.md, and .gemini/GEMINI.md aligned; when updating one, update all three.
