@@ -18,7 +18,11 @@ const columns: ColumnDef<ShakhaWithMemberCount>[] = [
   {
     id: 'serial',
     header: 'S.No',
-    cell: ({ row }) => <span>{row.index + 1}</span>,
+    cell: ({ row, table }) => {
+      const { pageIndex, pageSize } = table.getState().pagination;
+      const globalSerial = pageIndex * pageSize + row.index + 1;
+      return <span>{globalSerial}</span>;
+    },
   },
   {
     accessorKey: 'name',
