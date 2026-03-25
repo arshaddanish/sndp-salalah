@@ -211,7 +211,11 @@ export function TransactionsTable({
       <div className="bg-surface border-border rounded-t-xl border border-b-0 px-4 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full sm:w-96">
-            <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+            <Search
+              aria-hidden="true"
+              focusable="false"
+              className="text-text-muted pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
+            />
             <Input
               type="text"
               placeholder="Search by transaction ID or remarks"
