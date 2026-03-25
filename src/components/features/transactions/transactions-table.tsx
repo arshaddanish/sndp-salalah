@@ -126,9 +126,13 @@ const columns: ColumnDef<TransactionStatementRow>[] = [
 
       return (
         <Tooltip content={<span className="leading-5">{remarks}</span>}>
-          <span className="text-text-secondary inline-block max-w-[320px] truncate text-sm">
+          <button
+            type="button"
+            aria-label={`View full remarks for transaction ${row.original.transactionCode}`}
+            className="text-text-secondary focus-visible:outline-accent inline-block max-w-[320px] truncate border-0 bg-transparent p-0 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
             {displayValue}
-          </span>
+          </button>
         </Tooltip>
       );
     },
