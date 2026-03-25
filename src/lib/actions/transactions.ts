@@ -57,11 +57,33 @@ export async function fetchTransactions(
   const startDateFilter = parseStartDate(query?.startDate);
   const endDateFilter = parseEndDate(query?.endDate);
 
-  const sorted = [...MOCK_TRANSACTIONS].sort(
-    (left, right) => right.transactionDate.getTime() - left.transactionDate.getTime(),
-  );
+  const compareByLedgerOrderAsc = (
+    left: TransactionStatementRow,
+    right: TransactionStatementRow,
+  ) => {
+    const byDate = left.transactionDate.getTime() - right.transactionDate.getTime();
+    if (byDate !== 0) {
+      return byDate;
+    }
 
-  const searchedRows = sorted.filter((transaction) => {
+    const byCreatedAt = left.createdAt.getTime() - right.createdAt.getTime();
+    if (byCreatedAt !== 0) {
+      return byCreatedAt;
+    }
+
+    return left.transactionCode - right.transactionCode;
+  };
+
+  const compareByDisplayOrderDesc = (
+    left: TransactionStatementRow,
+    right: TransactionStatementRow,
+  ) => {
+    return compareByLedgerOrderAsc(right, left);
+  };
+
+  const sortedForDisplay = [...MOCK_TRANSACTIONS].sort(compareByDisplayOrderDesc);
+
+  const searchedRows = sortedForDisplay.filter((transaction) => {
     const remarksValidation = transactionRemarksSchema.safeParse(transaction.remarks);
     if (!remarksValidation.success) {
       return false;
@@ -93,8 +115,41 @@ export async function fetchTransactions(
     );
   });
 
+  // Running balance is always global and computed in true ledger order (oldest -> newest).
+  const balanceMap = new Map<string, string>();
+  let cumulativeBalance = 0;
+
+  [...MOCK_TRANSACTIONS].sort(compareByLedgerOrderAsc).forEach((transaction) => {
+    const delta =
+      transaction.type === 'income' ? Number(transaction.amount) : -Number(transaction.amount);
+    cumulativeBalance += delta;
+    balanceMap.set(transaction.id, cumulativeBalance.toFixed(3));
+  });
+
+  const rowsWithBalance: TransactionStatementRow[] = [];
+  for (const row of searchedRows) {
+    const balance = balanceMap.get(row.id);
+
+    if (balance === undefined) {
+      console.error('Missing running balance for transaction row', {
+        rowId: row.id,
+        transactionCode: row.transactionCode,
+      });
+
+      return {
+        success: false,
+        error: 'Unable to compute running balance for transactions. Please try again.',
+      };
+    }
+
+    rowsWithBalance.push({
+      ...row,
+      balance,
+    });
+  }
+
   const start = (page - 1) * pageSize;
-  const paginatedItems = searchedRows.slice(start, start + pageSize);
+  const paginatedItems = rowsWithBalance.slice(start, start + pageSize);
 
   return {
     success: true,

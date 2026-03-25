@@ -12,6 +12,7 @@ export type TransactionStatementRow = {
   paymentMode: TransactionPaymentMode;
   amount: string;
   remarks: string;
+  balance: string;
   createdAt: Date;
   updatedAt: Date;
 };

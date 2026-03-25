@@ -76,12 +76,39 @@ const columns: ColumnDef<TransactionStatementRow>[] = [
   },
   {
     accessorKey: 'amount',
-    header: () => <div className="text-right">Amount (OMR)</div>,
-    cell: ({ row }) => (
-      <div className="text-right font-medium tabular-nums">
-        {Number(row.original.amount).toFixed(0)}
+    header: () => <div className="text-right">Amount</div>,
+    cell: ({ row }) => {
+      const isIncome = row.original.type === 'income';
+      const amount = Number(row.original.amount).toFixed(0);
+      const signedAmount = `${isIncome ? '+' : '-'}${amount}`;
+
+      return (
+        <div
+          className={`text-right font-semibold tabular-nums ${
+            isIncome ? 'text-success' : 'text-danger'
+          }`}
+        >
+          {signedAmount}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'balance',
+    header: () => (
+      <div className="text-right">
+        <Tooltip content="Running total balance at this point in time">
+          <span className="cursor-help underline decoration-dotted">Balance</span>
+        </Tooltip>
       </div>
     ),
+    cell: ({ row }) => {
+      return (
+        <div className="text-text-primary text-right font-semibold tabular-nums">
+          {Number(row.original.balance).toFixed(0)}
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'remarks',
@@ -188,6 +215,7 @@ export function TransactionsTable({
             <Input
               type="text"
               placeholder="Search by transaction ID or remarks"
+              aria-label="Search transactions by ID or remarks"
               value={searchInputValue}
               onChange={(event) => onSearchChange(event.target.value)}
               className="pl-9"
