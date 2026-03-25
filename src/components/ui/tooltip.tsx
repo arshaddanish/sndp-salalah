@@ -19,7 +19,7 @@ const TooltipContent = React.forwardRef<
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      'bg-text-primary text-text-on-dark animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 overflow-hidden rounded-md px-3 py-1.5 text-xs',
+      'bg-text-primary text-text-on-dark animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-md px-3 py-1.5 text-xs [overflow-wrap:anywhere] break-words whitespace-normal',
       className,
     )}
     {...props}
@@ -34,7 +34,12 @@ interface TooltipProps {
   align?: 'start' | 'center' | 'end';
 }
 
-export function Tooltip({ children, content, side = 'top', align = 'center' }: TooltipProps) {
+export function Tooltip({
+  children,
+  content,
+  side = 'top',
+  align = 'center',
+}: Readonly<TooltipProps>) {
   return (
     <TooltipProvider delayDuration={300}>
       <TooltipRoot>
