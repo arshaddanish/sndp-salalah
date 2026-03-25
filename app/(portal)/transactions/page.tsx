@@ -66,6 +66,15 @@ export default async function TransactionsPage({
   const paginatedRows = transactionsResult.success ? (transactionsResult.data?.items ?? []) : [];
   const totalCount = transactionsResult.success ? (transactionsResult.data?.totalCount ?? 0) : 0;
 
+  if (!transactionsResult.success && transactionsResult.error) {
+    console.error('Failed to fetch transactions for transactions page', {
+      error: transactionsResult.error,
+      page,
+      pageSize,
+      query: transactionQuery,
+    });
+  }
+
   const { totalRows, pageCount, pageIndex } = calculatePaginationState(page, pageSize, totalCount);
   const errorMessage = transactionsResult.success
     ? null
