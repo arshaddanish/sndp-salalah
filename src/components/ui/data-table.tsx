@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -32,6 +33,7 @@ interface DataTableProps<TData, TValue> {
   pagination?: PaginationState;
   onPaginationChange?: OnChangeFn<PaginationState>;
   manualPagination?: boolean;
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -43,6 +45,7 @@ export function DataTable<TData, TValue>({
   pagination,
   onPaginationChange,
   manualPagination = false,
+  onRowClick,
 }: Readonly<DataTableProps<TData, TValue>>) {
   const skeletonId = useId();
   const tableOptions = React.useMemo(
@@ -114,7 +117,11 @@ export function DataTable<TData, TValue>({
       <TableRow
         key={row.id}
         data-state={row.getIsSelected() && 'selected'}
-        className="border-border/50 hover:bg-surface-hover/50 h-13 border-b transition-colors"
+        className={cn(
+          'border-border/50 hover:bg-surface-hover/50 h-13 border-b transition-colors',
+          onRowClick && 'cursor-pointer',
+        )}
+        onClick={onRowClick ? () => onRowClick(row.original) : undefined}
       >
         {row.getVisibleCells().map((cell) => (
           <TableCell key={cell.id} className="px-4 py-2">

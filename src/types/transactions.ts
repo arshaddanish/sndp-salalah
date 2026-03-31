@@ -20,7 +20,8 @@ export type TransactionStatementRow = {
   paidReceiptBy?: string;
   amount: string;
   remarks: string;
-  balance: string;
+  cashBalance: string;
+  bankBalance: string;
   attachmentKey?: string;
   createdAt: Date;
   updatedAt: Date;

@@ -118,7 +118,8 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
       paidReceiptBy: validationResult.data.paidReceiptBy,
       amount,
       remarks,
-      balance: '0.000',
+      cashBalance: '0.000',
+      bankBalance: '0.000',
       ...(validationResult.data.attachmentKey
         ? { attachmentKey: validationResult.data.attachmentKey }
         : {}),
@@ -195,7 +196,8 @@ export async function createOpeningBalance(input: unknown): Promise<ActionResult
       fundAccount: validationResult.data.fundAccount,
       amount,
       remarks,
-      balance: '0.000',
+      cashBalance: '0.000',
+      bankBalance: '0.000',
       createdAt: now,
       updatedAt: now,
     };
@@ -278,7 +280,7 @@ export async function fetchTransactions(
   const searchQuery = (query?.q ?? '').trim().toLowerCase();
   const categoryIdFilter = (query?.categoryId ?? '').trim();
   const typeFilter = (query?.type ?? '').trim().toLowerCase();
-  const paymentModeFilter = (query?.paymentMode ?? '').trim().toLowerCase();
+  const fundAccountFilter = (query?.fundAccount ?? '').trim().toLowerCase();
   const startDateFilter = parseStartDate(query?.startDate);
   const endDateFilter = parseEndDate(query?.endDate);
 
@@ -322,8 +324,8 @@ export async function fetchTransactions(
     const matchesCategory =
       categoryIdFilter.length === 0 || transaction.categoryId === categoryIdFilter;
     const matchesType = typeFilter.length === 0 || transaction.type === typeFilter;
-    const matchesPaymentMode =
-      paymentModeFilter.length === 0 || transaction.paymentMode === paymentModeFilter;
+    const matchesFundAccount =
+      fundAccountFilter.length === 0 || transaction.fundAccount === fundAccountFilter;
 
     const transactionTime = transaction.transactionDate.getTime();
     const matchesStartDate =
@@ -331,15 +333,15 @@ export async function fetchTransactions(
     const matchesEndDate = endDateFilter === null || transactionTime <= endDateFilter.getTime();
 
     return (
-      matchesCategory && matchesType && matchesPaymentMode && matchesStartDate && matchesEndDate
+      matchesCategory && matchesType && matchesFundAccount && matchesStartDate && matchesEndDate
     );
   });
 
   const visibleRows = searchedRows.filter(isRegularTransactionRow);
 
-  // Running balance is always global and computed in true ledger order (oldest -> newest),
-  // tracked independently per fund account (cash fund and bank fund).
-  const balanceMap = new Map<string, string>();
+  // Balances are computed in true ledger order (oldest -> newest), tracked independently
+  // per fund account. Every row gets both fund balances for detailed transaction view.
+  const balanceMap = new Map<string, { cashBalance: string; bankBalance: string }>();
   let cashFundBalance = 0;
   let bankFundBalance = 0;
 
@@ -351,18 +353,21 @@ export async function fetchTransactions(
 
     if (transaction.fundAccount === 'cash') {
       cashFundBalance += delta;
-      balanceMap.set(transaction.id, cashFundBalance.toFixed(3));
     } else {
       bankFundBalance += delta;
-      balanceMap.set(transaction.id, bankFundBalance.toFixed(3));
     }
+
+    balanceMap.set(transaction.id, {
+      cashBalance: cashFundBalance.toFixed(3),
+      bankBalance: bankFundBalance.toFixed(3),
+    });
   });
 
   const rowsWithBalance: RegularTransactionRow[] = [];
   for (const row of visibleRows) {
-    const balance = balanceMap.get(row.id);
+    const balances = balanceMap.get(row.id);
 
-    if (balance === undefined) {
+    if (balances === undefined) {
       console.error('Missing running balance for transaction row', {
         rowId: row.id,
         transactionCode: row.transactionCode,
@@ -376,7 +381,8 @@ export async function fetchTransactions(
 
     rowsWithBalance.push({
       ...row,
-      balance,
+      cashBalance: balances.cashBalance,
+      bankBalance: balances.bankBalance,
     });
   }
 

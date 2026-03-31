@@ -9,13 +9,13 @@ import { fetchOpeningBalances, fetchTransactions } from '@/lib/actions/transacti
 import { calculatePaginationState } from '@/lib/pagination-utils';
 import { normalizePagination } from '@/lib/query-pagination';
 import type { ListTransactionsRequest, TransactionsQuery } from '@/types/filters/transactions';
-import type { TransactionPaymentMode, TransactionType } from '@/types/transactions';
+import type { TransactionFundAccount, TransactionType } from '@/types/transactions';
 
 type TransactionsFilterState = {
   searchQuery: string;
   categoryId: string;
   type: string;
-  paymentMode: string;
+  fundAccount: string;
   startDate: string;
   endDate: string;
 };
@@ -31,10 +31,8 @@ function isTransactionType(value: string): value is TransactionType {
   return value === 'income' || value === 'expense';
 }
 
-function isTransactionPaymentMode(value: string): value is TransactionPaymentMode {
-  return (
-    value === 'cash' || value === 'bank' || value === 'online_transaction' || value === 'cheque'
-  );
+function isTransactionFundAccount(value: string): value is TransactionFundAccount {
+  return value === 'cash' || value === 'bank';
 }
 
 function getTransactionsFilterState(queryParams: ListTransactionsRequest): TransactionsFilterState {
@@ -42,7 +40,7 @@ function getTransactionsFilterState(queryParams: ListTransactionsRequest): Trans
     searchQuery: (queryParams.q ?? '').trim(),
     categoryId: (queryParams.categoryId ?? '').trim(),
     type: (queryParams.type ?? '').trim().toLowerCase(),
-    paymentMode: (queryParams.paymentMode ?? '').trim().toLowerCase(),
+    fundAccount: (queryParams.fundAccount ?? '').trim().toLowerCase(),
     startDate: (queryParams.startDate ?? '').trim(),
     endDate: (queryParams.endDate ?? '').trim(),
   };
@@ -59,8 +57,8 @@ function buildTransactionsQuery(filters: TransactionsFilterState): TransactionsQ
   if (isTransactionType(filters.type)) {
     query.type = filters.type;
   }
-  if (isTransactionPaymentMode(filters.paymentMode)) {
-    query.paymentMode = filters.paymentMode;
+  if (isTransactionFundAccount(filters.fundAccount)) {
+    query.fundAccount = filters.fundAccount;
   }
   if (filters.startDate.length > 0) {
     query.startDate = filters.startDate;
@@ -164,8 +162,8 @@ export default async function TransactionsPage({
         searchQuery={filters.searchQuery}
         categoryFilter={filters.categoryId || 'all'}
         typeFilter={isTransactionType(filters.type) ? filters.type : 'all'}
-        paymentModeFilter={
-          isTransactionPaymentMode(filters.paymentMode) ? filters.paymentMode : 'all'
+        fundAccountFilter={
+          isTransactionFundAccount(filters.fundAccount) ? filters.fundAccount : 'all'
         }
         startDate={filters.startDate}
         endDate={filters.endDate}

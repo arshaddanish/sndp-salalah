@@ -4,7 +4,7 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { Search } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useTransition } from 'react';
+import { useCallback, useState, useTransition } from 'react';
 
 import { DataTable } from '@/components/ui/data-table';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
@@ -16,17 +16,17 @@ import { useQuerySearch } from '@/hooks/use-query-search';
 import type { PaginatedTableProps } from '@/types/pagination';
 import type { RegularTransactionRow } from '@/types/transactions';
 
+import { TransactionDetailDrawer } from './transaction-detail-drawer';
+
 const MAX_REMARKS_PREVIEW_LENGTH = 30;
 
-const paymentModeLabelMap: Record<RegularTransactionRow['paymentMode'], string> = {
+const fundAccountLabelMap: Record<RegularTransactionRow['fundAccount'], string> = {
   cash: 'Cash',
   bank: 'Bank',
-  online_transaction: 'Online Transaction',
-  cheque: 'Cheque',
 };
 
-function formatPaymentModeLabel(mode: RegularTransactionRow['paymentMode']): string {
-  return paymentModeLabelMap[mode];
+function formatFundAccountLabel(fundAccount: RegularTransactionRow['fundAccount']): string {
+  return fundAccountLabelMap[fundAccount];
 }
 
 const typeOptions = [
@@ -35,12 +35,10 @@ const typeOptions = [
   { label: 'Expense', value: 'expense' },
 ];
 
-const paymentModeOptions = [
+const fundAccountOptions = [
   { label: 'All', value: 'all' },
   { label: 'Cash', value: 'cash' },
   { label: 'Bank', value: 'bank' },
-  { label: 'Online Transaction', value: 'online_transaction' },
-  { label: 'Cheque', value: 'cheque' },
 ];
 
 const columns: ColumnDef<RegularTransactionRow>[] = [
@@ -80,11 +78,11 @@ const columns: ColumnDef<RegularTransactionRow>[] = [
     },
   },
   {
-    accessorKey: 'paymentMode',
-    header: 'Mode',
+    accessorKey: 'fundAccount',
+    header: 'Fund',
     cell: ({ row }) => (
       <span className="text-text-secondary text-xs font-medium uppercase">
-        {formatPaymentModeLabel(row.original.paymentMode)}
+        {formatFundAccountLabel(row.original.fundAccount)}
       </span>
     ),
   },
@@ -112,15 +110,17 @@ const columns: ColumnDef<RegularTransactionRow>[] = [
     accessorKey: 'balance',
     header: () => (
       <div className="text-right">
-        <Tooltip content="Running balance at this point in time">
+        <Tooltip content="Consolidated balance at this point in time (cash + bank)">
           <span className="cursor-help underline decoration-dotted">Balance</span>
         </Tooltip>
       </div>
     ),
     cell: ({ row }) => {
+      const displayBalance = Number(row.original.cashBalance) + Number(row.original.bankBalance);
+
       return (
         <div className="text-text-primary text-right font-semibold tabular-nums">
-          {Number(row.original.balance).toFixed(0)}
+          {Number(displayBalance).toFixed(0)}
         </div>
       );
     },
@@ -158,7 +158,7 @@ type TransactionsTableProps = PaginatedTableProps<RegularTransactionRow> & {
   searchQuery: string;
   categoryFilter: string;
   typeFilter: string;
-  paymentModeFilter: string;
+  fundAccountFilter: string;
   startDate: string;
   endDate: string;
   categoryOptions: Array<{ label: string; value: string }>;
@@ -173,7 +173,7 @@ export function TransactionsTable({
   searchQuery,
   categoryFilter,
   typeFilter,
-  paymentModeFilter,
+  fundAccountFilter,
   startDate,
   endDate,
   categoryOptions,
@@ -182,6 +182,10 @@ export function TransactionsTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const [selectedTransaction, setSelectedTransaction] = useState<RegularTransactionRow | null>(
+    null,
+  );
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const { onPaginationChange, isPending } = useQueryPagination({
     page: pageIndex + 1,
@@ -199,7 +203,7 @@ export function TransactionsTable({
 
   const currentCategoryFilter = searchParams.get('categoryId') ?? categoryFilter;
   const currentTypeFilter = searchParams.get('type') ?? typeFilter;
-  const currentPaymentModeFilter = searchParams.get('paymentMode') ?? paymentModeFilter;
+  const currentFundAccountFilter = searchParams.get('fundAccount') ?? fundAccountFilter;
   const currentStartDate = searchParams.get('startDate') ?? startDate;
   const currentEndDate = searchParams.get('endDate') ?? endDate;
 
@@ -225,6 +229,11 @@ export function TransactionsTable({
     },
     [pathname, router, searchParams, startTransition],
   );
+
+  const handleRowClick = useCallback((row: RegularTransactionRow) => {
+    setSelectedTransaction(row);
+    setIsDrawerOpen(true);
+  }, []);
 
   return (
     <div className="flex flex-col gap-0 overflow-hidden">
@@ -260,10 +269,10 @@ export function TransactionsTable({
               onChange={(value) => updateUrl({ type: value })}
             />
             <FilterDropdown
-              label="Mode"
-              options={paymentModeOptions}
-              value={currentPaymentModeFilter}
-              onChange={(value) => updateUrl({ paymentMode: value })}
+              label="Fund"
+              options={fundAccountOptions}
+              value={currentFundAccountFilter}
+              onChange={(value) => updateUrl({ fundAccount: value })}
             />
             <DateRangeFilter
               startDate={currentStartDate}
@@ -290,6 +299,13 @@ export function TransactionsTable({
         pageCount={pageCount}
         pagination={{ pageIndex, pageSize }}
         onPaginationChange={onPaginationChange}
+        onRowClick={handleRowClick}
+      />
+
+      <TransactionDetailDrawer
+        transaction={selectedTransaction}
+        isOpen={isDrawerOpen}
+        onOpenChange={setIsDrawerOpen}
       />
     </div>
   );
