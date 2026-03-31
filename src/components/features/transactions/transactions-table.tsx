@@ -3,14 +3,12 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { Search } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useTransition } from 'react';
 
-// TODO: Filter implementation deferred to next PR - do not review these commented imports
-// import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-// import { useCallback, useTransition } from 'react';
 import { DataTable } from '@/components/ui/data-table';
-// TODO: Filter implementation deferred to next PR - do not review these imports
-// import { DateRangeFilter } from '@/components/ui/date-range-filter';
-// import { FilterDropdown } from '@/components/ui/dropdown-filter';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { FilterDropdown } from '@/components/ui/dropdown-filter';
 import { Input } from '@/components/ui/input';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
@@ -31,19 +29,19 @@ function formatPaymentModeLabel(mode: RegularTransactionRow['paymentMode']): str
   return paymentModeLabelMap[mode];
 }
 
-// TODO: Filter options deferred to next PR - do not review this code
-// const typeOptions = [
-//   { label: 'All', value: 'all' },
-//   { label: 'Income', value: 'income' },
-//   { label: 'Expense', value: 'expense' },
-// ];
-// const paymentModeOptions = [
-//   { label: 'All', value: 'all' },
-//   { label: 'Cash', value: 'cash' },
-//   { label: 'Bank', value: 'bank' },
-//   { label: 'Online Transaction', value: 'online_transaction' },
-//   { label: 'Cheque', value: 'cheque' },
-// ];
+const typeOptions = [
+  { label: 'All', value: 'all' },
+  { label: 'Income', value: 'income' },
+  { label: 'Expense', value: 'expense' },
+];
+
+const paymentModeOptions = [
+  { label: 'All', value: 'all' },
+  { label: 'Cash', value: 'cash' },
+  { label: 'Bank', value: 'bank' },
+  { label: 'Online Transaction', value: 'online_transaction' },
+  { label: 'Cheque', value: 'cheque' },
+];
 
 const columns: ColumnDef<RegularTransactionRow>[] = [
   {
@@ -158,12 +156,12 @@ const columns: ColumnDef<RegularTransactionRow>[] = [
 
 type TransactionsTableProps = PaginatedTableProps<RegularTransactionRow> & {
   searchQuery: string;
-  // categoryFilter: string;
-  // typeFilter: string;
-  // paymentModeFilter: string;
-  // startDate: string;
-  // endDate: string;
-  // categoryOptions?: Array<{ label: string; value: string }>;
+  categoryFilter: string;
+  typeFilter: string;
+  paymentModeFilter: string;
+  startDate: string;
+  endDate: string;
+  categoryOptions: Array<{ label: string; value: string }>;
 };
 
 export function TransactionsTable({
@@ -173,19 +171,18 @@ export function TransactionsTable({
   pageIndex,
   pageCount,
   searchQuery,
-  // TODO: Filter props deferred to next PR - do not review these commented props
-  // categoryFilter,
-  // typeFilter,
-  // paymentModeFilter,
-  // startDate,
-  // endDate,
-  // categoryOptions,
+  categoryFilter,
+  typeFilter,
+  paymentModeFilter,
+  startDate,
+  endDate,
+  categoryOptions,
 }: Readonly<TransactionsTableProps>) {
-  // TODO: Filter implementation deferred to next PR - router/pathname/searchParams/startTransition used by updateUrl below
-  // const router = useRouter();
-  // const pathname = usePathname();
-  // const searchParams = useSearchParams();
-  // const [, startTransition] = useTransition();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
+
   const { onPaginationChange, isPending } = useQueryPagination({
     page: pageIndex + 1,
     pageSize,
@@ -199,33 +196,35 @@ export function TransactionsTable({
     paramKey: 'q',
     initialValue: searchQuery,
   });
-  // TODO: Filter state deferred to next PR - do not review these commented lines
-  // const currentCategoryFilter = searchParams.get('categoryId') ?? categoryFilter;
-  // const currentTypeFilter = searchParams.get('type') ?? typeFilter;
-  // const currentPaymentModeFilter = searchParams.get('paymentMode') ?? paymentModeFilter;
-  // const currentStartDate = searchParams.get('startDate') ?? startDate;
-  // const currentEndDate = searchParams.get('endDate') ?? endDate;
 
-  // TODO: Filter implementation deferred to next PR - do not remove this commented block
-  // const updateUrl = useCallback(
-  //   (updates: Record<string, string | null>) => {
-  //     const params = new URLSearchParams(searchParams.toString());
-  //     Object.entries(updates).forEach(([key, value]) => {
-  //       if (value === null || value === '') {
-  //         params.delete(key);
-  //       } else {
-  //         params.set(key, value);
-  //       }
-  //     });
-  //     if (!updates['page']) {
-  //       params.delete('page');
-  //     }
-  //     startTransition(() => {
-  //       router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  //     });
-  //   },
-  //   [pathname, router, searchParams, startTransition],
-  // );
+  const currentCategoryFilter = searchParams.get('categoryId') ?? categoryFilter;
+  const currentTypeFilter = searchParams.get('type') ?? typeFilter;
+  const currentPaymentModeFilter = searchParams.get('paymentMode') ?? paymentModeFilter;
+  const currentStartDate = searchParams.get('startDate') ?? startDate;
+  const currentEndDate = searchParams.get('endDate') ?? endDate;
+
+  const updateUrl = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === null || value === '' || value === 'all') {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
+      });
+
+      if (!updates['page']) {
+        params.delete('page');
+      }
+
+      startTransition(() => {
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      });
+    },
+    [pathname, router, searchParams, startTransition],
+  );
 
   return (
     <div className="flex flex-col gap-0 overflow-hidden">
@@ -247,8 +246,6 @@ export function TransactionsTable({
             />
           </div>
 
-          {/* TODO: Filter UI deferred to next PR - do not review this commented section
-          Filter UI (Category, Type, Mode, Date Range) deferred to next PR for lean scope
           <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
             <FilterDropdown
               label="Category"
@@ -281,7 +278,6 @@ export function TransactionsTable({
               clearLabel="Clear Date Range"
             />
           </div>
-          */}
         </div>
       </div>
 
