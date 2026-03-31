@@ -1,13 +1,14 @@
 'use client';
 
-import { cn } from '@/lib/utils';
 import { Check, ChevronDown } from 'lucide-react';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 interface DropdownOption {
   label: string;
