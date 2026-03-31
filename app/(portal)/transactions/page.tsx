@@ -9,6 +9,16 @@ import { fetchOpeningBalances, fetchTransactions } from '@/lib/actions/transacti
 import { calculatePaginationState } from '@/lib/pagination-utils';
 import { normalizePagination } from '@/lib/query-pagination';
 import type { ListTransactionsRequest, TransactionsQuery } from '@/types/filters/transactions';
+import type { TransactionPaymentMode, TransactionType } from '@/types/transactions';
+
+type TransactionsFilterState = {
+  searchQuery: string;
+  categoryId: string;
+  type: string;
+  paymentMode: string;
+  startDate: string;
+  endDate: string;
+};
 
 export const metadata = {
   title: 'Transactions | SNDP Salalah',
@@ -17,6 +27,51 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
+function isTransactionType(value: string): value is TransactionType {
+  return value === 'income' || value === 'expense';
+}
+
+function isTransactionPaymentMode(value: string): value is TransactionPaymentMode {
+  return (
+    value === 'cash' || value === 'bank' || value === 'online_transaction' || value === 'cheque'
+  );
+}
+
+function getTransactionsFilterState(queryParams: ListTransactionsRequest): TransactionsFilterState {
+  return {
+    searchQuery: (queryParams.q ?? '').trim(),
+    categoryId: (queryParams.categoryId ?? '').trim(),
+    type: (queryParams.type ?? '').trim().toLowerCase(),
+    paymentMode: (queryParams.paymentMode ?? '').trim().toLowerCase(),
+    startDate: (queryParams.startDate ?? '').trim(),
+    endDate: (queryParams.endDate ?? '').trim(),
+  };
+}
+
+function buildTransactionsQuery(filters: TransactionsFilterState): TransactionsQuery {
+  const query: TransactionsQuery = {
+    q: filters.searchQuery,
+  };
+
+  if (filters.categoryId.length > 0 && filters.categoryId !== 'all') {
+    query.categoryId = filters.categoryId;
+  }
+  if (isTransactionType(filters.type)) {
+    query.type = filters.type;
+  }
+  if (isTransactionPaymentMode(filters.paymentMode)) {
+    query.paymentMode = filters.paymentMode;
+  }
+  if (filters.startDate.length > 0) {
+    query.startDate = filters.startDate;
+  }
+  if (filters.endDate.length > 0) {
+    query.endDate = filters.endDate;
+  }
+
+  return query;
+}
+
 export default async function TransactionsPage({
   searchParams,
 }: Readonly<{
@@ -24,39 +79,8 @@ export default async function TransactionsPage({
 }>) {
   const queryParams = (await searchParams) ?? {};
   const { page, pageSize } = normalizePagination(queryParams);
-  const searchQuery = (queryParams.q ?? '').trim();
-  // TODO: Filter params deferred to next PR - do not review these commented lines
-  // const categoryId = (queryParams.categoryId ?? '').trim();
-  // const type = (queryParams.type ?? '').trim().toLowerCase();
-  // const paymentMode = (queryParams.paymentMode ?? '').trim().toLowerCase();
-  // const startDate = (queryParams.startDate ?? '').trim();
-  // const endDate = (queryParams.endDate ?? '').trim();
-
-  const transactionQuery: TransactionsQuery = {
-    q: searchQuery,
-  };
-
-  // TODO: Filter application logic deferred to next PR - do not review these commented lines
-  // if (categoryId.length > 0 && categoryId !== 'all') {
-  //   transactionQuery.categoryId = categoryId;
-  // }
-  // if (type === 'income' || type === 'expense') {
-  //   transactionQuery.type = type;
-  // }
-  // if (
-  //   paymentMode === 'cash' ||
-  //   paymentMode === 'bank' ||
-  //   paymentMode === 'online_transaction' ||
-  //   paymentMode === 'cheque'
-  // ) {
-  //   transactionQuery.paymentMode = paymentMode;
-  // }
-  // if (startDate.length > 0) {
-  //   transactionQuery.startDate = startDate;
-  // }
-  // if (endDate.length > 0) {
-  //   transactionQuery.endDate = endDate;
-  // }
+  const filters = getTransactionsFilterState(queryParams);
+  const transactionQuery = buildTransactionsQuery(filters);
 
   const [transactionsResult, openingBalancesResult, transactionCategoryOptionsResult] =
     await Promise.all([
@@ -69,6 +93,13 @@ export default async function TransactionsPage({
   const categories = transactionCategoryOptionsResult.success
     ? (transactionCategoryOptionsResult.data ?? [])
     : [];
+  const categoryOptions = [
+    { label: 'All', value: 'all' },
+    ...categories.map((category) => ({
+      label: category.name,
+      value: category.id,
+    })),
+  ];
   const existingCashOpeningBalance = openingBalancesResult.success
     ? (openingBalancesResult.data?.cash ?? null)
     : null;
@@ -130,7 +161,15 @@ export default async function TransactionsPage({
       <TransactionsTable
         rows={paginatedRows}
         totalRows={totalRows}
-        searchQuery={searchQuery}
+        searchQuery={filters.searchQuery}
+        categoryFilter={filters.categoryId || 'all'}
+        typeFilter={isTransactionType(filters.type) ? filters.type : 'all'}
+        paymentModeFilter={
+          isTransactionPaymentMode(filters.paymentMode) ? filters.paymentMode : 'all'
+        }
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        categoryOptions={categoryOptions}
         pageIndex={pageIndex}
         pageCount={pageCount}
         pageSize={pageSize}
