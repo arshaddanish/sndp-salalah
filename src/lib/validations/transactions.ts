@@ -2,11 +2,7 @@ import { z } from 'zod';
 
 export const TRANSACTION_REMARKS_MAX_LENGTH = 500;
 const OMR_AMOUNT_PATTERN = /^\d+(?:\.\d{1,3})?$/;
-const transactionPartySchema = z
-  .string()
-  .trim()
-  .min(1, 'This field is required.')
-  .max(200, 'Must be 200 characters or less');
+const transactionPartySchema = z.string().trim().max(200, 'Must be 200 characters or less');
 
 const transactionRemarksSchema = z
   .string()
@@ -38,8 +34,8 @@ export const createTransactionSchema = z.object({
     message: 'Please select a payment method.',
   }),
   fundAccount: z.enum(['cash', 'bank'], { message: 'Please select a fund account.' }),
-  payeeMerchant: transactionPartySchema,
-  paidReceiptBy: transactionPartySchema,
+  payeeMerchant: transactionPartySchema.optional().default(''),
+  paidReceiptBy: transactionPartySchema.optional().default(''),
   remarks: transactionRemarksSchema,
   attachmentKey: z.string().trim().optional().or(z.literal('')),
 });

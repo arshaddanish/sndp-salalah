@@ -311,12 +311,11 @@ function CreateTransactionFormFields({
 
         <div className="space-y-1.5">
           <label className="text-text-secondary text-sm font-medium" htmlFor="ct-payee-merchant">
-            Payee / Merchant *
+            Payee / Merchant
           </label>
           <Input
             id="ct-payee-merchant"
             name="payeeMerchant"
-            required
             {...getFieldAriaProps(fieldErrors, 'payeeMerchant', 'ct-payee-merchant-error')}
             disabled={isPending}
           />
@@ -331,12 +330,11 @@ function CreateTransactionFormFields({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <label className="text-text-secondary text-sm font-medium" htmlFor="ct-paid-receipt-by">
-            Paid / Receipt By *
+            Paid / Receipt By
           </label>
           <Input
             id="ct-paid-receipt-by"
             name="paidReceiptBy"
-            required
             {...getFieldAriaProps(fieldErrors, 'paidReceiptBy', 'ct-paid-receipt-by-error')}
             disabled={isPending}
           />
