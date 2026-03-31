@@ -3,12 +3,12 @@
  */
 
 import type { ListRequest } from '../api/filters';
-import type { TransactionPaymentMode, TransactionType } from '../transactions';
+import type { TransactionFundAccount, TransactionType } from '../transactions';
 
 export type TransactionsFilter = {
   categoryId?: string;
   type?: TransactionType;
-  paymentMode?: TransactionPaymentMode;
+  fundAccount?: TransactionFundAccount;
   startDate?: string;
   endDate?: string;
 };
