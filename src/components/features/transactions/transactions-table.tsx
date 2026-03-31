@@ -16,9 +16,20 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
 import { useQuerySearch } from '@/hooks/use-query-search';
 import type { PaginatedTableProps } from '@/types/pagination';
-import type { TransactionStatementRow } from '@/types/transactions';
+import type { RegularTransactionRow } from '@/types/transactions';
 
 const MAX_REMARKS_PREVIEW_LENGTH = 30;
+
+const paymentModeLabelMap: Record<RegularTransactionRow['paymentMode'], string> = {
+  cash: 'Cash',
+  bank: 'Bank',
+  online_transaction: 'Online Transaction',
+  cheque: 'Cheque',
+};
+
+function formatPaymentModeLabel(mode: RegularTransactionRow['paymentMode']): string {
+  return paymentModeLabelMap[mode];
+}
 
 // TODO: Filter options deferred to next PR - do not review this code
 // const typeOptions = [
@@ -30,9 +41,11 @@ const MAX_REMARKS_PREVIEW_LENGTH = 30;
 //   { label: 'All', value: 'all' },
 //   { label: 'Cash', value: 'cash' },
 //   { label: 'Bank', value: 'bank' },
+//   { label: 'Online Transaction', value: 'online_transaction' },
+//   { label: 'Cheque', value: 'cheque' },
 // ];
 
-const columns: ColumnDef<TransactionStatementRow>[] = [
+const columns: ColumnDef<RegularTransactionRow>[] = [
   {
     accessorKey: 'transactionCode',
     header: 'ID',
@@ -53,24 +66,27 @@ const columns: ColumnDef<TransactionStatementRow>[] = [
   {
     accessorKey: 'type',
     header: 'Type',
-    cell: ({ row }) => (
-      <span
-        className={
-          row.original.type === 'income'
-            ? 'bg-success-bg text-success rounded px-2 py-0.5 text-xs font-medium uppercase'
-            : 'bg-danger-bg text-danger rounded px-2 py-0.5 text-xs font-medium uppercase'
-        }
-      >
-        {row.original.type}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const transactionType = row.original.type;
+      return (
+        <span
+          className={
+            transactionType === 'income'
+              ? 'bg-success-bg text-success rounded px-2 py-0.5 text-xs font-medium uppercase'
+              : 'bg-danger-bg text-danger rounded px-2 py-0.5 text-xs font-medium uppercase'
+          }
+        >
+          {transactionType}
+        </span>
+      );
+    },
   },
   {
     accessorKey: 'paymentMode',
     header: 'Mode',
     cell: ({ row }) => (
       <span className="text-text-secondary text-xs font-medium uppercase">
-        {row.original.paymentMode}
+        {formatPaymentModeLabel(row.original.paymentMode)}
       </span>
     ),
   },
@@ -78,8 +94,9 @@ const columns: ColumnDef<TransactionStatementRow>[] = [
     accessorKey: 'amount',
     header: () => <div className="text-right">Amount</div>,
     cell: ({ row }) => {
-      const isIncome = row.original.type === 'income';
       const amount = Number(row.original.amount).toFixed(0);
+
+      const isIncome = row.original.type === 'income';
       const signedAmount = `${isIncome ? '+' : '-'}${amount}`;
 
       return (
@@ -97,7 +114,7 @@ const columns: ColumnDef<TransactionStatementRow>[] = [
     accessorKey: 'balance',
     header: () => (
       <div className="text-right">
-        <Tooltip content="Running total balance at this point in time">
+        <Tooltip content="Running balance at this point in time">
           <span className="cursor-help underline decoration-dotted">Balance</span>
         </Tooltip>
       </div>
@@ -139,7 +156,7 @@ const columns: ColumnDef<TransactionStatementRow>[] = [
   },
 ];
 
-type TransactionsTableProps = PaginatedTableProps<TransactionStatementRow> & {
+type TransactionsTableProps = PaginatedTableProps<RegularTransactionRow> & {
   searchQuery: string;
   // categoryFilter: string;
   // typeFilter: string;

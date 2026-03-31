@@ -10,7 +10,10 @@ import {
 } from '@/lib/validations/transaction-categories';
 import type { ActionResult } from '@/types/actions';
 import type { PaginationResponse } from '@/types/pagination';
-import type { TransactionCategoryWithUsageCount } from '@/types/transaction-categories';
+import type {
+  TransactionCategoryOption,
+  TransactionCategoryWithUsageCount,
+} from '@/types/transaction-categories';
 
 function normalizeCategoryName(name: string): string {
   return name.trim().toLowerCase();
@@ -53,6 +56,31 @@ export async function fetchTransactionCategories(
       totalCount: MOCK_TRANSACTION_CATEGORIES.length,
     },
   };
+}
+
+export async function fetchTransactionCategoryOptions(): Promise<
+  ActionResult<TransactionCategoryOption[]>
+> {
+  try {
+    const options = MOCK_TRANSACTION_CATEGORIES.filter((category) => !category.is_system).map(
+      (category) => ({
+        id: category.id,
+        name: category.name,
+        type: category.type,
+      }),
+    );
+
+    return {
+      success: true,
+      data: options,
+    };
+  } catch (error) {
+    console.error('Error fetching transaction category options:', error);
+    return {
+      success: false,
+      error: 'Unable to load transaction categories.',
+    };
+  }
 }
 
 export async function createTransactionCategory(

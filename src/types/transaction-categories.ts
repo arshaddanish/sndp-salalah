@@ -12,3 +12,9 @@ export type TransactionCategory = {
 export type TransactionCategoryWithUsageCount = TransactionCategory & {
   transactionCount: number;
 };
+
+export type TransactionCategoryOption = {
+  id: string;
+  name: string;
+  type: TransactionCategoryType;
+};
