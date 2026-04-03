@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, type Dispatch, type SetStateAction } from 'react';
 import { format } from 'date-fns';
+import { type Dispatch, type SetStateAction, useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/sheet';
 import { deleteTransaction } from '@/lib/actions/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
+
 import { EditTransactionDialog } from './edit-transaction-dialog';
 
 type TransactionDetailDrawerProps = {
