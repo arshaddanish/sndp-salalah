@@ -1,16 +1,16 @@
-'use client';
+﻿'use client';
 
 import { UserMinus, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type FormEventHandler, useMemo, useState, useTransition } from 'react';
-import type { ZodIssue } from 'zod';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { Input } from '@/components/ui/input';
-import { createMember } from '@/lib/actions/members';
+import { createMember, updateMember } from '@/lib/actions/members';
 import { uploadMemberPhoto } from '@/lib/s3/member-photo-upload';
-import { createMemberSchema } from '@/lib/validations/members';
-import type { CreateMemberInput } from '@/types/members';
+import { createMemberSchema, updateMemberSchema } from '@/lib/validations/members';
+import type { CreateMemberInput, Member } from '@/types/members';
 
 type FamilyRow = {
   id: string;
@@ -27,6 +27,7 @@ type Option = {
 type MemberFormProps = {
   memberCodePreview: number;
   shakhaOptions: Option[];
+  initialData?: Member;
 };
 
 const maritalStatusOptions = ['Married', 'Single', 'Divorced', 'Widowed'];
@@ -58,11 +59,19 @@ function createFamilyRow(): FamilyRow {
   };
 }
 
-function mapZodIssues(issues: ZodIssue[]): Record<string, string> {
+function getFormValue(formData: FormData, key: string): string {
+  const value = formData.get(key);
+
+  return typeof value === 'string' ? value : '';
+}
+
+function mapZodIssues(
+  issues: Array<{ path: PropertyKey[]; message: string }>,
+): Record<string, string> {
   const next: Record<string, string> = {};
 
   for (const issue of issues) {
-    const key = issue.path.join('.');
+    const key = issue.path.map(String).join('.');
     if (key.length > 0 && !next[key]) {
       next[key] = issue.message;
     }
@@ -71,52 +80,152 @@ function mapZodIssues(issues: ZodIssue[]): Record<string, string> {
   return next;
 }
 
-// eslint-disable-next-line sonarjs/cognitive-complexity
-export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<MemberFormProps>) {
+function initFamilyRows(member?: Member): FamilyRow[] {
+  return (
+    member?.family_members?.map((fm) => ({
+      id: fm.id,
+      name: fm.name,
+      relation: fm.relation ?? '',
+      dob: fm.dob ? fm.dob.toISOString().slice(0, 10) : '',
+    })) ?? []
+  );
+}
+
+function computeDefaultExpiry(expiry?: Date | null): string {
+  if (expiry) {
+    return expiry.toISOString().slice(0, 10);
+  }
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function filterFamilyRows(rows: FamilyRow[], rowIndex: number): FamilyRow[] {
+  if (rowIndex < 0 || rowIndex >= rows.length) {
+    return rows;
+  }
+  return rows.filter((_, i) => i !== rowIndex);
+}
+
+function shiftFamilyFieldErrors(
+  errors: Record<string, string>,
+  rowIndex: number,
+): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const [key, value] of Object.entries(errors)) {
+    const m = /^familyMembers\.(\d+)\.(.+)$/.exec(key);
+    if (!m) {
+      next[key] = value;
+      continue;
+    }
+    const index = Number.parseInt(m[1] ?? '-1', 10);
+    const fieldKey = m[2];
+    if (index === rowIndex) continue;
+    if (index > rowIndex) {
+      next[`familyMembers.${index - 1}.${fieldKey}`] = value;
+      continue;
+    }
+    next[key] = value;
+  }
+  return next;
+}
+
+function updateFamilyRowInList(
+  rows: FamilyRow[],
+  index: number,
+  key: keyof FamilyRow,
+  value: string,
+): FamilyRow[] {
+  const next = [...rows];
+  const existing = next[index];
+  if (!existing) return rows;
+  next[index] = { ...existing, [key]: value };
+  return next;
+}
+
+type SubmitContext = {
+  isEditMode: boolean;
+  initialData: Member | undefined;
+  payload: CreateMemberInput;
+  photoFile: File | null;
+};
+type SubmitCallbacks = {
+  setFieldErrors: (_errors: Record<string, string>) => void;
+  setErrorMessage: (_msg: string) => void;
+  push: (_url: string) => void;
+};
+
+async function runMemberSubmit(
+  { isEditMode, initialData, payload, photoFile }: SubmitContext,
+  { setFieldErrors, setErrorMessage, push }: SubmitCallbacks,
+): Promise<void> {
+  let photoKey = initialData?.photo_key ?? '';
+  if (photoFile) {
+    const uploadResult = await uploadMemberPhoto(photoFile);
+    photoKey = uploadResult.photoKey;
+  }
+  if (isEditMode && initialData) {
+    const updatePayload = { ...payload, photoKey };
+    const vr = updateMemberSchema.safeParse(updatePayload);
+    if (!vr.success) {
+      setFieldErrors(mapZodIssues(vr.error.issues));
+      setErrorMessage('Please fix validation errors before submitting.');
+      return;
+    }
+    const result = await updateMember(initialData.id, vr.data);
+    if (!result.success || !result.data) {
+      setErrorMessage(result.error ?? 'Unable to update member. Please try again.');
+      return;
+    }
+    push(`/members/${result.data.id}`);
+  } else {
+    const payloadWithPhoto: CreateMemberInput = { ...payload, photoKey };
+    const vr = createMemberSchema.safeParse(payloadWithPhoto);
+    if (!vr.success) {
+      setFieldErrors(mapZodIssues(vr.error.issues));
+      setErrorMessage('Please fix validation errors before submitting.');
+      return;
+    }
+    const result = await createMember(vr.data);
+    if (!result.success || !result.data) {
+      setErrorMessage(result.error ?? 'Unable to create member. Please try again.');
+      return;
+    }
+    push(`/members/${result.data.id}`);
+  }
+}
+
+export function MemberForm({
+  memberCodePreview,
+  shakhaOptions,
+  initialData,
+}: Readonly<MemberFormProps>) {
+  const isEditMode = Boolean(initialData);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [isFamilyInOman, setIsFamilyInOman] = useState(false);
-  const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
+  const [isFamilyInOman, setIsFamilyInOman] = useState(initialData?.is_family_in_oman ?? false);
+  const [familyRows, setFamilyRows] = useState<FamilyRow[]>(() => initFamilyRows(initialData));
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
-  const defaultExpiry = useMemo(() => {
-    const date = new Date();
-    date.setFullYear(date.getFullYear() + 1);
-    return date.toISOString().slice(0, 10);
-  }, []);
+  const expiryValue = initialData?.expiry;
+  const defaultExpiry = useMemo(() => computeDefaultExpiry(expiryValue), [expiryValue]);
+
+  const handleFormChange = useCallback(() => setIsDirty(true), []);
 
   const addFamilyRow = () => {
     setFamilyRows((currentRows) => [...currentRows, createFamilyRow()]);
   };
 
-  const removeFamilyRow = () => {
-    setFamilyRows((currentRows) => {
-      if (currentRows.length === 0) {
-        return currentRows;
-      }
-
-      return currentRows.slice(0, -1);
-    });
+  const removeFamilyRow = (rowIndex: number) => {
+    setFamilyRows((rows) => filterFamilyRows(rows, rowIndex));
+    setFieldErrors((errors) => shiftFamilyFieldErrors(errors, rowIndex));
   };
 
   const updateFamilyRow = (index: number, key: keyof FamilyRow, value: string) => {
-    setFamilyRows((currentRows) => {
-      const nextRows = [...currentRows];
-      const existingRow = nextRows[index];
-      if (!existingRow) {
-        return currentRows;
-      }
-
-      nextRows[index] = {
-        ...existingRow,
-        [key]: value,
-      };
-
-      return nextRows;
-    });
-
+    setFamilyRows((rows) => updateFamilyRowInList(rows, index, key, value));
     setFieldErrors((currentErrors) => {
       const nextErrors = { ...currentErrors };
       delete nextErrors[`familyMembers.${index}.${key}`];
@@ -124,7 +233,7 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
     });
   };
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
+  const handleSubmit = (event: { preventDefault: () => void; currentTarget: HTMLFormElement }) => {
     event.preventDefault();
     setErrorMessage(null);
     setFieldErrors({});
@@ -132,69 +241,61 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
     const formData = new FormData(event.currentTarget);
 
     const payload: CreateMemberInput = {
-      memberCodePreview,
-      name: String(formData.get('name') ?? ''),
-      dob: String(formData.get('dob') ?? ''),
-      profession: String(formData.get('profession') ?? ''),
-      whatsappNo: String(formData.get('whatsappNo') ?? ''),
-      gsmNo: String(formData.get('gsmNo') ?? ''),
-      familyStatus: String(formData.get('familyStatus') ?? ''),
-      bloodGroup: String(formData.get('bloodGroup') ?? ''),
-      residentialArea: String(formData.get('residentialArea') ?? ''),
-      civilIdNo: String(formData.get('civilIdNo') ?? ''),
-      passportNo: String(formData.get('passportNo') ?? ''),
-      email: String(formData.get('email') ?? ''),
-      telNoIndia: String(formData.get('telNoIndia') ?? ''),
-      addressIndia: String(formData.get('addressIndia') ?? ''),
+      name: getFormValue(formData, 'name'),
+      dob: getFormValue(formData, 'dob'),
+      profession: getFormValue(formData, 'profession'),
+      whatsappNo: getFormValue(formData, 'whatsappNo'),
+      gsmNo: getFormValue(formData, 'gsmNo'),
+      familyStatus: getFormValue(formData, 'familyStatus'),
+      bloodGroup: getFormValue(formData, 'bloodGroup'),
+      residentialArea: getFormValue(formData, 'residentialArea'),
+      civilIdNo: getFormValue(formData, 'civilIdNo'),
+      passportNo: getFormValue(formData, 'passportNo'),
+      email: getFormValue(formData, 'email'),
+      telNoIndia: getFormValue(formData, 'telNoIndia'),
+      addressIndia: getFormValue(formData, 'addressIndia'),
       isFamilyInOman,
       familyMembers: familyRows,
-      shakhaIndia: String(formData.get('shakhaIndia') ?? ''),
-      union: String(formData.get('union') ?? ''),
-      district: String(formData.get('district') ?? ''),
-      officeShakhaId: String(formData.get('officeShakhaId') ?? ''),
-      submittedBy: String(formData.get('submittedBy') ?? ''),
-      approvedBy: String(formData.get('approvedBy') ?? ''),
-      receivedOn: String(formData.get('receivedOn') ?? ''),
-      checkedBy: String(formData.get('checkedBy') ?? ''),
-      expiry: String(formData.get('expiry') ?? ''),
-      applicationNo: String(formData.get('applicationNo') ?? ''),
-      secretary: String(formData.get('secretary') ?? ''),
-      president: String(formData.get('president') ?? ''),
+      shakhaIndia: getFormValue(formData, 'shakhaIndia'),
+      union: getFormValue(formData, 'union'),
+      district: getFormValue(formData, 'district'),
+      officeShakhaId: getFormValue(formData, 'officeShakhaId'),
+      submittedBy: getFormValue(formData, 'submittedBy'),
+      approvedBy: getFormValue(formData, 'approvedBy'),
+      receivedOn: getFormValue(formData, 'receivedOn'),
+      checkedBy: getFormValue(formData, 'checkedBy'),
+      expiry: getFormValue(formData, 'expiry'),
+      applicationNo: getFormValue(formData, 'applicationNo'),
+      secretary: getFormValue(formData, 'secretary'),
+      president: getFormValue(formData, 'president'),
       photoKey: '',
     };
 
-    if (!photoFile) {
+    if (!isEditMode && !photoFile) {
       setFieldErrors({ photoKey: 'Photo is required' });
       return;
     }
 
     startTransition(async () => {
-      const uploadResult = await uploadMemberPhoto(photoFile);
-      const payloadWithPhoto: CreateMemberInput = {
-        ...payload,
-        photoKey: uploadResult.photoKey,
-      };
-
-      const validationResult = createMemberSchema.safeParse(payloadWithPhoto);
-      if (!validationResult.success) {
-        setFieldErrors(mapZodIssues(validationResult.error.issues));
-        setErrorMessage('Please fix validation errors before submitting.');
-        return;
-      }
-
-      const result = await createMember(validationResult.data);
-      if (!result.success || !result.data) {
-        setErrorMessage(result.error ?? 'Unable to create member. Please try again.');
-        return;
-      }
-
-      router.push(`/members/${result.data.id}`);
+      await runMemberSubmit(
+        { isEditMode, initialData, payload, photoFile },
+        { setFieldErrors, setErrorMessage, push: router.push },
+      );
     });
   };
+
+  let submitLabel = 'Save Member';
+  if (isEditMode) {
+    submitLabel = 'Update Member';
+  }
+  if (isPending) {
+    submitLabel = 'Saving...';
+  }
 
   return (
     <form
       onSubmit={handleSubmit}
+      onChange={handleFormChange}
       className="border-border bg-surface space-y-8 rounded-xl border p-6"
     >
       <fieldset className="space-y-4">
@@ -211,50 +312,74 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
             <label className="text-text-secondary text-sm font-medium" htmlFor="name">
               Name *
             </label>
-            <Input id="name" name="name" disabled={isPending} />
-            {fieldErrors['name'] ? (
-              <p className="text-danger text-xs">{fieldErrors['name']}</p>
-            ) : null}
+            <Input
+              id="name"
+              name="name"
+              defaultValue={initialData?.name ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError fieldErrors={fieldErrors} fieldKey="name" errorId="name-error" />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="profession">
               Profession *
             </label>
-            <Input id="profession" name="profession" disabled={isPending} />
-            {fieldErrors['profession'] ? (
-              <p className="text-danger text-xs">{fieldErrors['profession']}</p>
-            ) : null}
+            <Input
+              id="profession"
+              name="profession"
+              defaultValue={initialData?.profession ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="profession"
+              errorId="profession-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="dob">
               DOB *
             </label>
-            <Input id="dob" name="dob" type="date" disabled={isPending} />
-            {fieldErrors['dob'] ? (
-              <p className="text-danger text-xs">{fieldErrors['dob']}</p>
-            ) : null}
+            <Input
+              id="dob"
+              name="dob"
+              type="date"
+              defaultValue={initialData?.dob ? initialData.dob.toISOString().slice(0, 10) : ''}
+              disabled={isPending}
+            />
+            <FormFieldError fieldErrors={fieldErrors} fieldKey="dob" errorId="dob-error" />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="whatsappNo">
               Whatsapp No *
             </label>
-            <Input id="whatsappNo" name="whatsappNo" disabled={isPending} />
-            {fieldErrors['whatsappNo'] ? (
-              <p className="text-danger text-xs">{fieldErrors['whatsappNo']}</p>
-            ) : null}
+            <Input
+              id="whatsappNo"
+              name="whatsappNo"
+              defaultValue={initialData?.whatsapp_no ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="whatsappNo"
+              errorId="whatsappNo-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="gsmNo">
               GSM No *
             </label>
-            <Input id="gsmNo" name="gsmNo" disabled={isPending} />
-            {fieldErrors['gsmNo'] ? (
-              <p className="text-danger text-xs">{fieldErrors['gsmNo']}</p>
-            ) : null}
+            <Input
+              id="gsmNo"
+              name="gsmNo"
+              defaultValue={initialData?.gsm_no ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError fieldErrors={fieldErrors} fieldKey="gsmNo" errorId="gsmNo-error" />
           </div>
 
           <div className="space-y-1.5">
@@ -266,7 +391,7 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
               name="familyStatus"
               disabled={isPending}
               className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
-              defaultValue=""
+              defaultValue={initialData?.family_status ?? ''}
             >
               <option value="">Select status</option>
               {maritalStatusOptions.map((option) => (
@@ -286,7 +411,7 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
               name="bloodGroup"
               disabled={isPending}
               className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
-              defaultValue=""
+              defaultValue={initialData?.blood_group ?? ''}
             >
               <option value="">Select blood group</option>
               {bloodGroupOptions.map((option) => (
@@ -301,45 +426,70 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
             <label className="text-text-secondary text-sm font-medium" htmlFor="residentialArea">
               Residential Area *
             </label>
-            <Input id="residentialArea" name="residentialArea" disabled={isPending} />
-            {fieldErrors['residentialArea'] ? (
-              <p className="text-danger text-xs">{fieldErrors['residentialArea']}</p>
-            ) : null}
+            <Input
+              id="residentialArea"
+              name="residentialArea"
+              defaultValue={initialData?.residential_area ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="residentialArea"
+              errorId="residentialArea-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="email">
               Email
             </label>
-            <Input id="email" name="email" type="email" disabled={isPending} />
-            {fieldErrors['email'] ? (
-              <p className="text-danger text-xs">{fieldErrors['email']}</p>
-            ) : null}
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={initialData?.email ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError fieldErrors={fieldErrors} fieldKey="email" errorId="email-error" />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="civilIdNo">
               Civil ID No *
             </label>
-            <Input id="civilIdNo" name="civilIdNo" disabled={isPending} />
-            {fieldErrors['civilIdNo'] ? (
-              <p className="text-danger text-xs">{fieldErrors['civilIdNo']}</p>
-            ) : null}
+            <Input
+              id="civilIdNo"
+              name="civilIdNo"
+              defaultValue={initialData?.civil_id_no ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="civilIdNo"
+              errorId="civilIdNo-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="passportNo">
               Passport No *
             </label>
-            <Input id="passportNo" name="passportNo" disabled={isPending} />
-            {fieldErrors['passportNo'] ? (
-              <p className="text-danger text-xs">{fieldErrors['passportNo']}</p>
-            ) : null}
+            <Input
+              id="passportNo"
+              name="passportNo"
+              defaultValue={initialData?.passport_no ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="passportNo"
+              errorId="passportNo-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="photo">
-              Photo *
+              Photo {isEditMode ? '' : '*'}
             </label>
             <Input
               id="photo"
@@ -357,19 +507,28 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
                 });
               }}
             />
-            {fieldErrors['photoKey'] ? (
-              <p className="text-danger text-xs">{fieldErrors['photoKey']}</p>
-            ) : null}
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="photoKey"
+              errorId="photoKey-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="telNoIndia">
               Telephone No(India)
             </label>
-            <Input id="telNoIndia" name="telNoIndia" disabled={isPending} />
-            {fieldErrors['telNoIndia'] ? (
-              <p className="text-danger text-xs">{fieldErrors['telNoIndia']}</p>
-            ) : null}
+            <Input
+              id="telNoIndia"
+              name="telNoIndia"
+              defaultValue={initialData?.tel_no_india ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="telNoIndia"
+              errorId="telNoIndia-error"
+            />
           </div>
         </div>
 
@@ -381,12 +540,15 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
             id="addressIndia"
             name="addressIndia"
             rows={3}
+            defaultValue={initialData?.address_india ?? ''}
             disabled={isPending}
             className="border-border text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-accent/20 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
-          {fieldErrors['addressIndia'] ? (
-            <p className="text-danger text-xs">{fieldErrors['addressIndia']}</p>
-          ) : null}
+          <FormFieldError
+            fieldErrors={fieldErrors}
+            fieldKey="addressIndia"
+            errorId="addressIndia-error"
+          />
         </div>
 
         <div className="space-y-1.5">
@@ -431,64 +593,80 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
           ) : null}
 
           {familyRows.map((row, index) => (
-            <div key={row.id} className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-1.5">
-                <label
-                  className="text-text-secondary text-sm font-medium"
-                  htmlFor={`family-name-${index}`}
-                >
-                  Name *
-                </label>
-                <Input
-                  id={`family-name-${index}`}
-                  value={row.name}
-                  disabled={isPending}
-                  onChange={(event) => updateFamilyRow(index, 'name', event.target.value)}
-                />
-                {fieldErrors[`familyMembers.${index}.name`] ? (
-                  <p className="text-danger text-xs">
-                    {fieldErrors[`familyMembers.${index}.name`]}
-                  </p>
-                ) : null}
+            <div key={row.id} className="space-y-3 rounded-lg border border-transparent p-2">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-1.5">
+                  <label
+                    className="text-text-secondary text-sm font-medium"
+                    htmlFor={`family-name-${index}`}
+                  >
+                    Name *
+                  </label>
+                  <Input
+                    id={`family-name-${index}`}
+                    value={row.name}
+                    disabled={isPending}
+                    onChange={(event) => updateFamilyRow(index, 'name', event.target.value)}
+                  />
+                  <FormFieldError
+                    fieldErrors={fieldErrors}
+                    fieldKey={`familyMembers.${index}.name`}
+                    errorId={`family-name-error-${index}`}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    className="text-text-secondary text-sm font-medium"
+                    htmlFor={`family-relation-${index}`}
+                  >
+                    Relation
+                  </label>
+                  <select
+                    id={`family-relation-${index}`}
+                    value={row.relation}
+                    disabled={isPending}
+                    onChange={(event) => updateFamilyRow(index, 'relation', event.target.value)}
+                    className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+                  >
+                    <option value="">Select relation</option>
+                    {familyRelationOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    className="text-text-secondary text-sm font-medium"
+                    htmlFor={`family-dob-${index}`}
+                  >
+                    DOB
+                  </label>
+                  <Input
+                    id={`family-dob-${index}`}
+                    type="date"
+                    value={row.dob}
+                    disabled={isPending}
+                    onChange={(event) => updateFamilyRow(index, 'dob', event.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label
-                  className="text-text-secondary text-sm font-medium"
-                  htmlFor={`family-relation-${index}`}
-                >
-                  Relation
-                </label>
-                <select
-                  id={`family-relation-${index}`}
-                  value={row.relation}
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeFamilyRow(index)}
                   disabled={isPending}
-                  onChange={(event) => updateFamilyRow(index, 'relation', event.target.value)}
-                  className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+                  aria-label={`Remove family member row ${index + 1}`}
                 >
-                  <option value="">Select relation</option>
-                  {familyRelationOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label
-                  className="text-text-secondary text-sm font-medium"
-                  htmlFor={`family-dob-${index}`}
-                >
-                  DOB
-                </label>
-                <Input
-                  id={`family-dob-${index}`}
-                  type="date"
-                  value={row.dob}
-                  disabled={isPending}
-                  onChange={(event) => updateFamilyRow(index, 'dob', event.target.value)}
-                />
+                  <UserMinus />
+                  Remove Row
+                </Button>
               </div>
             </div>
           ))}
@@ -505,17 +683,6 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
               <UserPlus />
               Add Row
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={removeFamilyRow}
-              disabled={isPending || familyRows.length === 0}
-              aria-label="Remove family member row"
-            >
-              <UserMinus />
-              Remove Row
-            </Button>
           </div>
         </div>
       </fieldset>
@@ -529,14 +696,24 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
             <label className="text-text-secondary text-sm font-medium" htmlFor="shakhaIndia">
               Shakha
             </label>
-            <Input id="shakhaIndia" name="shakhaIndia" disabled={isPending} />
+            <Input
+              id="shakhaIndia"
+              name="shakhaIndia"
+              defaultValue={initialData?.shakha_india ?? ''}
+              disabled={isPending}
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="union">
               Union
             </label>
-            <Input id="union" name="union" disabled={isPending} />
+            <Input
+              id="union"
+              name="union"
+              defaultValue={initialData?.union ?? ''}
+              disabled={isPending}
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -548,7 +725,7 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
               name="district"
               disabled={isPending}
               className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
-              defaultValue=""
+              defaultValue={initialData?.district ?? ''}
             >
               <option value="">Select district</option>
               {districtOptions.map((option) => (
@@ -571,7 +748,7 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
             <select
               id="officeShakhaId"
               name="officeShakhaId"
-              defaultValue=""
+              defaultValue={initialData?.shakha_id ?? ''}
               disabled={isPending}
               className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
             >
@@ -588,45 +765,76 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
             <label className="text-text-secondary text-sm font-medium" htmlFor="submittedBy">
               Submitted By *
             </label>
-            <Input id="submittedBy" name="submittedBy" disabled={isPending} />
-            {fieldErrors['submittedBy'] ? (
-              <p className="text-danger text-xs">{fieldErrors['submittedBy']}</p>
-            ) : null}
+            <Input
+              id="submittedBy"
+              name="submittedBy"
+              defaultValue={initialData?.submitted_by ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="submittedBy"
+              errorId="submittedBy-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="receivedOn">
               Received On *
             </label>
-            <Input id="receivedOn" name="receivedOn" type="date" disabled={isPending} />
-            {fieldErrors['receivedOn'] ? (
-              <p className="text-danger text-xs">{fieldErrors['receivedOn']}</p>
-            ) : null}
+            <Input
+              id="receivedOn"
+              name="receivedOn"
+              type="date"
+              defaultValue={
+                initialData?.received_on ? initialData.received_on.toISOString().slice(0, 10) : ''
+              }
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="receivedOn"
+              errorId="receivedOn-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="approvedBy">
               Approved By *
             </label>
-            <Input id="approvedBy" name="approvedBy" disabled={isPending} />
-            {fieldErrors['approvedBy'] ? (
-              <p className="text-danger text-xs">{fieldErrors['approvedBy']}</p>
-            ) : null}
+            <Input
+              id="approvedBy"
+              name="approvedBy"
+              defaultValue={initialData?.approved_by ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="approvedBy"
+              errorId="approvedBy-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="checkedBy">
               Checked By *
             </label>
-            <Input id="checkedBy" name="checkedBy" disabled={isPending} />
-            {fieldErrors['checkedBy'] ? (
-              <p className="text-danger text-xs">{fieldErrors['checkedBy']}</p>
-            ) : null}
+            <Input
+              id="checkedBy"
+              name="checkedBy"
+              defaultValue={initialData?.checked_by ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="checkedBy"
+              errorId="checkedBy-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="expiry">
-              Expiry *
+              Expiry
             </label>
             <Input
               id="expiry"
@@ -635,33 +843,48 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
               defaultValue={defaultExpiry}
               disabled={isPending}
             />
-            {fieldErrors['expiry'] ? (
-              <p className="text-danger text-xs">{fieldErrors['expiry']}</p>
-            ) : null}
+            <FormFieldError fieldErrors={fieldErrors} fieldKey="expiry" errorId="expiry-error" />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="applicationNo">
               Application No *
             </label>
-            <Input id="applicationNo" name="applicationNo" disabled={isPending} />
-            {fieldErrors['applicationNo'] ? (
-              <p className="text-danger text-xs">{fieldErrors['applicationNo']}</p>
-            ) : null}
+            <Input
+              id="applicationNo"
+              name="applicationNo"
+              defaultValue={initialData?.application_no ?? ''}
+              disabled={isPending}
+            />
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="applicationNo"
+              errorId="applicationNo-error"
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="secretary">
               Secretary
             </label>
-            <Input id="secretary" name="secretary" disabled={isPending} />
+            <Input
+              id="secretary"
+              name="secretary"
+              defaultValue={initialData?.secretary ?? ''}
+              disabled={isPending}
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="president">
               President
             </label>
-            <Input id="president" name="president" disabled={isPending} />
+            <Input
+              id="president"
+              name="president"
+              defaultValue={initialData?.president ?? ''}
+              disabled={isPending}
+            />
           </div>
         </div>
       </fieldset>
@@ -672,13 +895,13 @@ export function MemberForm({ memberCodePreview, shakhaOptions }: Readonly<Member
         <Button
           type="button"
           variant="secondary"
-          onClick={() => router.push('/members')}
+          onClick={() => router.push(isEditMode ? `/members/${initialData!.id}` : '/members')}
           disabled={isPending}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? 'Saving...' : 'Save Member'}
+        <Button type="submit" disabled={isPending || (isEditMode && !isDirty)}>
+          {submitLabel}
         </Button>
       </div>
     </form>
