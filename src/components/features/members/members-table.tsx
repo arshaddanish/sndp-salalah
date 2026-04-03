@@ -19,7 +19,8 @@ import { FilterDropdown } from '@/components/ui/dropdown-filter';
 import { Input } from '@/components/ui/input';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
 import { useQuerySearch } from '@/hooks/use-query-search';
-import { getMemberStatus, type Member } from '@/lib/mock-data/members';
+import { getMemberStatus } from '@/lib/mock-data/members';
+import type { Member } from '@/types/members';
 import type { PaginatedTableProps } from '@/types/pagination';
 
 type MembersTableProps = PaginatedTableProps<Member> & {
