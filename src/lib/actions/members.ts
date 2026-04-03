@@ -208,8 +208,7 @@ export async function createMember(
       };
     }
 
-    const calculatedMemberCode = getNextMemberCode();
-    const memberCode = Math.max(parsedData.memberCodePreview, calculatedMemberCode);
+    const memberCode = getNextMemberCode();
     const expiryDate = parseDateOrNull(parsedData.expiry) ?? getDefaultExpiryDate();
     const createdAt = new Date();
     const newMemberId = getNextMemberId();
@@ -383,7 +382,10 @@ export async function renewMembership(
   }
 }
 
-export async function updateMember(input: unknown): Promise<ActionResult<{ id: string }>> {
+export async function updateMember(
+  memberId: string,
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
   try {
     const validationResult = updateMemberSchema.safeParse(input);
     if (!validationResult.success) {
@@ -392,14 +394,14 @@ export async function updateMember(input: unknown): Promise<ActionResult<{ id: s
     }
 
     const data = validationResult.data;
-    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === data.id);
+    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === memberId);
     if (memberIndex === -1) {
       return { success: false, error: 'Member not found.' };
     }
 
     const normalizedCivilId = data.civilIdNo.trim().toLowerCase();
     const hasDuplicateCivilId = MOCK_MEMBERS.some(
-      (m) => m.id !== data.id && m.civil_id_no.trim().toLowerCase() === normalizedCivilId,
+      (m) => m.id !== memberId && m.civil_id_no.trim().toLowerCase() === normalizedCivilId,
     );
     if (hasDuplicateCivilId) {
       return { success: false, error: 'A member with this Civil ID already exists.' };
@@ -423,7 +425,7 @@ export async function updateMember(input: unknown): Promise<ActionResult<{ id: s
       address_india: data.addressIndia.trim(),
       is_family_in_oman: data.isFamilyInOman,
       family_members: data.familyMembers.map((fm, i) => ({
-        id: existing.family_members?.[i]?.id ?? `${data.id}-f${i + 1}`,
+        id: existing.family_members?.[i]?.id ?? `${memberId}-f${i + 1}`,
         name: fm.name.trim(),
         relation: normalizeOptionalText(fm.relation),
         dob: parseDateOrNull(fm.dob),
@@ -446,10 +448,10 @@ export async function updateMember(input: unknown): Promise<ActionResult<{ id: s
 
     MOCK_MEMBERS[memberIndex] = updatedMember;
 
-    revalidatePath(`/members/${data.id}`);
+    revalidatePath(`/members/${memberId}`);
     revalidatePath('/members');
 
-    return { success: true, data: { id: data.id } };
+    return { success: true, data: { id: memberId } };
   } catch (error) {
     console.error('Error updating member:', error);
     return { success: false, error: 'Unable to update member. Please try again.' };

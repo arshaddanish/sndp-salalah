@@ -4,6 +4,8 @@ const requiredText = (label: string) => z.string().trim().min(1, `${label} is re
 
 const optionalText = () => z.string().trim().optional().or(z.literal(''));
 
+const emailSchema = z.email();
+
 const optionalTextMax = (label: string, max: number) =>
   z.string().trim().max(max, `${label} is too long`).optional().or(z.literal(''));
 
@@ -26,7 +28,6 @@ export const familyMemberInputSchema = z.object({
 });
 
 export const createMemberSchema = z.object({
-  memberCodePreview: z.number().int().positive(),
   name: requiredText('Name').max(150, 'Name is too long'),
   dob: requiredDate('DOB'),
   profession: requiredText('Profession').max(150, 'Profession is too long'),
@@ -38,7 +39,7 @@ export const createMemberSchema = z.object({
   civilIdNo: requiredText('Civil ID No').max(50, 'Civil ID No is too long'),
   passportNo: requiredText('Passport No').max(50, 'Passport No is too long'),
   email: optionalText().refine(
-    (value) => value === '' || z.string().email().safeParse(value).success,
+    (value) => !value || emailSchema.safeParse(value).success,
     'Email must be valid',
   ),
   telNoIndia: optionalTextMax('Telephone No(India)', 20),
@@ -62,3 +63,23 @@ export const createMemberSchema = z.object({
 
 export type FamilyMemberInput = z.infer<typeof familyMemberInputSchema>;
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
+
+export const updateMemberSchema = createMemberSchema;
+
+export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
+
+export const renewMembershipSchema = z.object({
+  memberId: requiredText('Member ID'),
+  amount: z.number({ error: 'Amount must be a number' }).positive('Amount must be positive'),
+  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque'], {
+    error: 'Payment mode is required',
+  }),
+  fundAccount: z.enum(['cash', 'bank'], {
+    error: 'Fund account is required',
+  }),
+  newExpiry: requiredDate('New expiry date'),
+  remarks: optionalTextMax('Remarks', 500),
+  attachmentKey: optionalText(),
+});
+
+export type RenewMembershipInput = z.infer<typeof renewMembershipSchema>;
