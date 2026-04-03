@@ -397,3 +397,47 @@ export async function fetchTransactions(
     },
   };
 }
+
+export async function deleteTransaction(id: string): Promise<ActionResult<null>> {
+  try {
+    const index = MOCK_TRANSACTIONS.findIndex((t) => t.id === id);
+    if (index === -1) {
+      return { success: false, error: 'Transaction not found.' };
+    }
+    MOCK_TRANSACTIONS.splice(index, 1);
+    revalidatePath('/transactions');
+    return { success: true, data: null };
+  } catch (error) {
+    console.error('Error deleting transaction:', error);
+    return {
+      success: false,
+      error: 'Unable to delete transaction. Please try again.',
+    };
+  }
+}
+
+export async function updateTransaction(
+  id: string,
+  input: { amount: string; remarks: string },
+): Promise<ActionResult<null>> {
+  try {
+    const index = MOCK_TRANSACTIONS.findIndex((t) => t.id === id);
+    if (index === -1) {
+      return { success: false, error: 'Transaction not found.' };
+    }
+    const existing = MOCK_TRANSACTIONS[index];
+    if (existing) {
+      existing.amount = Number(input.amount).toFixed(3);
+      existing.remarks = input.remarks;
+      existing.updatedAt = new Date();
+    }
+    revalidatePath('/transactions');
+    return { success: true, data: null };
+  } catch (error) {
+    console.error('Error updating transaction:', error);
+    return {
+      success: false,
+      error: 'Unable to update transaction. Please try again.',
+    };
+  }
+}

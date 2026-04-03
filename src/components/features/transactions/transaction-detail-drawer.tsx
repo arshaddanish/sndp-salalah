@@ -1,8 +1,8 @@
 'use client';
 
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { format } from 'date-fns';
-import type { Dispatch, SetStateAction } from 'react';
-
+import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
@@ -10,7 +10,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { deleteTransaction } from '@/lib/actions/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
+import { EditTransactionDialog } from './edit-transaction-dialog';
 
 type TransactionDetailDrawerProps = {
   transaction: RegularTransactionRow | null;
@@ -44,6 +46,7 @@ export function TransactionDetailDrawer({
   isOpen,
   onOpenChange,
 }: Readonly<TransactionDetailDrawerProps>) {
+  const [isEditOpen, setIsEditOpen] = useState(false);
   if (!transaction) {
     return null;
   }
@@ -154,6 +157,36 @@ export function TransactionDetailDrawer({
             </DetailField>
           </dl>
         </div>
+        <div className="flex gap-2 border-t px-6 py-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1"
+            onClick={() => setIsEditOpen(true)}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            className="flex-1"
+            onClick={async () => {
+              if (confirm('Delete this transaction?')) {
+                await deleteTransaction(transaction.id);
+                onOpenChange(false);
+              }
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+        {isEditOpen && (
+          <EditTransactionDialog
+            isOpen={isEditOpen}
+            onOpenChange={setIsEditOpen}
+            transaction={transaction}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );
