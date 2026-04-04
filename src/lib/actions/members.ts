@@ -37,6 +37,10 @@ function filterMembers(members: Member[], filters: MembersFilterOptions): Member
   const { q = '', status = 'all', shakha = 'all', createdStart = '', createdEnd = '' } = filters;
 
   return members.filter((member) => {
+    if (member.is_archived) {
+      return false;
+    }
+
     // Full-text search filter
     const matchesSearch =
       q === '' ||
@@ -177,10 +181,6 @@ function getDefaultExpiryDate(): Date {
   return nextYear;
 }
 
-export async function getNextMemberCodePreview(): Promise<number> {
-  return getNextMemberCode();
-}
-
 export async function createMember(
   input: CreateMemberInput,
 ): Promise<ActionResult<{ id: string; memberCode: number }>> {
@@ -249,6 +249,8 @@ export async function createMember(
         dob: parseDateOrNull(familyMember.dob),
         created_at: createdAt,
       })),
+      is_archived: false,
+      archived_at: null,
       expiry: expiryDate,
       created_at: createdAt,
     };
@@ -275,7 +277,7 @@ export async function createMember(
 export async function fetchMemberById(id: string): Promise<ActionResult<MemberDetail>> {
   try {
     const member = MOCK_MEMBERS.find((item) => item.id === id);
-    if (!member) {
+    if (!member || member.is_archived) {
       return { success: false, error: 'Member not found.' };
     }
 
@@ -455,6 +457,54 @@ export async function updateMember(
   } catch (error) {
     console.error('Error updating member:', error);
     return { success: false, error: 'Unable to update member. Please try again.' };
+  }
+}
+
+export async function updateMemberPhoto(
+  memberId: string,
+  photoKey: string,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === memberId);
+    if (memberIndex === -1) {
+      return { success: false, error: 'Member not found.' };
+    }
+    const existing = MOCK_MEMBERS[memberIndex]!;
+    MOCK_MEMBERS[memberIndex] = { ...existing, photo_key: photoKey };
+    revalidatePath(`/members/${memberId}`);
+    return { success: true, data: { id: memberId } };
+  } catch (error) {
+    console.error('Error updating member photo:', error);
+    return { success: false, error: 'Unable to update photo. Please try again.' };
+  }
+}
+
+export async function archiveMember(memberId: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    const memberIndex = MOCK_MEMBERS.findIndex((member) => member.id === memberId);
+
+    if (memberIndex === -1) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    const existing = MOCK_MEMBERS[memberIndex]!;
+    if (existing.is_archived) {
+      return { success: true, data: { id: memberId } };
+    }
+
+    MOCK_MEMBERS[memberIndex] = {
+      ...existing,
+      is_archived: true,
+      archived_at: new Date(),
+    };
+
+    revalidatePath('/members');
+    revalidatePath(`/members/${memberId}`);
+
+    return { success: true, data: { id: memberId } };
+  } catch (error) {
+    console.error('Error archiving member:', error);
+    return { success: false, error: 'Unable to archive member. Please try again.' };
   }
 }
 

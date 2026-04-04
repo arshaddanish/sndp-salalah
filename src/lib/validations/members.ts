@@ -58,7 +58,7 @@ export const createMemberSchema = z.object({
   applicationNo: requiredText('Application No').max(50, 'Application No is too long'),
   secretary: optionalText(),
   president: optionalText(),
-  photoKey: requiredText('Photo key'),
+  photoKey: requiredText('Photo'),
 });
 
 export type FamilyMemberInput = z.infer<typeof familyMemberInputSchema>;
