@@ -1,6 +1,7 @@
 'use client';
 
 import { format } from 'date-fns';
+import { Edit2, Trash2 } from 'lucide-react';
 import { type Dispatch, type SetStateAction, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -15,11 +16,11 @@ import { deleteTransaction } from '@/lib/actions/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
 
 import { EditTransactionDialog } from './edit-transaction-dialog';
-
 type TransactionDetailDrawerProps = {
   transaction: RegularTransactionRow | null;
   isOpen: boolean;
   onOpenChange: Dispatch<SetStateAction<boolean>>;
+  categoryOptions: Array<{ label: string; value: string }>;
 };
 
 const paymentModeLabel: Record<RegularTransactionRow['paymentMode'], string> = {
@@ -42,11 +43,11 @@ function DetailField({ label, children }: Readonly<{ label: string; children: Re
     </div>
   );
 }
-
 export function TransactionDetailDrawer({
   transaction,
   isOpen,
   onOpenChange,
+  categoryOptions,
 }: Readonly<TransactionDetailDrawerProps>) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -79,7 +80,12 @@ export function TransactionDetailDrawer({
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+    <Sheet
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!isDeleting) onOpenChange(open);
+      }}
+    >
       <SheetContent>
         <SheetHeader>
           <SheetTitle>Transaction #{transaction.transactionCode}</SheetTitle>
@@ -166,11 +172,13 @@ export function TransactionDetailDrawer({
         {deleteError ? <p className="text-danger px-6 text-sm">{deleteError}</p> : null}
 
         <div className="flex justify-end gap-2 px-6 py-4">
-          <Button variant="primary" size="sm" onClick={() => setIsEditOpen(true)}>
-            Edit
-          </Button>
           <Button variant="danger" size="sm" disabled={isDeleting} onClick={handleDelete}>
+            <Trash2 className="h-4 w-4" />
             {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => setIsEditOpen(true)}>
+            <Edit2 className="h-4 w-4" />
+            Edit
           </Button>
         </div>
 
@@ -179,6 +187,11 @@ export function TransactionDetailDrawer({
             isOpen={isEditOpen}
             onOpenChange={setIsEditOpen}
             transaction={transaction}
+            categoryOptions={categoryOptions}
+            onSuccess={() => {
+              setIsEditOpen(false);
+              onOpenChange(false);
+            }}
           />
         )}
       </SheetContent>

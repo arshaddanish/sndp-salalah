@@ -1,7 +1,5 @@
 # Claude AI Agent Guidelines
 
-# Claude AI Agent Guidelines
-
 ## Project Overview
 
 This is the SNDP Salalah web application built with Next.js, TypeScript, and Tailwind CSS.

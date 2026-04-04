@@ -418,17 +418,34 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
 }
 
 const updateTransactionSchema = z.object({
+  type: z.enum(['income', 'expense']),
   amount: z
     .string()
     .refine((val) => !Number.isNaN(Number(val)) && Number(val) > 0, {
       message: 'Amount must be a positive number.',
     }),
+  transactionDate: z.string().min(1, 'Date is required.'),
+  categoryId: z.string().min(1, 'Category is required.'),
+  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque']),
+  fundAccount: z.enum(['cash', 'bank']),
+  payeeMerchant: z.string().optional().default(''),
+  paidReceiptBy: z.string().optional().default(''),
   remarks: z.string().max(500).optional().default(''),
 });
 
 export async function updateTransaction(
   id: string,
-  input: { amount: string; remarks: string },
+  input: {
+    type: string;
+    amount: string;
+    transactionDate: string;
+    categoryId: string;
+    paymentMode: string;
+    fundAccount: string;
+    payeeMerchant: string;
+    paidReceiptBy: string;
+    remarks: string;
+  },
 ): Promise<ActionResult<null>> {
   try {
     const validationResult = updateTransactionSchema.safeParse(input);
@@ -439,16 +456,31 @@ export async function updateTransaction(
         error: firstError?.message ?? 'Invalid transaction input.',
       };
     }
+
     const index = MOCK_TRANSACTIONS.findIndex((t) => t.id === id);
     if (index === -1) {
       return { success: false, error: 'Transaction not found.' };
     }
+
+    const category = MOCK_TRANSACTION_CATEGORIES.find(
+      (cat) => cat.id === validationResult.data.categoryId,
+    );
+
     const existing = MOCK_TRANSACTIONS[index];
     if (existing) {
+      existing.type = validationResult.data.type;
       existing.amount = Number(validationResult.data.amount).toFixed(3);
+      existing.transactionDate = new Date(validationResult.data.transactionDate);
+      existing.categoryId = validationResult.data.categoryId;
+      existing.categoryName = category?.name ?? existing.categoryName;
+      existing.paymentMode = validationResult.data.paymentMode;
+      existing.fundAccount = validationResult.data.fundAccount;
+      existing.payeeMerchant = validationResult.data.payeeMerchant;
+      existing.paidReceiptBy = validationResult.data.paidReceiptBy;
       existing.remarks = validationResult.data.remarks ?? '';
       existing.updatedAt = new Date();
     }
+
     revalidatePath('/transactions');
     return { success: true, data: null };
   } catch (error) {

@@ -306,6 +306,7 @@ export function TransactionsTable({
         transaction={selectedTransaction}
         isOpen={isDrawerOpen}
         onOpenChange={setIsDrawerOpen}
+        categoryOptions={categoryOptions}
       />
     </div>
   );
