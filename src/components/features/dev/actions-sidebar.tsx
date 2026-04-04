@@ -115,7 +115,7 @@ export function ActionsSidebar({
                         >
                           {action.title}
                         </button>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" suppressHydrationWarning>
                           {isRecent ? (
                             <span
                               className={cn(
@@ -136,6 +136,7 @@ export function ActionsSidebar({
                             aria-label={
                               isFavorite ? `Unpin ${action.title}` : `Pin ${action.title}`
                             }
+                            suppressHydrationWarning
                           >
                             <Star className={cn('size-3.5', favoriteIconClassName)} />
                           </Button>
