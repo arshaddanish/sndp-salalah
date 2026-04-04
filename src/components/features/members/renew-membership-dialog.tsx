@@ -147,7 +147,7 @@ export function RenewMembershipDialog({
               name="amount"
               type="number"
               step="0.001"
-              min="0"
+              min="0.001"
               required
               disabled={isPending}
               placeholder="0.000"
