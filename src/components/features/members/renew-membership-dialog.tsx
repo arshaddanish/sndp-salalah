@@ -170,7 +170,7 @@ export function RenewMembershipDialog({
                 name="paymentMode"
                 required
                 disabled={isPending}
-                className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+                className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                 defaultValue=""
               >
                 <option value="" disabled>
@@ -199,7 +199,7 @@ export function RenewMembershipDialog({
                 name="fundAccount"
                 required
                 disabled={isPending}
-                className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+                className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                 defaultValue=""
               >
                 <option value="" disabled>
@@ -244,7 +244,7 @@ export function RenewMembershipDialog({
               rows={2}
               maxLength={500}
               disabled={isPending}
-              className="border-border text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-accent/20 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="border-border bg-surface text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-accent-border w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 

@@ -91,7 +91,7 @@ export function MemberPhotoEditor({
           )}
 
           {isPending && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+            <div className="bg-text-primary/40 absolute inset-0 flex items-center justify-center rounded-xl">
               <span className="border-accent h-7 w-7 animate-spin rounded-full border-2 border-t-transparent" />
             </div>
           )}
@@ -103,7 +103,7 @@ export function MemberPhotoEditor({
             type="button"
             onClick={triggerPicker}
             aria-label="Change member photo"
-            className="bg-accent hover:bg-accent-hover absolute -right-2 -bottom-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-white shadow-md transition-colors"
+            className="bg-accent hover:bg-accent-hover text-text-on-dark absolute -right-2 -bottom-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full shadow-md transition-colors"
           >
             <Camera className="h-4 w-4" />
           </button>
