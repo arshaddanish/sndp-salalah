@@ -25,7 +25,6 @@ type Option = {
 };
 
 type MemberFormProps = {
-  memberCodePreview: number;
   shakhaOptions: Option[];
   initialData?: Member;
 };
@@ -169,7 +168,6 @@ async function runMemberSubmit(
     const vr = updateMemberSchema.safeParse(updatePayload);
     if (!vr.success) {
       setFieldErrors(mapZodIssues(vr.error.issues));
-      setErrorMessage('Please fix validation errors before submitting.');
       return;
     }
     const result = await updateMember(initialData.id, vr.data);
@@ -183,7 +181,6 @@ async function runMemberSubmit(
     const vr = createMemberSchema.safeParse(payloadWithPhoto);
     if (!vr.success) {
       setFieldErrors(mapZodIssues(vr.error.issues));
-      setErrorMessage('Please fix validation errors before submitting.');
       return;
     }
     const result = await createMember(vr.data);
@@ -195,11 +192,7 @@ async function runMemberSubmit(
   }
 }
 
-export function MemberForm({
-  memberCodePreview,
-  shakhaOptions,
-  initialData,
-}: Readonly<MemberFormProps>) {
+export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormProps>) {
   const isEditMode = Boolean(initialData);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -271,8 +264,17 @@ export function MemberForm({
       photoKey: '',
     };
 
-    if (!isEditMode && !photoFile) {
-      setFieldErrors({ photoKey: 'Photo is required' });
+    // Resolve photoKey: file selected takes priority; edit mode preserves existing key.
+    if (photoFile) {
+      payload.photoKey = 'pending_upload';
+    } else if (isEditMode) {
+      payload.photoKey = initialData?.photo_key ?? '';
+    }
+
+    const validationSchema = isEditMode ? updateMemberSchema : createMemberSchema;
+    const cvr = validationSchema.safeParse(payload);
+    if (!cvr.success) {
+      setFieldErrors(mapZodIssues(cvr.error.issues));
       return;
     }
 
@@ -301,13 +303,6 @@ export function MemberForm({
       <fieldset className="space-y-4">
         <legend className="text-text-primary mb-3 text-sm font-semibold">General Details</legend>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-1.5">
-            <label className="text-text-secondary text-sm font-medium" htmlFor="memberCodePreview">
-              Member ID *
-            </label>
-            <Input id="memberCodePreview" value={String(memberCodePreview)} readOnly />
-          </div>
-
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="name">
               Name *
@@ -487,32 +482,34 @@ export function MemberForm({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-text-secondary text-sm font-medium" htmlFor="photo">
-              Photo {isEditMode ? '' : '*'}
-            </label>
-            <Input
-              id="photo"
-              name="photo"
-              type="file"
-              accept="image/*"
-              disabled={isPending}
-              onChange={(event) => {
-                const nextFile = event.target.files?.[0] ?? null;
-                setPhotoFile(nextFile);
-                setFieldErrors((currentErrors) => {
-                  const nextErrors = { ...currentErrors };
-                  delete nextErrors['photoKey'];
-                  return nextErrors;
-                });
-              }}
-            />
-            <FormFieldError
-              fieldErrors={fieldErrors}
-              fieldKey="photoKey"
-              errorId="photoKey-error"
-            />
-          </div>
+          {!isEditMode && (
+            <div className="space-y-1.5">
+              <label className="text-text-secondary text-sm font-medium" htmlFor="photo">
+                Photo *
+              </label>
+              <Input
+                id="photo"
+                name="photo"
+                type="file"
+                accept="image/*"
+                disabled={isPending}
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setPhotoFile(nextFile);
+                  setFieldErrors((currentErrors) => {
+                    const nextErrors = { ...currentErrors };
+                    delete nextErrors['photoKey'];
+                    return nextErrors;
+                  });
+                }}
+              />
+              <FormFieldError
+                fieldErrors={fieldErrors}
+                fieldKey="photoKey"
+                errorId="photoKey-error"
+              />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="telNoIndia">
@@ -553,7 +550,7 @@ export function MemberForm({
 
         <div className="space-y-1.5">
           <p className="text-text-secondary text-sm font-medium">Family residing in Oman?</p>
-          <div className="border-border flex items-center gap-6 rounded-lg border px-3 py-2">
+          <div className="flex items-center gap-6 py-1">
             <div className="flex items-center gap-2">
               <input
                 id="isFamilyInOmanYes"
@@ -587,87 +584,82 @@ export function MemberForm({
       <fieldset className="border-border space-y-4 border-t pt-6">
         <legend className="text-text-primary mb-3 text-sm font-semibold">Family Members</legend>
 
-        <div className="border-border space-y-4 rounded-lg border p-4">
+        <div className="space-y-3">
           {familyRows.length === 0 ? (
             <p className="text-text-secondary text-sm">No family members added.</p>
           ) : null}
 
           {familyRows.map((row, index) => (
-            <div key={row.id} className="space-y-3 rounded-lg border border-transparent p-2">
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-1.5">
-                  <label
-                    className="text-text-secondary text-sm font-medium"
-                    htmlFor={`family-name-${index}`}
-                  >
-                    Name *
-                  </label>
-                  <Input
-                    id={`family-name-${index}`}
-                    value={row.name}
-                    disabled={isPending}
-                    onChange={(event) => updateFamilyRow(index, 'name', event.target.value)}
-                  />
-                  <FormFieldError
-                    fieldErrors={fieldErrors}
-                    fieldKey={`familyMembers.${index}.name`}
-                    errorId={`family-name-error-${index}`}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label
-                    className="text-text-secondary text-sm font-medium"
-                    htmlFor={`family-relation-${index}`}
-                  >
-                    Relation
-                  </label>
-                  <select
-                    id={`family-relation-${index}`}
-                    value={row.relation}
-                    disabled={isPending}
-                    onChange={(event) => updateFamilyRow(index, 'relation', event.target.value)}
-                    className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
-                  >
-                    <option value="">Select relation</option>
-                    {familyRelationOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label
-                    className="text-text-secondary text-sm font-medium"
-                    htmlFor={`family-dob-${index}`}
-                  >
-                    DOB
-                  </label>
-                  <Input
-                    id={`family-dob-${index}`}
-                    type="date"
-                    value={row.dob}
-                    disabled={isPending}
-                    onChange={(event) => updateFamilyRow(index, 'dob', event.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeFamilyRow(index)}
-                  disabled={isPending}
-                  aria-label={`Remove family member row ${index + 1}`}
+            <div key={row.id} className="grid items-end gap-4 md:grid-cols-[1fr_1fr_1fr_auto]">
+              <div className="space-y-1.5">
+                <label
+                  className="text-text-secondary text-sm font-medium"
+                  htmlFor={`family-name-${index}`}
                 >
-                  <UserMinus />
-                  Remove Row
-                </Button>
+                  Name *
+                </label>
+                <Input
+                  id={`family-name-${index}`}
+                  value={row.name}
+                  disabled={isPending}
+                  onChange={(event) => updateFamilyRow(index, 'name', event.target.value)}
+                />
+                <FormFieldError
+                  fieldErrors={fieldErrors}
+                  fieldKey={`familyMembers.${index}.name`}
+                  errorId={`family-name-error-${index}`}
+                />
               </div>
+
+              <div className="space-y-1.5">
+                <label
+                  className="text-text-secondary text-sm font-medium"
+                  htmlFor={`family-relation-${index}`}
+                >
+                  Relation
+                </label>
+                <select
+                  id={`family-relation-${index}`}
+                  value={row.relation}
+                  disabled={isPending}
+                  onChange={(event) => updateFamilyRow(index, 'relation', event.target.value)}
+                  className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+                >
+                  <option value="">Select relation</option>
+                  {familyRelationOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  className="text-text-secondary text-sm font-medium"
+                  htmlFor={`family-dob-${index}`}
+                >
+                  DOB
+                </label>
+                <Input
+                  id={`family-dob-${index}`}
+                  type="date"
+                  value={row.dob}
+                  disabled={isPending}
+                  onChange={(event) => updateFamilyRow(index, 'dob', event.target.value)}
+                />
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => removeFamilyRow(index)}
+                disabled={isPending}
+                aria-label={`Remove family member row ${index + 1}`}
+              >
+                <UserMinus />
+              </Button>
             </div>
           ))}
 
