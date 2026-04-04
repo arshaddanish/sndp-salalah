@@ -1,11 +1,17 @@
 'use client';
 
-import { type ColumnDef } from '@tanstack/react-table';
+import {
+  type ColumnDef,
+  getCoreRowModel,
+  type PaginationState,
+  useReactTable,
+} from '@tanstack/react-table';
 import { Edit2, Lock, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { DataTable } from '@/components/ui/data-table';
+import { DataTableBase } from '@/components/ui/data-table-base';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
 import type { PaginatedTableProps } from '@/types/pagination';
@@ -146,17 +152,46 @@ export function CategoriesTable({
     pageSize,
   });
 
+  const paginationState = useMemo<PaginationState>(
+    () => ({ pageIndex, pageSize }),
+    [pageIndex, pageSize],
+  );
+
+  const table = useReactTable({
+    columns,
+    data: rows,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    pageCount,
+    state: { pagination: paginationState },
+    onPaginationChange,
+  });
+
+  const currentPageSize = paginationState.pageSize;
+  const currentPageIndex = paginationState.pageIndex;
+
   return (
     <div className="flex flex-col gap-0 overflow-hidden">
-      <DataTable
+      <DataTableBase
+        table={table}
         columns={columns}
-        data={rows}
         isLoading={isPending}
-        manualPagination={true}
-        rowCount={totalRows}
-        pageCount={pageCount}
-        pagination={{ pageIndex, pageSize }}
-        onPaginationChange={onPaginationChange}
+        skeletonRowCount={currentPageSize}
+        footer={
+          <DataTablePagination
+            table={table}
+            isLoading={isPending}
+            totalRows={totalRows}
+            currentPageIndex={currentPageIndex}
+            currentPageSize={currentPageSize}
+            onPageIndexChange={(nextPageIndex) =>
+              onPaginationChange({ pageIndex: nextPageIndex, pageSize: currentPageSize })
+            }
+            onPageSizeChange={(nextPageSize) =>
+              onPaginationChange({ pageIndex: 0, pageSize: nextPageSize })
+            }
+          />
+        }
       />
     </div>
   );

@@ -67,3 +67,6 @@ jobs:
       - run: pnpm exec secretlint "**/*"
       - run: pnpm run lint
       - run: pnpm run build
+        env:
+          DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+          ENABLE_ACTIONS_PLAYGROUND: 'false'

@@ -1,9 +1,12 @@
 'use server';
 
+import { desc, eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
+import { db } from '@/lib/db';
+import { shakhas } from '@/lib/db/schema';
 import { MOCK_MEMBERS } from '@/lib/mock-data/members';
-import { MOCK_SHAKHAS, type ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
+import type { ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
 import {
   createShakhaSchema,
   deleteShakhaSchema,
@@ -11,8 +14,6 @@ import {
 } from '@/lib/validations/shakhas';
 import type { ActionResult } from '@/types/actions';
 import type { PaginationResponse } from '@/types/pagination';
-
-// Scaffolded mock-data implementation; replace with DB integration when persistence layer is available.
 
 /**
  * Count members assigned to a specific shakha
@@ -25,15 +26,6 @@ function countMembersForShakha(shakhaId: string): number {
 
 function normalizeShakhaName(name: string): string {
   return name.trim().toLowerCase();
-}
-
-function getNextShakhaId(): string {
-  const maxId = MOCK_SHAKHAS.reduce((currentMax, shakha) => {
-    const parsedId = Number.parseInt(shakha.id, 10);
-    return Number.isNaN(parsedId) ? currentMax : Math.max(currentMax, parsedId);
-  }, 0);
-
-  return String(maxId + 1);
 }
 
 /**
@@ -57,22 +49,43 @@ export async function fetchShakhas(
     };
   }
 
-  // Mock implementation - simulates paginated API response with member counts
-  const start = (page - 1) * pageSize;
-  const paginatedShakhas = MOCK_SHAKHAS.slice(start, start + pageSize);
+  try {
+    const start = (page - 1) * pageSize;
 
-  const itemsWithCounts: ShakhaWithMemberCount[] = paginatedShakhas.map((shakha) => ({
-    ...shakha,
-    memberCount: countMembersForShakha(shakha.id),
-  }));
+    const countResult = await db.select({ count: sql<number>`count(*)` }).from(shakhas);
+    const totalCount = Number(countResult[0]?.count ?? 0);
 
-  return {
-    success: true,
-    data: {
-      items: itemsWithCounts,
-      totalCount: MOCK_SHAKHAS.length,
-    },
-  };
+    const rows = await db
+      .select({
+        id: shakhas.id,
+        name: shakhas.name,
+        created_at: shakhas.created_at,
+        updated_at: shakhas.updated_at,
+      })
+      .from(shakhas)
+      .orderBy(desc(shakhas.created_at), desc(shakhas.id))
+      .limit(pageSize)
+      .offset(start);
+
+    const itemsWithCounts: ShakhaWithMemberCount[] = rows.map((shakha) => ({
+      ...shakha,
+      memberCount: countMembersForShakha(shakha.id),
+    }));
+
+    return {
+      success: true,
+      data: {
+        items: itemsWithCounts,
+        totalCount,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching shakhas:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while loading shakhas',
+    };
+  }
 }
 
 /**
@@ -100,17 +113,26 @@ export async function updateShakha(
     const sanitizedName = validationResult.data.name;
     const normalizedName = normalizeShakhaName(sanitizedName);
 
-    const shakhaIndex = MOCK_SHAKHAS.findIndex((s) => s.id === shakhaId);
+    const existing = await db
+      .select({
+        id: shakhas.id,
+        name: shakhas.name,
+        created_at: shakhas.created_at,
+        updated_at: shakhas.updated_at,
+      })
+      .from(shakhas)
+      .where(eq(shakhas.id, shakhaId))
+      .limit(1);
 
-    if (shakhaIndex === -1) {
+    if (!existing[0]) {
       return {
         success: false,
         error: 'Shakha not found',
       };
     }
 
-    if (sanitizedName === MOCK_SHAKHAS[shakhaIndex]!.name) {
-      const unchangedShakha = MOCK_SHAKHAS[shakhaIndex]!;
+    if (sanitizedName === existing[0].name) {
+      const unchangedShakha = existing[0];
       return {
         success: true,
         data: {
@@ -120,27 +142,44 @@ export async function updateShakha(
       };
     }
 
-    const hasDuplicateName = MOCK_SHAKHAS.some(
-      (shakha) => shakha.id !== shakhaId && normalizeShakhaName(shakha.name) === normalizedName,
-    );
+    const duplicate = await db
+      .select({ id: shakhas.id })
+      .from(shakhas)
+      .where(sql`lower(${shakhas.name}) = ${normalizedName} and ${shakhas.id} <> ${shakhaId}`)
+      .limit(1);
 
-    if (hasDuplicateName) {
+    if (duplicate[0]) {
       return {
         success: false,
         error: 'A shakha with this name already exists.',
       };
     }
 
-    MOCK_SHAKHAS[shakhaIndex]!.name = sanitizedName;
-    MOCK_SHAKHAS[shakhaIndex]!.updated_at = new Date();
+    const updatedRows = await db
+      .update(shakhas)
+      .set({ name: sanitizedName, updated_at: new Date() })
+      .where(eq(shakhas.id, shakhaId))
+      .returning({
+        id: shakhas.id,
+        name: shakhas.name,
+        created_at: shakhas.created_at,
+        updated_at: shakhas.updated_at,
+      });
+    const updated = updatedRows[0];
+
+    if (!updated) {
+      return {
+        success: false,
+        error: 'Shakha not found',
+      };
+    }
 
     revalidatePath('/shakhas');
 
-    const updatedShakha = MOCK_SHAKHAS[shakhaIndex]!;
     return {
       success: true,
       data: {
-        ...updatedShakha,
+        ...updated,
         memberCount: countMembersForShakha(shakhaId),
       },
     };
@@ -173,37 +212,48 @@ export async function createShakha(name: string): Promise<ActionResult<ShakhaWit
 
     const sanitizedName = validationResult.data.name;
     const normalizedName = normalizeShakhaName(sanitizedName);
-    const hasDuplicateName = MOCK_SHAKHAS.some(
-      (shakha) => normalizeShakhaName(shakha.name) === normalizedName,
-    );
+    const duplicate = await db
+      .select({ id: shakhas.id })
+      .from(shakhas)
+      .where(sql`lower(${shakhas.name}) = ${normalizedName}`)
+      .limit(1);
 
-    if (hasDuplicateName) {
+    if (duplicate[0]) {
       return {
         success: false,
         error: 'A shakha with this name already exists.',
       };
     }
 
-    const createdShakha: ShakhaWithMemberCount = {
-      id: getNextShakhaId(),
-      name: sanitizedName,
-      created_at: new Date(),
-      updated_at: new Date(),
-      memberCount: 0,
-    };
+    const createdRows = await db
+      .insert(shakhas)
+      .values({
+        name: sanitizedName,
+        updated_at: new Date(),
+      })
+      .returning({
+        id: shakhas.id,
+        name: shakhas.name,
+        created_at: shakhas.created_at,
+        updated_at: shakhas.updated_at,
+      });
+    const created = createdRows[0];
 
-    MOCK_SHAKHAS.unshift({
-      id: createdShakha.id,
-      name: createdShakha.name,
-      created_at: createdShakha.created_at,
-      updated_at: createdShakha.updated_at,
-    });
+    if (!created) {
+      return {
+        success: false,
+        error: 'An unexpected error occurred while creating the shakha',
+      };
+    }
 
     revalidatePath('/shakhas');
 
     return {
       success: true,
-      data: createdShakha,
+      data: {
+        ...created,
+        memberCount: 0,
+      },
     };
   } catch (error) {
     console.error('Error creating shakha:', error);
@@ -232,15 +282,6 @@ export async function deleteShakha(shakhaId: string): Promise<ActionResult<{ id:
       };
     }
 
-    const shakhaIndex = MOCK_SHAKHAS.findIndex((shakha) => shakha.id === shakhaId);
-
-    if (shakhaIndex === -1) {
-      return {
-        success: false,
-        error: 'Shakha not found',
-      };
-    }
-
     const memberCount = countMembersForShakha(shakhaId);
     if (memberCount > 0) {
       return {
@@ -249,7 +290,17 @@ export async function deleteShakha(shakhaId: string): Promise<ActionResult<{ id:
       };
     }
 
-    MOCK_SHAKHAS.splice(shakhaIndex, 1);
+    const deleted = await db
+      .delete(shakhas)
+      .where(eq(shakhas.id, shakhaId))
+      .returning({ id: shakhas.id });
+
+    if (!deleted[0]) {
+      return {
+        success: false,
+        error: 'Shakha not found',
+      };
+    }
 
     revalidatePath('/shakhas');
 
