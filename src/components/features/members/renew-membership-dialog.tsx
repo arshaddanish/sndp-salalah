@@ -254,7 +254,7 @@ export function RenewMembershipDialog({
             <Button
               type="button"
               variant="secondary"
-              onClick={() => onOpenChange?.(false)}
+              onClick={() => handleOpenChange(false)}
               disabled={isPending}
             >
               Cancel
