@@ -1,8 +1,10 @@
 'use client';
 
 import {
+  type ComponentProps,
   type Dispatch,
   type SetStateAction,
+  type TransitionStartFunction,
   useCallback,
   useEffect,
   useMemo,
@@ -125,9 +127,11 @@ function resetActionInput(options: {
     return;
   }
 
+  const activeAction = options.activeAction;
+
   options.setRequestInputByAction((current) => ({
     ...current,
-    [options.activeAction.id]: options.activeAction.defaultInput,
+    [activeAction.id]: activeAction.defaultInput,
   }));
   options.setEditorError(null);
 }
@@ -135,7 +139,7 @@ function resetActionInput(options: {
 function replayHistorySelection(options: {
   historyItem: ActionRunHistoryItem;
   actionCategoryByActionId: Record<string, string>;
-  setActiveAction: (categoryId: string, actionId: string) => void;
+  setActiveAction: ComponentProps<typeof ActionsSidebar>['onSelectAction'];
   setRequestInputByAction: Dispatch<SetStateAction<Record<string, string>>>;
   setEditorError: Dispatch<SetStateAction<string | null>>;
 }) {
@@ -159,16 +163,18 @@ function triggerActionRun(options: {
   setEditorError: Dispatch<SetStateAction<string | null>>;
   setResponseState: Dispatch<SetStateAction<ResponseState>>;
   setHistoryItems: Dispatch<SetStateAction<ActionRunHistoryItem[]>>;
-  startTransition: (callback: () => void) => void;
+  startTransition: TransitionStartFunction;
 }) {
   if (!options.activeAction) {
     return;
   }
 
+  const activeAction = options.activeAction;
+
   options.setEditorError(null);
 
-  const parseResult = parseAndValidatePayload(options.activeAction, options.currentInput);
-  if (parseResult.error) {
+  const parseResult = parseAndValidatePayload(activeAction, options.currentInput);
+  if (parseResult.error !== null) {
     options.setEditorError(parseResult.error);
     return;
   }
@@ -176,7 +182,7 @@ function triggerActionRun(options: {
   options.startTransition(() => {
     void (async () => {
       const result = await executeActionAndBuildHistory({
-        action: options.activeAction,
+        action: activeAction,
         payload: parseResult.payload,
         currentInput: options.currentInput,
         categoryTitle: options.activeCategoryTitle,
@@ -317,30 +323,22 @@ function useTransientClipboardNotice(
 }
 
 function usePersistedActionsState() {
-  const [favoriteActionIds, setFavoriteActionIds] = useState<string[]>([]);
-  const [historyItems, setHistoryItems] = useState<ActionRunHistoryItem[]>([]);
-
-  useEffect(() => {
+  const [favoriteActionIds, setFavoriteActionIds] = useState<string[]>(() => {
     try {
       const savedFavorites = globalThis.localStorage.getItem(FAVORITES_STORAGE_KEY);
-      if (savedFavorites) {
-        const parsed = JSON.parse(savedFavorites) as string[];
-        setFavoriteActionIds(parsed);
-      }
+      return savedFavorites ? (JSON.parse(savedFavorites) as string[]) : [];
     } catch {
-      setFavoriteActionIds([]);
+      return [];
     }
-
+  });
+  const [historyItems, setHistoryItems] = useState<ActionRunHistoryItem[]>(() => {
     try {
       const savedHistory = globalThis.localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (savedHistory) {
-        const parsed = JSON.parse(savedHistory) as ActionRunHistoryItem[];
-        setHistoryItems(parsed);
-      }
+      return savedHistory ? (JSON.parse(savedHistory) as ActionRunHistoryItem[]) : [];
     } catch {
-      setHistoryItems([]);
+      return [];
     }
-  }, []);
+  });
 
   useEffect(() => {
     globalThis.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteActionIds));
@@ -373,17 +371,17 @@ type ActionsPlaygroundViewProps = {
   favoriteActionIds: string[];
   responseState: ResponseState;
   historyItems: ActionRunHistoryItem[];
-  onSelectCategory: (categoryId: string) => void;
-  onSelectAction: (categoryId: string, actionId: string) => void;
-  onToggleFavorite: (actionId: string) => void;
-  onChangeInput: (nextValue: string) => void;
-  onRunAction: () => void;
-  onFormatInput: () => void;
-  onResetInput: () => void;
-  onCopyInput: () => void;
-  onCopyOutput: () => void;
-  onSelectHistory: (item: ActionRunHistoryItem) => void;
-  onClearHistory: () => void;
+  onSelectCategory: ComponentProps<typeof ActionsSidebar>['onSelectCategory'];
+  onSelectAction: ComponentProps<typeof ActionsSidebar>['onSelectAction'];
+  onToggleFavorite: ComponentProps<typeof ActionsSidebar>['onToggleFavorite'];
+  onChangeInput: ComponentProps<typeof ActionRequestEditor>['onChange'];
+  onRunAction: ComponentProps<typeof ActionRequestEditor>['onRun'];
+  onFormatInput: ComponentProps<typeof ActionRequestEditor>['onFormat'];
+  onResetInput: ComponentProps<typeof ActionRequestEditor>['onReset'];
+  onCopyInput: ComponentProps<typeof ActionRequestEditor>['onCopy'];
+  onCopyOutput: ComponentProps<typeof ActionResponsePanel>['onCopy'];
+  onSelectHistory: ComponentProps<typeof ActionsHistory>['onSelectHistory'];
+  onClearHistory: ComponentProps<typeof ActionsHistory>['onClear'];
 };
 
 function ActionsPlaygroundView({
@@ -589,13 +587,16 @@ export function ActionsPlayground() {
     }));
   }, []);
 
-  const toggleFavorite = useCallback((actionId: string) => {
-    setFavoriteActionIds((current) =>
-      current.includes(actionId)
-        ? current.filter((existingId) => existingId !== actionId)
-        : [actionId, ...current],
-    );
-  }, []);
+  const toggleFavorite = useCallback(
+    (actionId: string) => {
+      setFavoriteActionIds((current) =>
+        current.includes(actionId)
+          ? current.filter((existingId) => existingId !== actionId)
+          : [actionId, ...current],
+      );
+    },
+    [setFavoriteActionIds],
+  );
 
   const formatInput = useCallback(() => {
     formatActionInput({
@@ -636,7 +637,7 @@ export function ActionsPlayground() {
       setHistoryItems,
       startTransition,
     });
-  }, [activeAction, activeCategoryTitle, currentInput, startTransition]);
+  }, [activeAction, activeCategoryTitle, currentInput, setHistoryItems, startTransition]);
 
   const replayFromHistory = useCallback(
     (historyItem: ActionRunHistoryItem) => {
