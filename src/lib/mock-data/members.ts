@@ -1,48 +1,6 @@
-// This file contains mock data and types for members, used for testing and development purposes.
+// This file contains mock member data and helper utilities used for testing and development.
 
-export type MemberStatus = 'active' | 'expired' | 'lifetime' | 'near-expiry';
-
-export type MemberFamilyMember = {
-  id: string;
-  name: string;
-  relation: string | null;
-  dob: Date | null;
-  created_at: Date;
-};
-
-export type Member = {
-  id: string;
-  member_code: number;
-  civil_id_no: string;
-  name: string;
-  dob: Date | null;
-  family_status: string | null; // Marital Status
-  email: string | null;
-  photo_key: string | null;
-  gsm_no: string | null;
-  whatsapp_no: string | null;
-  blood_group: string | null;
-  profession: string | null;
-  shakha_id: string;
-  residential_area?: string | null;
-  passport_no?: string | null;
-  address_india?: string | null;
-  tel_no_india?: string | null;
-  is_family_in_oman?: boolean;
-  application_no?: string | null;
-  received_on?: Date | null;
-  submitted_by?: string | null;
-  shakha_india?: string | null;
-  checked_by?: string | null;
-  approved_by?: string | null;
-  president?: string | null;
-  secretary?: string | null;
-  union?: string | null;
-  district?: string | null;
-  family_members?: MemberFamilyMember[];
-  expiry: Date | null;
-  created_at: Date;
-};
+import type { Member, MemberStatus } from '@/types/members';
 
 export const getMemberStatus = (expiry: Date | null): MemberStatus => {
   if (!expiry) return 'lifetime';
@@ -111,9 +69,9 @@ export const MOCK_MEMBERS: Member[] = [
     id: 'm1',
     member_code: 1001,
     civil_id_no: '12345678',
-    name: 'Mohammed Al-Rashidi',
+    name: 'Suresh Nair',
     dob: new Date('1980-05-15'),
-    email: 'mohammed@example.com',
+    email: 'suresh.nair@example.com',
     photo_key: null,
     gsm_no: '98765432',
     whatsapp_no: '98765432',
@@ -121,6 +79,37 @@ export const MOCK_MEMBERS: Member[] = [
     profession: 'Engineer',
     shakha_id: '1',
     family_status: 'Married',
+    residential_area: 'Salalah East',
+    passport_no: 'N1234567',
+    address_india: 'House 21, Temple Road, Alappuzha, Kerala',
+    tel_no_india: '0477-2233445',
+    is_family_in_oman: true,
+    application_no: 'APP-1001',
+    received_on: new Date('2019-12-20'),
+    submitted_by: 'Harish Menon',
+    shakha_india: 'Karunagappally',
+    checked_by: 'Anil Kumar',
+    approved_by: 'R. Madhavan',
+    president: 'Pradeep Kumar',
+    secretary: 'Girish Nair',
+    union: 'Kollam Union',
+    district: 'Kollam',
+    family_members: [
+      {
+        id: 'm1-f1',
+        name: 'Lakshmi Suresh',
+        relation: 'Spouse',
+        dob: new Date('1984-07-09'),
+        created_at: new Date('2020-01-01'),
+      },
+      {
+        id: 'm1-f2',
+        name: 'Aditya Suresh',
+        relation: 'Son',
+        dob: new Date('2011-03-14'),
+        created_at: new Date('2020-01-01'),
+      },
+    ],
     expiry: nextYear,
     created_at: new Date('2020-01-01'),
   },
@@ -172,23 +161,23 @@ export const MOCK_MEMBERS: Member[] = [
       'Deepak Nair',
       'Kiran Kumar',
       'Sajan P.',
-      'Ramesh Chennithala',
-      'Oommen Chandy',
-      'Pinarayi Vijayan',
-      'V.S. Achuthanandan',
-      'A.K. Antony',
-      'K. Karunakaran',
-      'E.K. Nayanar',
-      'C.H. Mohammed Koya',
+      'Ramesh Babu',
+      'Harikrishnan Nair',
+      'Pinarayan Iyer',
+      'Sankaran Acharya',
+      'Arvind Menon',
+      'Krishnakumar Pillai',
+      'Nandakumar Das',
+      'Maheshwar Rao',
       'K.R. Gouri Amma',
-      'T.M. Jacob',
-      'R. Balakrishna Pillai',
-      'P.J. Joseph',
+      'T.M. Janardhanan',
+      'R. Balakrishnan Pillai',
+      'P.J. Jayakumar',
       'K.M. Mani',
-      'P.K. Kunhalikutty',
-      'E. Ahamed',
-      'M.K. Muneer',
-      'Jose K. Mani',
+      'P.K. Krishnakutty',
+      'E. Anandan',
+      'M.K. Madhavan',
+      'Jayan K. Mani',
     ];
     const professions = [
       'Driver',
