@@ -58,13 +58,15 @@ export const createMemberSchema = z.object({
   applicationNo: requiredText('Application No').max(50, 'Application No is too long'),
   secretary: optionalText(),
   president: optionalText(),
-  photoKey: requiredText('Photo key'),
+  photoKey: requiredText('Photo'),
 });
 
 export type FamilyMemberInput = z.infer<typeof familyMemberInputSchema>;
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
-export const updateMemberSchema = createMemberSchema;
+export const updateMemberSchema = createMemberSchema.extend({
+  photoKey: z.string().trim().optional().or(z.literal('')),
+});
 
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 
@@ -83,3 +85,10 @@ export const renewMembershipSchema = z.object({
 });
 
 export type RenewMembershipInput = z.infer<typeof renewMembershipSchema>;
+
+export const updateMemberPhotoSchema = z.object({
+  memberId: requiredText('Member ID'),
+  photoKey: requiredText('Photo').max(500, 'Photo key is too long'),
+});
+
+export type UpdateMemberPhotoInput = z.infer<typeof updateMemberPhotoSchema>;

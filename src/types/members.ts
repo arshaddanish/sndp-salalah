@@ -1,14 +1,6 @@
-import type { TransactionFundAccount, TransactionPaymentMode } from '@/types/transactions';
+﻿import type { TransactionFundAccount, TransactionPaymentMode } from '@/types/transactions';
 
-export type MemberStatus = 'active' | 'expired' | 'lifetime' | 'near-expiry';
-
-export type MemberFamilyMember = {
-  id: string;
-  name: string;
-  relation: string | null;
-  dob: Date | null;
-  created_at: Date;
-};
+export type { CreateMemberInput, FamilyMemberInput } from '@/lib/validations/members';
 
 export type Member = {
   id: string;
@@ -40,11 +32,11 @@ export type Member = {
   union?: string | null;
   district?: string | null;
   family_members?: MemberFamilyMember[];
+  is_archived: boolean;
+  archived_at: Date | null;
   expiry: Date | null;
   created_at: Date;
 };
-
-export type { CreateMemberInput, FamilyMemberInput } from '@/lib/validations/members';
 
 /** Extended member with resolved shakha name and computed status */
 export type MemberDetail = Member & {
@@ -52,6 +44,16 @@ export type MemberDetail = Member & {
   status: MemberStatus;
   familyMembersList: MemberFamilyMember[];
 };
+
+export type MemberFamilyMember = {
+  id: string;
+  name: string;
+  relation: string | null;
+  dob: Date | null;
+  created_at: Date;
+};
+
+export type MemberStatus = 'active' | 'expired' | 'lifetime' | 'near-expiry';
 
 /** A membership fee transaction linked to a member */
 export type MemberTransaction = {

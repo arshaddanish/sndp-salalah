@@ -9,6 +9,7 @@ import {
   type CreateMemberInput,
   createMemberSchema,
   renewMembershipSchema,
+  updateMemberPhotoSchema,
   updateMemberSchema,
 } from '@/lib/validations/members';
 import type { ActionResult } from '@/types/actions';
@@ -37,6 +38,10 @@ function filterMembers(members: Member[], filters: MembersFilterOptions): Member
   const { q = '', status = 'all', shakha = 'all', createdStart = '', createdEnd = '' } = filters;
 
   return members.filter((member) => {
+    if (member.is_archived) {
+      return false;
+    }
+
     // Full-text search filter
     const matchesSearch =
       q === '' ||
@@ -177,10 +182,6 @@ function getDefaultExpiryDate(): Date {
   return nextYear;
 }
 
-export async function getNextMemberCodePreview(): Promise<number> {
-  return getNextMemberCode();
-}
-
 export async function createMember(
   input: CreateMemberInput,
 ): Promise<ActionResult<{ id: string; memberCode: number }>> {
@@ -249,6 +250,8 @@ export async function createMember(
         dob: parseDateOrNull(familyMember.dob),
         created_at: createdAt,
       })),
+      is_archived: false,
+      archived_at: null,
       expiry: expiryDate,
       created_at: createdAt,
     };
@@ -275,7 +278,7 @@ export async function createMember(
 export async function fetchMemberById(id: string): Promise<ActionResult<MemberDetail>> {
   try {
     const member = MOCK_MEMBERS.find((item) => item.id === id);
-    if (!member) {
+    if (!member || member.is_archived) {
       return { success: false, error: 'Member not found.' };
     }
 
@@ -337,7 +340,7 @@ export async function renewMembership(
 
     const data = validationResult.data;
     const member = MOCK_MEMBERS.find((m) => m.id === data.memberId);
-    if (!member) {
+    if (!member || member.is_archived) {
       return { success: false, error: 'Member not found.' };
     }
 
@@ -399,6 +402,11 @@ export async function updateMember(
       return { success: false, error: 'Member not found.' };
     }
 
+    const existing = MOCK_MEMBERS[memberIndex]!;
+    if (existing.is_archived) {
+      return { success: false, error: 'Member not found.' };
+    }
+
     const normalizedCivilId = data.civilIdNo.trim().toLowerCase();
     const hasDuplicateCivilId = MOCK_MEMBERS.some(
       (m) => m.id !== memberId && m.civil_id_no.trim().toLowerCase() === normalizedCivilId,
@@ -407,7 +415,6 @@ export async function updateMember(
       return { success: false, error: 'A member with this Civil ID already exists.' };
     }
 
-    const existing = MOCK_MEMBERS[memberIndex]!;
     const updatedMember: Member = {
       ...existing,
       name: data.name.trim(),
@@ -443,7 +450,7 @@ export async function updateMember(
       application_no: data.applicationNo.trim(),
       secretary: normalizeOptionalText(data.secretary),
       president: normalizeOptionalText(data.president),
-      photo_key: data.photoKey,
+      photo_key: data.photoKey?.trim() || existing.photo_key,
     };
 
     MOCK_MEMBERS[memberIndex] = updatedMember;
@@ -455,6 +462,65 @@ export async function updateMember(
   } catch (error) {
     console.error('Error updating member:', error);
     return { success: false, error: 'Unable to update member. Please try again.' };
+  }
+}
+
+export async function updateMemberPhoto(
+  memberId: string,
+  photoKey: string,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const validationResult = updateMemberPhotoSchema.safeParse({ memberId, photoKey });
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return { success: false, error: firstError?.message ?? 'Invalid photo input' };
+    }
+
+    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === validationResult.data.memberId);
+    if (memberIndex === -1) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    const existing = MOCK_MEMBERS[memberIndex]!;
+    if (existing.is_archived) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    MOCK_MEMBERS[memberIndex] = { ...existing, photo_key: validationResult.data.photoKey };
+    revalidatePath(`/members/${validationResult.data.memberId}`);
+    return { success: true, data: { id: validationResult.data.memberId } };
+  } catch (error) {
+    console.error('Error updating member photo:', error);
+    return { success: false, error: 'Unable to update photo. Please try again.' };
+  }
+}
+
+export async function archiveMember(memberId: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    const memberIndex = MOCK_MEMBERS.findIndex((member) => member.id === memberId);
+
+    if (memberIndex === -1) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    const existing = MOCK_MEMBERS[memberIndex]!;
+    if (existing.is_archived) {
+      return { success: true, data: { id: memberId } };
+    }
+
+    MOCK_MEMBERS[memberIndex] = {
+      ...existing,
+      is_archived: true,
+      archived_at: new Date(),
+    };
+
+    revalidatePath('/members');
+    revalidatePath(`/members/${memberId}`);
+
+    return { success: true, data: { id: memberId } };
+  } catch (error) {
+    console.error('Error archiving member:', error);
+    return { success: false, error: 'Unable to archive member. Please try again.' };
   }
 }
 
