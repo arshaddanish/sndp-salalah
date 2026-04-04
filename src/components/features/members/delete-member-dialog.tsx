@@ -33,7 +33,7 @@ export function DeleteMemberDialog({
 }: Readonly<DeleteMemberDialogProps>) {
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const submitVariant: 'danger' = 'danger';
+  const submitVariant = 'danger' as const;
   let submitLabel = 'Delete Member';
   if (hasTransactions) {
     submitLabel = 'Archive Member';
