@@ -1,0 +1,64 @@
+name: 'Production DB Migrate + Deploy'
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: prod-db-migrate-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrate_and_deploy:
+    name: 'Migrate DB then Deploy'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Detect migration changes
+        id: changes
+        run: |
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "First push on branch; running migrations."
+            echo "needs_migration=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -E '^(drizzle/|src/lib/db/schema\.ts)'; then
+            echo "needs_migration=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_migration=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'package.json'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run production migrations
+        if: steps.changes.outputs.needs_migration == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: pnpm db:migrate
+
+      - name: Trigger Vercel production deploy
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "Missing VERCEL_DEPLOY_HOOK_URL secret" >&2
+            exit 1
+          fi
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
