@@ -210,11 +210,13 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
 
   const addFamilyRow = () => {
     setFamilyRows((currentRows) => [...currentRows, createFamilyRow()]);
+    setIsDirty(true);
   };
 
   const removeFamilyRow = (rowIndex: number) => {
     setFamilyRows((rows) => filterFamilyRows(rows, rowIndex));
     setFieldErrors((errors) => shiftFamilyFieldErrors(errors, rowIndex));
+    setIsDirty(true);
   };
 
   const updateFamilyRow = (index: number, key: keyof FamilyRow, value: string) => {
@@ -279,10 +281,15 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
     }
 
     startTransition(async () => {
-      await runMemberSubmit(
-        { isEditMode, initialData, payload, photoFile },
-        { setFieldErrors, setErrorMessage, push: router.push },
-      );
+      try {
+        await runMemberSubmit(
+          { isEditMode, initialData, payload, photoFile },
+          { setFieldErrors, setErrorMessage, push: router.push },
+        );
+      } catch (error) {
+        console.error('Unexpected error during member submit:', error);
+        setErrorMessage('An unexpected error occurred. Please try again.');
+      }
     });
   };
 
@@ -385,7 +392,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               id="familyStatus"
               name="familyStatus"
               disabled={isPending}
-              className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+              className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
               defaultValue={initialData?.family_status ?? ''}
             >
               <option value="">Select status</option>
@@ -405,7 +412,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               id="bloodGroup"
               name="bloodGroup"
               disabled={isPending}
-              className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+              className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
               defaultValue={initialData?.blood_group ?? ''}
             >
               <option value="">Select blood group</option>
@@ -539,7 +546,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
             rows={3}
             defaultValue={initialData?.address_india ?? ''}
             disabled={isPending}
-            className="border-border text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-accent/20 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="border-border bg-surface text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-accent-border w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
           <FormFieldError
             fieldErrors={fieldErrors}
@@ -623,7 +630,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
                   value={row.relation}
                   disabled={isPending}
                   onChange={(event) => updateFamilyRow(index, 'relation', event.target.value)}
-                  className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+                  className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                 >
                   <option value="">Select relation</option>
                   {familyRelationOptions.map((option) => (
@@ -716,7 +723,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               id="district"
               name="district"
               disabled={isPending}
-              className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+              className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
               defaultValue={initialData?.district ?? ''}
             >
               <option value="">Select district</option>
@@ -742,7 +749,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="officeShakhaId"
               defaultValue={initialData?.shakha_id ?? ''}
               disabled={isPending}
-              className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2"
+              className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
             >
               <option value="">Select shakha</option>
               {shakhaOptions.map((option) => (
@@ -884,6 +891,9 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
       {errorMessage ? <p className="text-danger text-sm">{errorMessage}</p> : null}
 
       <div className="flex items-center justify-end gap-3">
+        {isEditMode && !isDirty && !isPending ? (
+          <p className="text-text-muted mr-auto text-sm">Make a change to enable save.</p>
+        ) : null}
         <Button
           type="button"
           variant="secondary"

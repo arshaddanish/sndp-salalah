@@ -36,7 +36,8 @@ const FUND_ACCOUNT_OPTIONS = [
 ] as const;
 
 function getDefaultExpiry(currentExpiry: string | null): string {
-  const base = currentExpiry ? new Date(currentExpiry) : new Date();
+  const parsedBase = currentExpiry ? new Date(currentExpiry) : new Date();
+  const base = Number.isNaN(parsedBase.getTime()) ? new Date() : parsedBase;
   // If base is in the past, start from today
   if (base < new Date()) {
     const today = new Date();
