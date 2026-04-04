@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import z from 'zod';
 
 import { MOCK_TRANSACTION_CATEGORIES } from '@/lib/mock-data/transaction-categories';
 import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
@@ -416,19 +417,36 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
   }
 }
 
+const updateTransactionSchema = z.object({
+  amount: z
+    .string()
+    .refine((val) => !Number.isNaN(Number(val)) && Number(val) > 0, {
+      message: 'Amount must be a positive number.',
+    }),
+  remarks: z.string().max(500).optional().default(''),
+});
+
 export async function updateTransaction(
   id: string,
   input: { amount: string; remarks: string },
 ): Promise<ActionResult<null>> {
   try {
+    const validationResult = updateTransactionSchema.safeParse(input);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message ?? 'Invalid transaction input.',
+      };
+    }
     const index = MOCK_TRANSACTIONS.findIndex((t) => t.id === id);
     if (index === -1) {
       return { success: false, error: 'Transaction not found.' };
     }
     const existing = MOCK_TRANSACTIONS[index];
     if (existing) {
-      existing.amount = Number(input.amount).toFixed(3);
-      existing.remarks = input.remarks;
+      existing.amount = Number(validationResult.data.amount).toFixed(3);
+      existing.remarks = validationResult.data.remarks ?? '';
       existing.updatedAt = new Date();
     }
     revalidatePath('/transactions');

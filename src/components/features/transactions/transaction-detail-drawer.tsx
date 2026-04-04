@@ -49,6 +49,9 @@ export function TransactionDetailDrawer({
   onOpenChange,
 }: Readonly<TransactionDetailDrawerProps>) {
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   if (!transaction) {
     return null;
   }
@@ -61,6 +64,19 @@ export function TransactionDetailDrawer({
     3,
   );
   const signedAmount = `${isIncome ? '+' : '-'} ${amount} OMR`;
+
+  const handleDelete = async () => {
+    if (!confirm('Delete this transaction?')) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    const result = await deleteTransaction(transaction.id);
+    if (!result.success) {
+      setDeleteError(result.error ?? 'Unable to delete transaction.');
+      setIsDeleting(false);
+      return;
+    }
+    onOpenChange(false);
+  };
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -85,15 +101,11 @@ export function TransactionDetailDrawer({
             <DetailField label="Date">
               {format(transaction.transactionDate, 'dd MMM yyyy')}
             </DetailField>
-
             <DetailField label="Category">{transaction.categoryName}</DetailField>
-
             <DetailField label="Payment Method">
               {paymentModeLabel[transaction.paymentMode]}
             </DetailField>
-
             <DetailField label="Fund">{fundAccountLabel[transaction.fundAccount]}</DetailField>
-
             <DetailField label="Amount">
               <span
                 className={`font-semibold tabular-nums ${isIncome ? 'text-success' : 'text-danger'}`}
@@ -101,15 +113,12 @@ export function TransactionDetailDrawer({
                 {signedAmount}
               </span>
             </DetailField>
-
             <DetailField label="Payee / Merchant">
               {transaction.payeeMerchant || '\u2014'}
             </DetailField>
-
             <DetailField label="Paid / Receipt By">
               {transaction.paidReceiptBy || '\u2014'}
             </DetailField>
-
             <DetailField label="Cash Balance">
               <span
                 className={`font-semibold tabular-nums ${
@@ -119,7 +128,6 @@ export function TransactionDetailDrawer({
                 {cashBalance} OMR
               </span>
             </DetailField>
-
             <DetailField label="Bank Balance">
               <span
                 className={`font-semibold tabular-nums ${
@@ -129,11 +137,9 @@ export function TransactionDetailDrawer({
                 {bankBalance} OMR
               </span>
             </DetailField>
-
             <DetailField label="Total Balance">
               <span className="font-semibold tabular-nums">{totalBalance} OMR</span>
             </DetailField>
-
             {transaction.attachmentKey ? (
               <div className="col-span-2">
                 <DetailField label="Attachment">
@@ -141,7 +147,6 @@ export function TransactionDetailDrawer({
                 </DetailField>
               </div>
             ) : null}
-
             <div className="col-span-2">
               <DetailField label="Remarks">
                 <p className="leading-relaxed break-words whitespace-pre-wrap">
@@ -149,39 +154,26 @@ export function TransactionDetailDrawer({
                 </p>
               </DetailField>
             </div>
-
             <DetailField label="Created">
               {format(transaction.createdAt, 'dd MMM yyyy, HH:mm')}
             </DetailField>
-
             <DetailField label="Updated">
               {format(transaction.updatedAt, 'dd MMM yyyy, HH:mm')}
             </DetailField>
           </dl>
         </div>
-        <div className="flex gap-2 border-t px-6 py-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="flex-1"
-            onClick={() => setIsEditOpen(true)}
-          >
+
+        {deleteError ? <p className="text-danger px-6 text-sm">{deleteError}</p> : null}
+
+        <div className="flex justify-end gap-2 px-6 py-4">
+          <Button variant="primary" size="sm" onClick={() => setIsEditOpen(true)}>
             Edit
           </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            className="flex-1"
-            onClick={async () => {
-              if (confirm('Delete this transaction?')) {
-                await deleteTransaction(transaction.id);
-                onOpenChange(false);
-              }
-            }}
-          >
-            Delete
+          <Button variant="danger" size="sm" disabled={isDeleting} onClick={handleDelete}>
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
         </div>
+
         {isEditOpen && (
           <EditTransactionDialog
             isOpen={isEditOpen}
