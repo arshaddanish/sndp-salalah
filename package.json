@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "prepare": "husky",
     "type-check": "tsc --noEmit",
     "preinstall": "npx only-allow pnpm"
