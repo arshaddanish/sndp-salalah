@@ -9,6 +9,7 @@ import {
   type CreateMemberInput,
   createMemberSchema,
   renewMembershipSchema,
+  updateMemberPhotoSchema,
   updateMemberSchema,
 } from '@/lib/validations/members';
 import type { ActionResult } from '@/types/actions';
@@ -339,7 +340,7 @@ export async function renewMembership(
 
     const data = validationResult.data;
     const member = MOCK_MEMBERS.find((m) => m.id === data.memberId);
-    if (!member) {
+    if (!member || member.is_archived) {
       return { success: false, error: 'Member not found.' };
     }
 
@@ -401,6 +402,11 @@ export async function updateMember(
       return { success: false, error: 'Member not found.' };
     }
 
+    const existing = MOCK_MEMBERS[memberIndex]!;
+    if (existing.is_archived) {
+      return { success: false, error: 'Member not found.' };
+    }
+
     const normalizedCivilId = data.civilIdNo.trim().toLowerCase();
     const hasDuplicateCivilId = MOCK_MEMBERS.some(
       (m) => m.id !== memberId && m.civil_id_no.trim().toLowerCase() === normalizedCivilId,
@@ -409,7 +415,6 @@ export async function updateMember(
       return { success: false, error: 'A member with this Civil ID already exists.' };
     }
 
-    const existing = MOCK_MEMBERS[memberIndex]!;
     const updatedMember: Member = {
       ...existing,
       name: data.name.trim(),
@@ -445,7 +450,7 @@ export async function updateMember(
       application_no: data.applicationNo.trim(),
       secretary: normalizeOptionalText(data.secretary),
       president: normalizeOptionalText(data.president),
-      photo_key: data.photoKey,
+      photo_key: data.photoKey?.trim() || existing.photo_key,
     };
 
     MOCK_MEMBERS[memberIndex] = updatedMember;
@@ -465,14 +470,25 @@ export async function updateMemberPhoto(
   photoKey: string,
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === memberId);
+    const validationResult = updateMemberPhotoSchema.safeParse({ memberId, photoKey });
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return { success: false, error: firstError?.message ?? 'Invalid photo input' };
+    }
+
+    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === validationResult.data.memberId);
     if (memberIndex === -1) {
       return { success: false, error: 'Member not found.' };
     }
+
     const existing = MOCK_MEMBERS[memberIndex]!;
-    MOCK_MEMBERS[memberIndex] = { ...existing, photo_key: photoKey };
-    revalidatePath(`/members/${memberId}`);
-    return { success: true, data: { id: memberId } };
+    if (existing.is_archived) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    MOCK_MEMBERS[memberIndex] = { ...existing, photo_key: validationResult.data.photoKey };
+    revalidatePath(`/members/${validationResult.data.memberId}`);
+    return { success: true, data: { id: validationResult.data.memberId } };
   } catch (error) {
     console.error('Error updating member photo:', error);
     return { success: false, error: 'Unable to update photo. Please try again.' };

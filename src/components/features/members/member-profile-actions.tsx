@@ -86,14 +86,16 @@ export function MemberProfileActions({
         open={renewOpen}
         onOpenChange={setRenewOpen}
       />
-      <DeleteMemberDialog
-        memberId={memberId}
-        memberName={memberName}
-        hasTransactions={hasTransactions}
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        onDeleted={() => router.push('/members')}
-      />
+      {deleteOpen ? (
+        <DeleteMemberDialog
+          memberId={memberId}
+          memberName={memberName}
+          hasTransactions={hasTransactions}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          onDeleted={() => router.push('/members')}
+        />
+      ) : null}
     </>
   );
 }

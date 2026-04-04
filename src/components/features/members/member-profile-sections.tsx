@@ -67,6 +67,13 @@ function FamilyTable({ familyMembers }: Readonly<{ familyMembers: MemberFamilyMe
 }
 
 export function MemberProfileSections({ member }: Readonly<MemberProfileSectionsProps>) {
+  let familyInOmanLabel = '—';
+  if (member.is_family_in_oman === true) {
+    familyInOmanLabel = 'Yes';
+  } else if (member.is_family_in_oman === false) {
+    familyInOmanLabel = 'No';
+  }
+
   return (
     <div className="space-y-6">
       {/* Single dense card: Personal · Contact · Identity · Family · SNDP · Address */}
@@ -78,7 +85,7 @@ export function MemberProfileSections({ member }: Readonly<MemberProfileSections
           <InfoField label="Blood Group" value={member.blood_group} />
           <InfoField label="Marital Status" value={member.family_status} />
           <InfoField label="Residential Area" value={member.residential_area} />
-          <InfoField label="Family in Oman" value={member.is_family_in_oman ? 'Yes' : 'No'} />
+          <InfoField label="Family in Oman" value={familyInOmanLabel} />
           {member.address_india ? (
             <div className="col-span-full space-y-0.5">
               <p className="text-text-secondary text-xs font-medium">Address (India)</p>
@@ -118,7 +125,10 @@ export function MemberProfileSections({ member }: Readonly<MemberProfileSections
           <InfoField label="President" value={member.president} />
           <InfoField label="Secretary" value={member.secretary} />
           <InfoField label="Application No" value={member.application_no} />
-          <InfoField label="Expiry" value={formatDate(member.expiry)} />
+          <InfoField
+            label="Expiry"
+            value={member.expiry === null ? 'Lifetime' : formatDate(member.expiry)}
+          />
           <InfoField label="Created" value={formatDate(member.created_at)} />
         </div>
       </Card>

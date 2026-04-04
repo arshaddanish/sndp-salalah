@@ -2,7 +2,7 @@
 
 import { Camera, Check, User, X } from 'lucide-react';
 import Image from 'next/image';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { updateMemberPhoto } from '@/lib/actions/members';
@@ -25,6 +25,14 @@ export function MemberPhotoEditor({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   const triggerPicker = () => {
     if (!isPending) fileInputRef.current?.click();
   };
@@ -32,16 +40,14 @@ export function MemberPhotoEditor({
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
     if (!file) return;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setErrorMessage(null);
     setPendingFile(file);
     setPreviewUrl(URL.createObjectURL(file));
-    setErrorMessage(null);
     // Reset so the same file can be re-selected if discarded
     event.target.value = '';
   };
 
   const handleDiscard = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPendingFile(null);
     setPreviewUrl(null);
     setErrorMessage(null);
@@ -49,6 +55,7 @@ export function MemberPhotoEditor({
 
   const handleSave = () => {
     if (!pendingFile) return;
+    setErrorMessage(null);
     startTransition(async () => {
       const uploadResult = await uploadMemberPhoto(pendingFile);
       const result = await updateMemberPhoto(memberId, uploadResult.photoKey);
@@ -57,8 +64,6 @@ export function MemberPhotoEditor({
         return;
       }
       // Revalidation in the server action refreshes the server-rendered photo_key.
-      // Clean up the local object URL.
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPendingFile(null);
       setPreviewUrl(null);
     });

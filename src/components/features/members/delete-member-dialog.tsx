@@ -46,6 +46,11 @@ export function DeleteMemberDialog({
     if (isPending && !nextOpen) {
       return;
     }
+
+    if (!nextOpen) {
+      setErrorMessage(null);
+    }
+
     onOpenChange?.(nextOpen);
   };
 
