@@ -27,16 +27,62 @@ type MembersFilterOptions = {
   q?: string; // Full-text search query
   status?: string;
   shakha?: string;
-  createdStart?: string; // Filter by member creation date (start)
-  createdEnd?: string; // Filter by member creation date (end)
+  activeWindowStart?: string; // Filter by activity window start date
+  activeWindowEnd?: string; // Filter by activity window end date
 };
+
+function parseStartDate(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
+function parseEndDate(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  parsed.setHours(23, 59, 59, 999);
+  return parsed;
+}
 
 /**
  * Apply member filters (client-side for mocked data, server-side on API)
  * API-Ready: This logic will move to the backend when API is implemented
  */
 function filterMembers(members: Member[], filters: MembersFilterOptions): Member[] {
-  const { q = '', status = 'all', shakha = 'all', createdStart = '', createdEnd = '' } = filters;
+  const {
+    q = '',
+    status = 'all',
+    shakha = 'all',
+    activeWindowStart = '',
+    activeWindowEnd = '',
+  } = filters;
+  const activeWindowStartFilter = parseStartDate(activeWindowStart);
+  const activeWindowEndFilter = parseEndDate(activeWindowEnd);
+  const hasActivityWindowFilter =
+    activeWindowStartFilter !== null || activeWindowEndFilter !== null;
+
+  if (
+    activeWindowStartFilter !== null &&
+    activeWindowEndFilter !== null &&
+    activeWindowStartFilter.getTime() > activeWindowEndFilter.getTime()
+  ) {
+    return [];
+  }
 
   return members.filter((member) => {
     if (member.is_archived) {
@@ -59,13 +105,25 @@ function filterMembers(members: Member[], filters: MembersFilterOptions): Member
     // Shakha filter
     const matchesShakha = shakha === 'all' || member.shakha_id.toString() === shakha;
 
-    // Date range filter (by creation date)
+    // Activity window filter (member must be active for the full selected window)
     let matchesDate = true;
-    if (createdStart && member.created_at) {
-      matchesDate = new Date(member.created_at) >= new Date(createdStart);
-    }
-    if (matchesDate && createdEnd && member.created_at) {
-      matchesDate = new Date(member.created_at) <= new Date(createdEnd);
+    if (hasActivityWindowFilter) {
+      if (member.is_lifetime || member.active_from === null || member.expiry === null) {
+        matchesDate = false;
+      } else {
+        const memberActiveFromTime = member.active_from.getTime();
+        const memberExpiryTime = member.expiry.getTime();
+        const matchesStartDate =
+          activeWindowStartFilter === null ||
+          (memberActiveFromTime <= activeWindowStartFilter.getTime() &&
+            memberExpiryTime >= activeWindowStartFilter.getTime());
+        const matchesEndDate =
+          activeWindowEndFilter === null ||
+          (memberActiveFromTime <= activeWindowEndFilter.getTime() &&
+            memberExpiryTime >= activeWindowEndFilter.getTime());
+
+        matchesDate = matchesStartDate && matchesEndDate;
+      }
     }
 
     return matchesSearch && matchesStatus && matchesShakha && matchesDate;
@@ -247,6 +305,7 @@ export async function createMember(
       is_archived: false,
       archived_at: null,
       is_lifetime: false,
+      active_from: null,
       expiry: null,
       created_at: createdAt,
     };
@@ -373,6 +432,25 @@ export async function renewMembership(
       updatedAt: new Date(),
     });
 
+    const normalizedToday = new Date();
+    normalizedToday.setHours(0, 0, 0, 0);
+
+    const existingExpiry = member.expiry ? new Date(member.expiry) : null;
+    if (existingExpiry) {
+      existingExpiry.setHours(0, 0, 0, 0);
+    }
+
+    let nextActiveFrom = new Date(normalizedToday);
+    if (existingExpiry !== null) {
+      const dayAfterExistingExpiry = new Date(existingExpiry);
+      dayAfterExistingExpiry.setDate(dayAfterExistingExpiry.getDate() + 1);
+      nextActiveFrom =
+        dayAfterExistingExpiry.getTime() > normalizedToday.getTime()
+          ? dayAfterExistingExpiry
+          : new Date(normalizedToday);
+    }
+
+    member.active_from = nextActiveFrom;
     member.expiry = new Date(data.newExpiry);
     member.is_lifetime = false;
 

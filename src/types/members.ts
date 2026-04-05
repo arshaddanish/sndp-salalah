@@ -35,6 +35,7 @@ export type Member = {
   is_archived: boolean;
   archived_at: Date | null;
   is_lifetime: boolean;
+  active_from: Date | null;
   expiry: Date | null;
   created_at: Date;
 };

@@ -27,8 +27,8 @@ type MembersTableProps = PaginatedTableProps<Member> & {
   searchQuery: string;
   statusFilter: string;
   shakhaFilter: string;
-  startDate: string;
-  endDate: string;
+  activeWindowStartDate: string;
+  activeWindowEndDate: string;
   shakhaOptions: Array<{ label: string; value: string }>;
 };
 
@@ -96,8 +96,8 @@ export function MembersTable({
   searchQuery,
   statusFilter,
   shakhaFilter,
-  startDate,
-  endDate,
+  activeWindowStartDate,
+  activeWindowEndDate,
   shakhaOptions,
   pageSize,
   pageIndex,
@@ -123,8 +123,8 @@ export function MembersTable({
 
   const currentStatusFilter = searchParams.get('status') ?? statusFilter;
   const currentShakhaFilter = searchParams.get('shakha') ?? shakhaFilter;
-  const currentStartDate = searchParams.get('createdStart') ?? startDate;
-  const currentEndDate = searchParams.get('createdEnd') ?? endDate;
+  const currentStartDate = searchParams.get('activeWindowStart') ?? activeWindowStartDate;
+  const currentEndDate = searchParams.get('activeWindowEnd') ?? activeWindowEndDate;
 
   const paginationState = useMemo<PaginationState>(
     () => ({ pageIndex, pageSize }),
@@ -202,9 +202,14 @@ export function MembersTable({
           <DateRangeFilter
             startDate={currentStartDate}
             endDate={currentEndDate}
-            onStartChange={(v) => updateUrl({ createdStart: v })}
-            onEndChange={(v) => updateUrl({ createdEnd: v })}
-            onClear={() => updateUrl({ createdStart: null, createdEnd: null })}
+            onStartChange={(v) => updateUrl({ activeWindowStart: v })}
+            onEndChange={(v) => updateUrl({ activeWindowEnd: v })}
+            onClear={() => updateUrl({ activeWindowStart: null, activeWindowEnd: null })}
+            startLabel="Active From"
+            endLabel="Active Until"
+            inactiveLabel="Active Range"
+            activeLabel="Range Filtered"
+            clearLabel="Clear Range"
           />
         </div>
       </div>

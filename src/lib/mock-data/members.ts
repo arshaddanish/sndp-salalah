@@ -114,6 +114,7 @@ export const MOCK_MEMBERS: Member[] = [
     is_archived: false,
     archived_at: null,
     is_lifetime: false,
+    active_from: new Date('2020-01-01'),
     expiry: nextYear,
     created_at: new Date('2020-01-01'),
   },
@@ -134,6 +135,7 @@ export const MOCK_MEMBERS: Member[] = [
     is_archived: false,
     archived_at: null,
     is_lifetime: false,
+    active_from: new Date('2019-05-12'),
     expiry: pastYear,
     created_at: new Date('2019-05-12'),
   },
@@ -154,11 +156,13 @@ export const MOCK_MEMBERS: Member[] = [
     is_archived: false,
     archived_at: null,
     is_lifetime: true,
+    active_from: null,
     expiry: null,
     created_at: new Date('2015-08-20'),
   },
   // Adding more members...
   ...Array.from({ length: 97 }).map((_, i) => {
+    const expiry = getMockExpiry(i);
     const id = i + 4;
     const names = [
       'Anil Kumar',
@@ -220,7 +224,8 @@ export const MOCK_MEMBERS: Member[] = [
       is_archived: false,
       archived_at: null,
       is_lifetime: false,
-      expiry: getMockExpiry(i),
+      active_from: expiry ? new Date(2020, 0, 1) : null,
+      expiry,
       created_at: new Date(2020, 0, 1),
     };
   }),
