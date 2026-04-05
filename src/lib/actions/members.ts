@@ -2,10 +2,19 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { getMemberStatus, type Member, MOCK_MEMBERS } from '@/lib/mock-data/members';
-import { type CreateMemberInput, createMemberSchema } from '@/lib/validations/members';
+import { getMemberStatus, MOCK_MEMBERS } from '@/lib/mock-data/members';
+import { MOCK_SHAKHAS } from '@/lib/mock-data/shakhas';
+import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
+import {
+  type CreateMemberInput,
+  createMemberSchema,
+  renewMembershipSchema,
+  updateMemberSchema,
+} from '@/lib/validations/members';
 import type { ActionResult } from '@/types/actions';
+import type { Member, MemberDetail, MemberTransaction } from '@/types/members';
 import type { PaginationResponse } from '@/types/pagination';
+import type { TransactionPaymentMode } from '@/types/transactions';
 
 /**
  * Filter options for members endpoint
@@ -128,7 +137,7 @@ function getNextMemberCode(): number {
 
 function getNextMemberId(): string {
   const maxNumericId = MOCK_MEMBERS.reduce((maxId, member) => {
-    const parsedValue = Number.parseInt(member.id.replace(/\D+/g, ''), 10);
+    const parsedValue = Number.parseInt(member.id.replaceAll(/\D+/g, ''), 10);
     if (Number.isNaN(parsedValue)) {
       return maxId;
     }
@@ -199,8 +208,7 @@ export async function createMember(
       };
     }
 
-    const calculatedMemberCode = getNextMemberCode();
-    const memberCode = Math.max(parsedData.memberCodePreview, calculatedMemberCode);
+    const memberCode = getNextMemberCode();
     const expiryDate = parseDateOrNull(parsedData.expiry) ?? getDefaultExpiryDate();
     const createdAt = new Date();
     const newMemberId = getNextMemberId();
@@ -261,5 +269,221 @@ export async function createMember(
       success: false,
       error: 'An unexpected error occurred while creating the member',
     };
+  }
+}
+
+export async function fetchMemberById(id: string): Promise<ActionResult<MemberDetail>> {
+  try {
+    const member = MOCK_MEMBERS.find((item) => item.id === id);
+    if (!member) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    const shakha = MOCK_SHAKHAS.find((s) => s.id === member.shakha_id);
+
+    return {
+      success: true,
+      data: {
+        ...member,
+        shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
+        status: getMemberStatus(member.expiry),
+        familyMembersList: member.family_members ?? [],
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching member:', error);
+    return { success: false, error: 'Unable to load member profile. Please try again.' };
+  }
+}
+
+export async function fetchMemberTransactions(
+  memberId: string,
+): Promise<ActionResult<MemberTransaction[]>> {
+  try {
+    const memberTransactions = MOCK_TRANSACTIONS.filter(
+      (txn) => txn.memberId === memberId && txn.entryKind === 'regular',
+    )
+      .sort((a, b) => b.transactionDate.getTime() - a.transactionDate.getTime())
+      .map((txn) => ({
+        id: txn.id,
+        transactionCode: txn.transactionCode,
+        transactionDate: txn.transactionDate,
+        amount: txn.amount,
+        paymentMode: txn.paymentMode as TransactionPaymentMode,
+        fundAccount: txn.fundAccount,
+        remarks: txn.remarks,
+        createdAt: txn.createdAt,
+      }));
+
+    return {
+      success: true,
+      data: memberTransactions,
+    };
+  } catch (error) {
+    console.error('Error fetching member transactions:', error);
+    return { success: false, error: 'Unable to load payment history.' };
+  }
+}
+
+export async function renewMembership(
+  input: unknown,
+): Promise<ActionResult<{ transactionId: string }>> {
+  try {
+    const validationResult = renewMembershipSchema.safeParse(input);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return { success: false, error: firstError?.message ?? 'Invalid renewal input' };
+    }
+
+    const data = validationResult.data;
+    const member = MOCK_MEMBERS.find((m) => m.id === data.memberId);
+    if (!member) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    const maxCode = MOCK_TRANSACTIONS.reduce(
+      (max, txn) => Math.max(max, txn.transactionCode),
+      1000,
+    );
+    const newTransactionId = `txn-renew-${Date.now()}`;
+
+    const attachmentKey = data.attachmentKey?.trim();
+
+    MOCK_TRANSACTIONS.push({
+      id: newTransactionId,
+      transactionCode: maxCode + 1,
+      transactionDate: new Date(),
+      entryKind: 'regular',
+      categoryId: 'cat-1',
+      categoryName: 'Membership Fee',
+      type: 'income',
+      paymentMode: data.paymentMode,
+      fundAccount: data.fundAccount,
+      memberId: data.memberId,
+      amount: data.amount.toFixed(3),
+      cashBalance: '0.000',
+      bankBalance: '0.000',
+      remarks: data.remarks ?? '',
+      ...(attachmentKey ? { attachmentKey } : {}),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    member.expiry = new Date(data.newExpiry);
+
+    revalidatePath(`/members/${data.memberId}`);
+    revalidatePath('/transactions');
+    revalidatePath('/members');
+
+    return { success: true, data: { transactionId: newTransactionId } };
+  } catch (error) {
+    console.error('Error renewing membership:', error);
+    return { success: false, error: 'Unable to process renewal. Please try again.' };
+  }
+}
+
+export async function updateMember(
+  memberId: string,
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const validationResult = updateMemberSchema.safeParse(input);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return { success: false, error: firstError?.message ?? 'Invalid member data' };
+    }
+
+    const data = validationResult.data;
+    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === memberId);
+    if (memberIndex === -1) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    const normalizedCivilId = data.civilIdNo.trim().toLowerCase();
+    const hasDuplicateCivilId = MOCK_MEMBERS.some(
+      (m) => m.id !== memberId && m.civil_id_no.trim().toLowerCase() === normalizedCivilId,
+    );
+    if (hasDuplicateCivilId) {
+      return { success: false, error: 'A member with this Civil ID already exists.' };
+    }
+
+    const existing = MOCK_MEMBERS[memberIndex]!;
+    const updatedMember: Member = {
+      ...existing,
+      name: data.name.trim(),
+      dob: new Date(data.dob),
+      profession: data.profession.trim(),
+      whatsapp_no: data.whatsappNo.trim(),
+      gsm_no: data.gsmNo.trim(),
+      family_status: normalizeOptionalText(data.familyStatus),
+      blood_group: normalizeOptionalText(data.bloodGroup),
+      residential_area: data.residentialArea.trim(),
+      civil_id_no: data.civilIdNo.trim(),
+      passport_no: data.passportNo.trim(),
+      email: normalizeOptionalText(data.email),
+      tel_no_india: normalizeOptionalText(data.telNoIndia),
+      address_india: data.addressIndia.trim(),
+      is_family_in_oman: data.isFamilyInOman,
+      family_members: data.familyMembers.map((fm, i) => ({
+        id: existing.family_members?.[i]?.id ?? `${memberId}-f${i + 1}`,
+        name: fm.name.trim(),
+        relation: normalizeOptionalText(fm.relation),
+        dob: parseDateOrNull(fm.dob),
+        created_at: existing.family_members?.[i]?.created_at ?? new Date(),
+      })),
+      shakha_india: normalizeOptionalText(data.shakhaIndia),
+      union: normalizeOptionalText(data.union),
+      district: normalizeOptionalText(data.district),
+      shakha_id: normalizeOptionalText(data.officeShakhaId) ?? existing.shakha_id,
+      submitted_by: data.submittedBy.trim(),
+      approved_by: data.approvedBy.trim(),
+      received_on: new Date(data.receivedOn),
+      checked_by: data.checkedBy.trim(),
+      expiry: parseDateOrNull(data.expiry) ?? existing.expiry,
+      application_no: data.applicationNo.trim(),
+      secretary: normalizeOptionalText(data.secretary),
+      president: normalizeOptionalText(data.president),
+      photo_key: data.photoKey,
+    };
+
+    MOCK_MEMBERS[memberIndex] = updatedMember;
+
+    revalidatePath(`/members/${memberId}`);
+    revalidatePath('/members');
+
+    return { success: true, data: { id: memberId } };
+  } catch (error) {
+    console.error('Error updating member:', error);
+    return { success: false, error: 'Unable to update member. Please try again.' };
+  }
+}
+
+export async function deleteMember(memberId: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    const memberIndex = MOCK_MEMBERS.findIndex((member) => member.id === memberId);
+
+    if (memberIndex === -1) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    const hasLinkedTransactions = MOCK_TRANSACTIONS.some((txn) => txn.memberId === memberId);
+
+    if (hasLinkedTransactions) {
+      return {
+        success: false,
+        error:
+          'Cannot delete this member because linked transactions exist. Remove or reassign transactions first.',
+      };
+    }
+
+    MOCK_MEMBERS.splice(memberIndex, 1);
+
+    revalidatePath('/members');
+    revalidatePath(`/members/${memberId}`);
+
+    return { success: true, data: { id: memberId } };
+  } catch (error) {
+    console.error('Error deleting member:', error);
+    return { success: false, error: 'Unable to delete member. Please try again.' };
   }
 }

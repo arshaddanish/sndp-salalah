@@ -1,19 +1,26 @@
 'use client';
 
-import { type ColumnDef } from '@tanstack/react-table';
+import {
+  type ColumnDef,
+  getCoreRowModel,
+  type PaginationState,
+  useReactTable,
+} from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { Search } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useTransition } from 'react';
+import { useCallback, useMemo, useTransition } from 'react';
 
 import { Badge } from '@/components/ui/badge';
-import { DataTable } from '@/components/ui/data-table';
+import { DataTableBase } from '@/components/ui/data-table-base';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FilterDropdown } from '@/components/ui/dropdown-filter';
 import { Input } from '@/components/ui/input';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
 import { useQuerySearch } from '@/hooks/use-query-search';
-import { getMemberStatus, type Member } from '@/lib/mock-data/members';
+import { getMemberStatus } from '@/lib/mock-data/members';
+import type { Member } from '@/types/members';
 import type { PaginatedTableProps } from '@/types/pagination';
 
 type MembersTableProps = PaginatedTableProps<Member> & {
@@ -114,6 +121,24 @@ export function MembersTable({
   const currentStartDate = searchParams.get('createdStart') ?? startDate;
   const currentEndDate = searchParams.get('createdEnd') ?? endDate;
 
+  const paginationState = useMemo<PaginationState>(
+    () => ({ pageIndex, pageSize }),
+    [pageIndex, pageSize],
+  );
+
+  const table = useReactTable({
+    columns,
+    data: rows,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    pageCount,
+    state: { pagination: paginationState },
+    onPaginationChange,
+  });
+
+  const currentPageSize = paginationState.pageSize;
+  const currentPageIndex = paginationState.pageIndex;
+
   const updateUrl = useCallback(
     (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -179,15 +204,27 @@ export function MembersTable({
         </div>
       </div>
 
-      <DataTable
+      <DataTableBase
+        table={table}
         columns={columns}
-        data={rows}
         isLoading={isPending || isSearching}
-        manualPagination={true}
-        rowCount={totalRows}
-        pageCount={pageCount}
-        pagination={{ pageIndex, pageSize }}
-        onPaginationChange={onPaginationChange}
+        skeletonRowCount={currentPageSize}
+        onRowClick={(member) => router.push(`/members/${member.id}`)}
+        footer={
+          <DataTablePagination
+            table={table}
+            isLoading={isPending || isSearching}
+            totalRows={totalRows}
+            currentPageIndex={currentPageIndex}
+            currentPageSize={currentPageSize}
+            onPageIndexChange={(nextPageIndex: number) =>
+              onPaginationChange({ pageIndex: nextPageIndex, pageSize: currentPageSize })
+            }
+            onPageSizeChange={(nextPageSize: number) =>
+              onPaginationChange({ pageIndex: 0, pageSize: nextPageSize })
+            }
+          />
+        }
       />
     </div>
   );

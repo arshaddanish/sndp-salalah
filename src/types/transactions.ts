@@ -18,6 +18,7 @@ export type TransactionStatementRow = {
   fundAccount: TransactionFundAccount;
   payeeMerchant?: string;
   paidReceiptBy?: string;
+  memberId?: string | null;
   amount: string;
   remarks: string;
   cashBalance: string;
