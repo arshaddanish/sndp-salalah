@@ -34,6 +34,7 @@ type MembersTableProps = PaginatedTableProps<Member> & {
 
 const statusOptions = [
   { label: 'All', value: 'all' },
+  { label: 'Pending', value: 'pending' },
   { label: 'Active', value: 'active' },
   { label: 'Near Expiry', value: 'near-expiry' },
   { label: 'Expired', value: 'expired' },
@@ -56,8 +57,11 @@ const columns: ColumnDef<Member>[] = [
     accessorKey: 'expiry',
     header: 'Expiry',
     cell: ({ row }) => {
+      if (row.original.is_lifetime) {
+        return 'Lifetime';
+      }
       const expiry = row.original.expiry;
-      return expiry ? format(expiry, 'dd MMM yyyy') : 'Lifetime';
+      return expiry ? format(expiry, 'dd MMM yyyy') : 'Pending';
     },
   },
   {
@@ -73,14 +77,15 @@ const columns: ColumnDef<Member>[] = [
     id: 'status',
     header: 'Status',
     cell: ({ row }) => {
-      const status = getMemberStatus(row.original.expiry);
-      return (
-        <Badge variant={status}>
-          {status === 'near-expiry'
-            ? 'Near Expiry'
-            : status.charAt(0).toUpperCase() + status.slice(1)}
-        </Badge>
-      );
+      const status = getMemberStatus(row.original.expiry, row.original.is_lifetime);
+      let statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+      if (status === 'near-expiry') {
+        statusLabel = 'Near Expiry';
+      } else if (status === 'pending') {
+        statusLabel = 'Pending';
+      }
+
+      return <Badge variant={status}>{statusLabel}</Badge>;
     },
   },
 ];

@@ -74,6 +74,13 @@ export function MemberProfileSections({ member }: Readonly<MemberProfileSections
     familyInOmanLabel = 'No';
   }
 
+  let expiryLabel = 'Pending';
+  if (member.is_lifetime) {
+    expiryLabel = 'Lifetime';
+  } else if (member.expiry !== null) {
+    expiryLabel = formatDate(member.expiry);
+  }
+
   return (
     <div className="space-y-6">
       {/* Single dense card: Personal · Contact · Identity · Family · SNDP · Address */}
@@ -125,10 +132,7 @@ export function MemberProfileSections({ member }: Readonly<MemberProfileSections
           <InfoField label="President" value={member.president} />
           <InfoField label="Secretary" value={member.secretary} />
           <InfoField label="Application No" value={member.application_no} />
-          <InfoField
-            label="Expiry"
-            value={member.expiry === null ? 'Lifetime' : formatDate(member.expiry)}
-          />
+          <InfoField label="Expiry" value={expiryLabel} />
           <InfoField label="Created" value={formatDate(member.created_at)} />
         </div>
       </Card>

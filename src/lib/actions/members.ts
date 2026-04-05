@@ -9,6 +9,7 @@ import {
   type CreateMemberInput,
   createMemberSchema,
   renewMembershipSchema,
+  setMemberLifetimeSchema,
   updateMemberPhotoSchema,
   updateMemberSchema,
 } from '@/lib/validations/members';
@@ -52,7 +53,7 @@ function filterMembers(members: Member[], filters: MembersFilterOptions): Member
       );
 
     // Status filter
-    const memberStatus = getMemberStatus(member.expiry);
+    const memberStatus = getMemberStatus(member.expiry, member.is_lifetime);
     const matchesStatus = status === 'all' || memberStatus === status;
 
     // Shakha filter
@@ -63,8 +64,8 @@ function filterMembers(members: Member[], filters: MembersFilterOptions): Member
     if (createdStart && member.created_at) {
       matchesDate = new Date(member.created_at) >= new Date(createdStart);
     }
-    if (matchesDate && createdEnd && member.expiry) {
-      matchesDate = new Date(member.expiry) <= new Date(createdEnd);
+    if (matchesDate && createdEnd && member.created_at) {
+      matchesDate = new Date(member.created_at) <= new Date(createdEnd);
     }
 
     return matchesSearch && matchesStatus && matchesShakha && matchesDate;
@@ -176,12 +177,6 @@ function parseDateOrNull(value: string | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function getDefaultExpiryDate(): Date {
-  const nextYear = new Date();
-  nextYear.setFullYear(nextYear.getFullYear() + 1);
-  return nextYear;
-}
-
 export async function createMember(
   input: CreateMemberInput,
 ): Promise<ActionResult<{ id: string; memberCode: number }>> {
@@ -210,7 +205,6 @@ export async function createMember(
     }
 
     const memberCode = getNextMemberCode();
-    const expiryDate = parseDateOrNull(parsedData.expiry) ?? getDefaultExpiryDate();
     const createdAt = new Date();
     const newMemberId = getNextMemberId();
 
@@ -252,7 +246,8 @@ export async function createMember(
       })),
       is_archived: false,
       archived_at: null,
-      expiry: expiryDate,
+      is_lifetime: false,
+      expiry: null,
       created_at: createdAt,
     };
 
@@ -289,7 +284,7 @@ export async function fetchMemberById(id: string): Promise<ActionResult<MemberDe
       data: {
         ...member,
         shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
-        status: getMemberStatus(member.expiry),
+        status: getMemberStatus(member.expiry, member.is_lifetime),
         familyMembersList: member.family_members ?? [],
       },
     };
@@ -343,6 +338,12 @@ export async function renewMembership(
     if (!member || member.is_archived) {
       return { success: false, error: 'Member not found.' };
     }
+    if (member.is_lifetime) {
+      return {
+        success: false,
+        error: 'Lifetime members do not require registration or renewal payments.',
+      };
+    }
 
     const maxCode = MOCK_TRANSACTIONS.reduce(
       (max, txn) => Math.max(max, txn.transactionCode),
@@ -373,6 +374,7 @@ export async function renewMembership(
     });
 
     member.expiry = new Date(data.newExpiry);
+    member.is_lifetime = false;
 
     revalidatePath(`/members/${data.memberId}`);
     revalidatePath('/transactions');
@@ -451,6 +453,7 @@ export async function updateMember(
       secretary: normalizeOptionalText(data.secretary),
       president: normalizeOptionalText(data.president),
       photo_key: data.photoKey?.trim() || existing.photo_key,
+      is_lifetime: existing.is_lifetime,
     };
 
     MOCK_MEMBERS[memberIndex] = updatedMember;
@@ -492,6 +495,43 @@ export async function updateMemberPhoto(
   } catch (error) {
     console.error('Error updating member photo:', error);
     return { success: false, error: 'Unable to update photo. Please try again.' };
+  }
+}
+
+export async function setMemberLifetime(
+  input: unknown,
+): Promise<ActionResult<{ id: string; isLifetime: boolean }>> {
+  try {
+    const validationResult = setMemberLifetimeSchema.safeParse(input);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return { success: false, error: firstError?.message ?? 'Invalid lifetime input' };
+    }
+
+    const { memberId, isLifetime } = validationResult.data;
+    const memberIndex = MOCK_MEMBERS.findIndex((member) => member.id === memberId);
+    if (memberIndex === -1) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    const existing = MOCK_MEMBERS[memberIndex]!;
+    if (existing.is_archived) {
+      return { success: false, error: 'Member not found.' };
+    }
+
+    MOCK_MEMBERS[memberIndex] = {
+      ...existing,
+      is_lifetime: isLifetime,
+      expiry: isLifetime ? null : existing.expiry,
+    };
+
+    revalidatePath('/members');
+    revalidatePath(`/members/${memberId}`);
+
+    return { success: true, data: { id: memberId, isLifetime } };
+  } catch (error) {
+    console.error('Error updating member lifetime:', error);
+    return { success: false, error: 'Unable to update lifetime status. Please try again.' };
   }
 }
 

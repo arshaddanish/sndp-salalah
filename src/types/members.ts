@@ -34,6 +34,7 @@ export type Member = {
   family_members?: MemberFamilyMember[];
   is_archived: boolean;
   archived_at: Date | null;
+  is_lifetime: boolean;
   expiry: Date | null;
   created_at: Date;
 };
@@ -53,7 +54,7 @@ export type MemberFamilyMember = {
   created_at: Date;
 };
 
-export type MemberStatus = 'active' | 'expired' | 'lifetime' | 'near-expiry';
+export type MemberStatus = 'active' | 'expired' | 'lifetime' | 'near-expiry' | 'pending';
 
 /** A membership fee transaction linked to a member */
 export type MemberTransaction = {

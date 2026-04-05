@@ -10,6 +10,7 @@ export interface KpiData {
 
 // Member status distribution
 export interface MemberStatusData {
+  pending: number;
   active: number;
   expired: number;
   lifetime: number;

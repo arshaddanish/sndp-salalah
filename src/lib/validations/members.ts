@@ -54,7 +54,6 @@ export const createMemberSchema = z.object({
   approvedBy: requiredText('Approved By').max(120, 'Approved By is too long'),
   receivedOn: requiredDate('Received On'),
   checkedBy: requiredText('Checked By').max(120, 'Checked By is too long'),
-  expiry: optionalDate,
   applicationNo: requiredText('Application No').max(50, 'Application No is too long'),
   secretary: optionalText(),
   president: optionalText(),
@@ -66,7 +65,15 @@ export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
 export const updateMemberSchema = createMemberSchema.extend({
   photoKey: z.string().trim().optional().or(z.literal('')),
+  expiry: optionalDate,
 });
+
+export const setMemberLifetimeSchema = z.object({
+  memberId: requiredText('Member ID'),
+  isLifetime: z.boolean(),
+});
+
+export type SetMemberLifetimeInput = z.infer<typeof setMemberLifetimeSchema>;
 
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 

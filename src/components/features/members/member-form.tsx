@@ -2,7 +2,8 @@
 
 import { UserMinus, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useMemo, useState, useTransition } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import { useCallback, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { FormFieldError } from '@/components/ui/form-field-error';
@@ -90,15 +91,6 @@ function initFamilyRows(member?: Member): FamilyRow[] {
   );
 }
 
-function computeDefaultExpiry(expiry?: Date | null): string {
-  if (expiry) {
-    return expiry.toISOString().slice(0, 10);
-  }
-  const date = new Date();
-  date.setFullYear(date.getFullYear() + 1);
-  return date.toISOString().slice(0, 10);
-}
-
 function filterFamilyRows(rows: FamilyRow[], rowIndex: number): FamilyRow[] {
   if (rowIndex < 0 || rowIndex >= rows.length) {
     return rows;
@@ -148,10 +140,13 @@ type SubmitContext = {
   payload: CreateMemberInput;
   photoFile: File | null;
 };
+
+type RouterPush = ReturnType<typeof useRouter>['push'];
+
 type SubmitCallbacks = {
-  setFieldErrors: (_errors: Record<string, string>) => void;
-  setErrorMessage: (_msg: string) => void;
-  push: (_url: string) => void;
+  setFieldErrors: Dispatch<SetStateAction<Record<string, string>>>;
+  setErrorMessage: Dispatch<SetStateAction<string | null>>;
+  push: RouterPush;
 };
 
 async function runMemberSubmit(
@@ -202,9 +197,6 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
   const [familyRows, setFamilyRows] = useState<FamilyRow[]>(() => initFamilyRows(initialData));
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [isDirty, setIsDirty] = useState(false);
-
-  const expiryValue = initialData?.expiry;
-  const defaultExpiry = useMemo(() => computeDefaultExpiry(expiryValue), [expiryValue]);
 
   const handleFormChange = useCallback(() => setIsDirty(true), []);
 
@@ -259,7 +251,6 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
       approvedBy: getFormValue(formData, 'approvedBy'),
       receivedOn: getFormValue(formData, 'receivedOn'),
       checkedBy: getFormValue(formData, 'checkedBy'),
-      expiry: getFormValue(formData, 'expiry'),
       applicationNo: getFormValue(formData, 'applicationNo'),
       secretary: getFormValue(formData, 'secretary'),
       president: getFormValue(formData, 'president'),
@@ -829,20 +820,6 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               fieldKey="checkedBy"
               errorId="checkedBy-error"
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-text-secondary text-sm font-medium" htmlFor="expiry">
-              Expiry
-            </label>
-            <Input
-              id="expiry"
-              name="expiry"
-              type="date"
-              defaultValue={defaultExpiry}
-              disabled={isPending}
-            />
-            <FormFieldError fieldErrors={fieldErrors} fieldKey="expiry" errorId="expiry-error" />
           </div>
 
           <div className="space-y-1.5">

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import type { MemberStatusData } from '@/types/dashboard';
 
 const COLORS = {
+  pending: 'var(--color-muted)',
   active: 'var(--color-success)',
   nearExpiry: 'var(--color-warning)',
   expired: 'var(--color-danger)',
@@ -19,6 +20,11 @@ interface PieLabelProps {
 
 export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData }>) {
   const chartData = [
+    {
+      name: 'Pending',
+      value: data.pending,
+      fill: COLORS.pending,
+    },
     {
       name: 'Active',
       value: data.active,
@@ -75,7 +81,8 @@ export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData
         <h4>Member Status Distribution</h4>
         <ul>
           {chartData.map((item) => {
-            const total = data.active + data.nearExpiry + data.expired + data.lifetime;
+            const total =
+              data.pending + data.active + data.nearExpiry + data.expired + data.lifetime;
             const percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
             return (
               <li key={item.name}>
@@ -86,7 +93,15 @@ export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData
         </ul>
       </div>
 
-      <div className="border-border mt-4 grid grid-cols-4 gap-2 border-t pt-4">
+      <div className="border-border mt-4 grid grid-cols-5 gap-2 border-t pt-4">
+        <div>
+          <div className="text-text-secondary mb-1 text-[10px] font-medium tracking-wider uppercase">
+            Pending
+          </div>
+          <div className="text-text-secondary text-sm font-semibold">
+            {data.pending.toLocaleString()}
+          </div>
+        </div>
         <div>
           <div className="text-text-secondary mb-1 text-[10px] font-medium tracking-wider uppercase">
             Active

@@ -8,6 +8,7 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
+        pending: 'border-info/20 bg-info-bg text-info',
         active: 'border-success/20 bg-success-bg text-success',
         expired: 'border-danger/20 bg-danger-bg text-danger',
         lifetime: 'border-lifetime/20 bg-lifetime-bg text-lifetime',
@@ -25,7 +26,7 @@ const badgeVariants = cva(
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
+function Badge({ className, variant, ...props }: Readonly<BadgeProps>) {
   return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
 
