@@ -419,11 +419,9 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
 
 const updateTransactionSchema = z.object({
   type: z.enum(['income', 'expense']),
-  amount: z
-    .string()
-    .refine((val) => !Number.isNaN(Number(val)) && Number(val) > 0, {
-      message: 'Amount must be a positive number.',
-    }),
+  amount: z.string().refine((val) => !Number.isNaN(Number(val)) && Number(val) > 0, {
+    message: 'Amount must be a positive number.',
+  }),
   transactionDate: z.string().min(1, 'Date is required.'),
   categoryId: z.string().min(1, 'Category is required.'),
   paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque']),
@@ -466,13 +464,20 @@ export async function updateTransaction(
       (cat) => cat.id === validationResult.data.categoryId,
     );
 
+    if (!category || category.is_system || category.type !== validationResult.data.type) {
+      return {
+        success: false,
+        error: 'Please select a valid category for the selected transaction type.',
+      };
+    }
+
     const existing = MOCK_TRANSACTIONS[index];
     if (existing) {
       existing.type = validationResult.data.type;
       existing.amount = Number(validationResult.data.amount).toFixed(3);
       existing.transactionDate = new Date(validationResult.data.transactionDate);
       existing.categoryId = validationResult.data.categoryId;
-      existing.categoryName = category?.name ?? existing.categoryName;
+      existing.categoryName = category.name;
       existing.paymentMode = validationResult.data.paymentMode;
       existing.fundAccount = validationResult.data.fundAccount;
       existing.payeeMerchant = validationResult.data.payeeMerchant;

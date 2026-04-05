@@ -16,7 +16,7 @@ import type { RegularTransactionRow } from '@/types/transactions';
 
 interface EditTransactionDialogProps {
   isOpen: boolean;
-  onOpenChange: (value: boolean) => void;
+  onOpenChange: (_value: boolean) => void;
   transaction: RegularTransactionRow;
   categoryOptions: Array<{ label: string; value: string }>;
   onSuccess: () => void;

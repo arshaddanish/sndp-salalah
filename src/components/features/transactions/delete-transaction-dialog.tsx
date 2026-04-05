@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +15,7 @@ import type { RegularTransactionRow } from '@/types/transactions';
 
 interface DeleteTransactionDialogProps {
   isOpen: boolean;
-  onOpenChange: (value: boolean) => void;
+  onOpenChange: (_value: boolean) => void;
   transaction: RegularTransactionRow;
   onSuccess: () => void;
 }
@@ -27,11 +27,16 @@ export function DeleteTransactionDialog({
   onSuccess,
 }: Readonly<DeleteTransactionDialogProps>) {
   const [isPending, startTransition] = useTransition();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleDelete = () => {
+    setErrorMessage(null);
     startTransition(async () => {
       const result = await deleteTransaction(transaction.id);
-      if (!result.success) return;
+      if (!result.success) {
+        setErrorMessage(result.error ?? 'Unable to delete transaction. Please try again.');
+        return;
+      }
       onSuccess();
     });
   };
@@ -50,6 +55,11 @@ export function DeleteTransactionDialog({
         <p className="text-text-secondary text-sm">
           Are you sure you want to delete this transaction? This action cannot be undone.
         </p>
+        {errorMessage ? (
+          <p className="text-danger text-sm" role="alert">
+            {errorMessage}
+          </p>
+        ) : null}
         <DialogFooter>
           <Button
             type="button"
