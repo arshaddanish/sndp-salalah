@@ -19,6 +19,7 @@ import { renewMembershipSchema } from '@/lib/validations/members';
 type RenewMembershipDialogProps = {
   memberId: string;
   currentExpiry: string | null;
+  mode: 'register' | 'renew';
   open: boolean;
   onOpenChange: ComponentProps<typeof Dialog>['onOpenChange'];
 };
@@ -57,6 +58,7 @@ function getFormValue(formData: FormData, key: string): string {
 export function RenewMembershipDialog({
   memberId,
   currentExpiry,
+  mode,
   open,
   onOpenChange,
 }: Readonly<RenewMembershipDialogProps>) {
@@ -66,6 +68,13 @@ export function RenewMembershipDialog({
   const [isDirty, setIsDirty] = useState(false);
 
   const defaultExpiry = useMemo(() => getDefaultExpiry(currentExpiry), [currentExpiry]);
+  const dialogTitle = mode === 'register' ? 'Register Membership' : 'Renew Membership';
+  const dialogDescription =
+    mode === 'register'
+      ? 'Record the first membership fee payment and set the expiry date.'
+      : 'Record a membership fee payment and set the new expiry date.';
+  const submitErrorMessage =
+    mode === 'register' ? 'Unable to register membership.' : 'Unable to process renewal.';
 
   const handleOpenChange = (next: boolean) => {
     if (isPending) return;
@@ -89,10 +98,8 @@ export function RenewMembershipDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Renew Membership</DialogTitle>
-          <DialogDescription>
-            Record a membership fee payment and set the new expiry date.
-          </DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <form
@@ -125,7 +132,7 @@ export function RenewMembershipDialog({
             startTransition(async () => {
               const result = await renewMembership(validationResult.data);
               if (!result.success) {
-                setErrorMessage(result.error ?? 'Unable to process renewal.');
+                setErrorMessage(result.error ?? submitErrorMessage);
                 return;
               }
               setIsDirty(false);

@@ -4,6 +4,7 @@ import type { MemberDetail } from '@/types/members';
 import { MemberPhotoEditor } from './member-photo-editor';
 
 const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
   active: 'Active',
   expired: 'Expired',
   lifetime: 'Lifetime',
@@ -14,9 +15,12 @@ type MemberProfileHeaderProps = {
   member: MemberDetail;
 };
 
-function formatExpiry(expiry: Date | null): string {
-  if (!expiry) {
+function formatExpiry(expiry: Date | null, isLifetime: boolean): string {
+  if (isLifetime) {
     return 'Lifetime';
+  }
+  if (!expiry) {
+    return 'Pending';
   }
 
   return expiry.toLocaleDateString('en-GB', {
@@ -57,7 +61,9 @@ export function MemberProfileHeader({ member }: Readonly<MemberProfileHeaderProp
             </span>
             <span>
               Expiry:{' '}
-              <span className="text-text-primary font-medium">{formatExpiry(member.expiry)}</span>
+              <span className="text-text-primary font-medium">
+                {formatExpiry(member.expiry, member.is_lifetime)}
+              </span>
             </span>
           </div>
         </div>

@@ -2,8 +2,9 @@
 
 import type { Member, MemberStatus } from '@/types/members';
 
-export const getMemberStatus = (expiry: Date | null): MemberStatus => {
-  if (!expiry) return 'lifetime';
+export const getMemberStatus = (expiry: Date | null, isLifetime: boolean): MemberStatus => {
+  if (isLifetime) return 'lifetime';
+  if (!expiry) return 'pending';
 
   // Normalize today to start-of-day for day-granularity comparison
   const today = new Date();
@@ -112,6 +113,8 @@ export const MOCK_MEMBERS: Member[] = [
     ],
     is_archived: false,
     archived_at: null,
+    is_lifetime: false,
+    active_from: new Date('2020-01-01'),
     expiry: nextYear,
     created_at: new Date('2020-01-01'),
   },
@@ -131,6 +134,8 @@ export const MOCK_MEMBERS: Member[] = [
     family_status: 'Married',
     is_archived: false,
     archived_at: null,
+    is_lifetime: false,
+    active_from: new Date('2019-05-12'),
     expiry: pastYear,
     created_at: new Date('2019-05-12'),
   },
@@ -150,11 +155,14 @@ export const MOCK_MEMBERS: Member[] = [
     family_status: 'Single',
     is_archived: false,
     archived_at: null,
-    expiry: null, // Lifetime
+    is_lifetime: true,
+    active_from: null,
+    expiry: null,
     created_at: new Date('2015-08-20'),
   },
   // Adding more members...
   ...Array.from({ length: 97 }).map((_, i) => {
+    const expiry = getMockExpiry(i);
     const id = i + 4;
     const names = [
       'Anil Kumar',
@@ -215,7 +223,9 @@ export const MOCK_MEMBERS: Member[] = [
       family_status: familyStatuses[i % familyStatuses.length] || 'Single',
       is_archived: false,
       archived_at: null,
-      expiry: getMockExpiry(i),
+      is_lifetime: false,
+      active_from: expiry ? new Date(2020, 0, 1) : null,
+      expiry,
       created_at: new Date(2020, 0, 1),
     };
   }),

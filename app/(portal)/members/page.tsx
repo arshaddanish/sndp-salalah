@@ -24,8 +24,8 @@ export default async function MembersPage({
   const searchQuery = (resolvedSearchParams.q ?? '').trim();
   const statusFilter = resolvedSearchParams.status ?? 'all';
   const shakhaFilter = resolvedSearchParams.shakha ?? 'all';
-  const createdStartDate = resolvedSearchParams.createdStart ?? '';
-  const createdEndDate = resolvedSearchParams.createdEnd ?? '';
+  const activeWindowStartDate = resolvedSearchParams.activeWindowStart ?? '';
+  const activeWindowEndDate = resolvedSearchParams.activeWindowEnd ?? '';
   const { page, pageSize } = normalizePagination(resolvedSearchParams);
 
   const [membersResult, shakhaOptionsResult] = await Promise.all([
@@ -33,8 +33,8 @@ export default async function MembersPage({
       q: searchQuery,
       status: statusFilter,
       shakha: shakhaFilter,
-      createdStart: createdStartDate,
-      createdEnd: createdEndDate,
+      activeWindowStart: activeWindowStartDate,
+      activeWindowEnd: activeWindowEndDate,
     }),
     fetchShakhaOptions(),
   ]);
@@ -86,8 +86,8 @@ export default async function MembersPage({
         searchQuery={searchQuery}
         statusFilter={statusFilter}
         shakhaFilter={shakhaFilter}
-        startDate={createdStartDate}
-        endDate={createdEndDate}
+        activeWindowStartDate={activeWindowStartDate}
+        activeWindowEndDate={activeWindowEndDate}
         pageIndex={pageIndex}
         pageCount={pageCount}
         pageSize={pageSize}

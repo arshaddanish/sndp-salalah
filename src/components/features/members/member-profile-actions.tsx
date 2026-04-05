@@ -16,11 +16,13 @@ import {
 
 import { DeleteMemberDialog } from './delete-member-dialog';
 import { RenewMembershipDialog } from './renew-membership-dialog';
+import { SetMemberLifetimeDialog } from './set-member-lifetime-dialog';
 
 type MemberProfileActionsProps = {
   memberId: string;
   memberName: string;
   expiry: string | null;
+  isLifetime: boolean;
   hasTransactions: boolean;
 };
 
@@ -28,11 +30,15 @@ export function MemberProfileActions({
   memberId,
   memberName,
   expiry,
+  isLifetime,
   hasTransactions,
 }: Readonly<MemberProfileActionsProps>) {
   const router = useRouter();
   const [renewOpen, setRenewOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [lifetimeOpen, setLifetimeOpen] = useState(false);
+  const isPendingMembership = expiry === null && !isLifetime;
+  const membershipActionLabel = isPendingMembership ? 'Register Membership' : 'Renew Membership';
 
   return (
     <>
@@ -40,11 +46,12 @@ export function MemberProfileActions({
         <Button
           size="sm"
           onClick={() => setRenewOpen(true)}
-          aria-label="Renew membership"
+          aria-label={membershipActionLabel}
           className="h-8 whitespace-nowrap"
+          disabled={isLifetime}
         >
           <CreditCard className="h-4 w-4" />
-          Renew Membership
+          {membershipActionLabel}
         </Button>
 
         <DropdownMenu>
@@ -69,6 +76,10 @@ export function MemberProfileActions({
               <Edit2 className="mr-2 h-4 w-4" />
               Edit Member
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setLifetimeOpen(true)} className="cursor-pointer">
+              <CreditCard className="mr-2 h-4 w-4" />
+              {isLifetime ? 'Remove Lifetime Membership' : 'Set Lifetime Membership'}
+            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => setDeleteOpen(true)}
               className="text-danger focus:text-danger cursor-pointer"
@@ -83,9 +94,19 @@ export function MemberProfileActions({
       <RenewMembershipDialog
         memberId={memberId}
         currentExpiry={expiry}
+        mode={isPendingMembership ? 'register' : 'renew'}
         open={renewOpen}
         onOpenChange={setRenewOpen}
       />
+      {lifetimeOpen ? (
+        <SetMemberLifetimeDialog
+          memberId={memberId}
+          memberName={memberName}
+          isLifetime={isLifetime}
+          open={lifetimeOpen}
+          onOpenChange={setLifetimeOpen}
+        />
+      ) : null}
       {deleteOpen ? (
         <DeleteMemberDialog
           memberId={memberId}

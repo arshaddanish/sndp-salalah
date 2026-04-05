@@ -21,13 +21,14 @@ export const metadata: Metadata = {
 const kpiStats: KpiData = {
   totalMembers: 2481,
   nearExpiry: 124,
-  cashInHand: 1250.0,
+  cashInHand: 1250,
   cashInBank: 14890.5,
-  ytdIncome: 5400.0,
-  ytdExpense: 2150.0,
+  ytdIncome: 5400,
+  ytdExpense: 2150,
 };
 
 const memberStatusData: MemberStatusData = {
+  pending: 37,
   active: 2134,
   expired: 278,
   lifetime: 69,
@@ -43,10 +44,10 @@ const monthlyActivity: MemberActivityMetrics = {
 
 const financialActivity: FinancialActivityMetrics = {
   period: 'March 2026',
-  openingBalance: 9950.0,
-  incomeThisMonth: 2150.0,
-  expensesThisMonth: 950.0,
-  closingBalance: 11150.0,
+  openingBalance: 9950,
+  incomeThisMonth: 2150,
+  expensesThisMonth: 950,
+  closingBalance: 11150,
 };
 
 const financialTrend: FinancialTrendData = {

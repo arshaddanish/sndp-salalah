@@ -57,6 +57,7 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
           memberId={member.id}
           memberName={member.name}
           expiry={member.expiry?.toISOString() ?? null}
+          isLifetime={member.is_lifetime}
           hasTransactions={transactions.length > 0}
         />
       </div>
