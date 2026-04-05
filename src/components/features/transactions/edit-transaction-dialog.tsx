@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { updateTransaction } from '@/lib/actions/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
 
@@ -173,7 +174,7 @@ export function EditTransactionDialog({
               <label className="text-text-secondary text-sm font-medium" htmlFor="edit-date">
                 Date *
               </label>
-              <input
+              <Input
                 id="edit-date"
                 name="transactionDate"
                 type="date"
@@ -181,7 +182,6 @@ export function EditTransactionDialog({
                 defaultValue={originalDate}
                 disabled={isPending}
                 onChange={handleChange}
-                className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
           </div>
@@ -265,13 +265,12 @@ export function EditTransactionDialog({
               <label className="text-text-secondary text-sm font-medium" htmlFor="edit-payee">
                 Payee / Merchant
               </label>
-              <input
+              <Input
                 id="edit-payee"
                 name="payeeMerchant"
                 defaultValue={transaction.payeeMerchant ?? ''}
                 disabled={isPending}
                 onChange={handleChange}
-                className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
           </div>
@@ -282,13 +281,12 @@ export function EditTransactionDialog({
               <label className="text-text-secondary text-sm font-medium" htmlFor="edit-paid-by">
                 Paid / Receipt By
               </label>
-              <input
+              <Input
                 id="edit-paid-by"
                 name="paidReceiptBy"
                 defaultValue={transaction.paidReceiptBy ?? ''}
                 disabled={isPending}
                 onChange={handleChange}
-                className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
           </div>

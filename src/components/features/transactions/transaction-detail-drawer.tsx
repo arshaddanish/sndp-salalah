@@ -12,10 +12,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { deleteTransaction } from '@/lib/actions/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
 
+import { DeleteTransactionDialog } from './delete-transaction-dialog';
 import { EditTransactionDialog } from './edit-transaction-dialog';
+
 type TransactionDetailDrawerProps = {
   transaction: RegularTransactionRow | null;
   isOpen: boolean;
@@ -43,6 +44,7 @@ function DetailField({ label, children }: Readonly<{ label: string; children: Re
     </div>
   );
 }
+
 export function TransactionDetailDrawer({
   transaction,
   isOpen,
@@ -50,8 +52,7 @@ export function TransactionDetailDrawer({
   categoryOptions,
 }: Readonly<TransactionDetailDrawerProps>) {
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   if (!transaction) {
     return null;
@@ -66,24 +67,11 @@ export function TransactionDetailDrawer({
   );
   const signedAmount = `${isIncome ? '+' : '-'} ${amount} OMR`;
 
-  const handleDelete = async () => {
-    if (!confirm('Delete this transaction?')) return;
-    setIsDeleting(true);
-    setDeleteError(null);
-    const result = await deleteTransaction(transaction.id);
-    if (!result.success) {
-      setDeleteError(result.error ?? 'Unable to delete transaction.');
-      setIsDeleting(false);
-      return;
-    }
-    onOpenChange(false);
-  };
-
   return (
     <Sheet
       open={isOpen}
       onOpenChange={(open) => {
-        if (!isDeleting) onOpenChange(open);
+        if (!isDeleteOpen && !isEditOpen) onOpenChange(open);
       }}
     >
       <SheetContent>
@@ -169,14 +157,22 @@ export function TransactionDetailDrawer({
           </dl>
         </div>
 
-        {deleteError ? <p className="text-danger px-6 text-sm">{deleteError}</p> : null}
-
         <div className="flex justify-end gap-2 px-6 py-4">
-          <Button variant="danger" size="sm" disabled={isDeleting} onClick={handleDelete}>
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={isDeleteOpen}
+            onClick={() => setIsDeleteOpen(true)}
+          >
             <Trash2 className="h-4 w-4" />
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            Delete
           </Button>
-          <Button variant="primary" size="sm" onClick={() => setIsEditOpen(true)}>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={isDeleteOpen}
+            onClick={() => setIsEditOpen(true)}
+          >
             <Edit2 className="h-4 w-4" />
             Edit
           </Button>
@@ -190,6 +186,18 @@ export function TransactionDetailDrawer({
             categoryOptions={categoryOptions}
             onSuccess={() => {
               setIsEditOpen(false);
+              onOpenChange(false);
+            }}
+          />
+        )}
+
+        {isDeleteOpen && (
+          <DeleteTransactionDialog
+            isOpen={isDeleteOpen}
+            onOpenChange={setIsDeleteOpen}
+            transaction={transaction}
+            onSuccess={() => {
+              setIsDeleteOpen(false);
               onOpenChange(false);
             }}
           />
