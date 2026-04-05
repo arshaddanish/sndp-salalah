@@ -522,7 +522,7 @@ export async function setMemberLifetime(
     MOCK_MEMBERS[memberIndex] = {
       ...existing,
       is_lifetime: isLifetime,
-      expiry: isLifetime ? null : existing.expiry,
+      expiry: existing.expiry,
     };
 
     revalidatePath('/members');
