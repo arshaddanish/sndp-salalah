@@ -161,16 +161,19 @@ export function TransactionDetailDrawer({
           <Button
             variant="danger"
             size="sm"
-            disabled={isDeleteOpen}
+            // EXACT FIX: Added || isEditOpen to disabled condition
+            disabled={isDeleteOpen || isEditOpen}
             onClick={() => setIsDeleteOpen(true)}
           >
             <Trash2 className="h-4 w-4" />
             Delete
           </Button>
+
           <Button
             variant="primary"
             size="sm"
-            disabled={isDeleteOpen}
+            // For symmetry, disabling edit while delete is open (already in your code, but kept here for clarity)
+            disabled={isDeleteOpen || isEditOpen}
             onClick={() => setIsEditOpen(true)}
           >
             <Edit2 className="h-4 w-4" />

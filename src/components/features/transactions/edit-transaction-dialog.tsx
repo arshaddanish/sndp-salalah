@@ -16,7 +16,7 @@ import type { RegularTransactionRow } from '@/types/transactions';
 
 interface EditTransactionDialogProps {
   isOpen: boolean;
-  onOpenChange: (_value: boolean) => void;
+  onOpenChange: (open: boolean) => void;
   transaction: RegularTransactionRow;
   categoryOptions: Array<{ label: string; value: string }>;
   onSuccess: () => void;
@@ -50,7 +50,7 @@ export function EditTransactionDialog({
     const originalDate = new Date(transaction.transactionDate).toISOString().slice(0, 10);
 
     setIsDirty(
-      currentAmount !== transaction.amount ||
+      Number(currentAmount) !== Number(transaction.amount) ||
         currentRemarks !== transaction.remarks ||
         currentDate !== originalDate ||
         currentCategory !== transaction.categoryId ||
@@ -79,12 +79,18 @@ export function EditTransactionDialog({
         amount: formData.get('amount') as string,
         transactionDate: formData.get('transactionDate') as string,
         categoryId: formData.get('categoryId') as string,
-        paymentMode: formData.get('paymentMode') as string,
-        fundAccount: formData.get('fundAccount') as string,
+        // Explicitly cast these two fields to their expected literal types:
+        paymentMode: formData.get('paymentMode') as
+          | 'cash'
+          | 'bank'
+          | 'online_transaction'
+          | 'cheque',
+        fundAccount: formData.get('fundAccount') as 'cash' | 'bank',
         payeeMerchant: formData.get('payeeMerchant') as string,
         paidReceiptBy: formData.get('paidReceiptBy') as string,
         remarks: formData.get('remarks') as string,
       });
+
       if (!result.success) {
         setErrorMessage(result.error ?? 'Unable to update transaction.');
         return;
@@ -120,8 +126,10 @@ export function EditTransactionDialog({
                   : 'text-text-secondary hover:border-border hover:text-text-primary min-w-[7.5rem] rounded-lg border border-transparent hover:bg-white'
               }
               onClick={() => {
-                setType('income');
-                setIsDirty(true);
+                if (type !== 'income') {
+                  setType('income');
+                  setIsDirty(true);
+                }
               }}
               disabled={isPending}
             >
@@ -137,8 +145,10 @@ export function EditTransactionDialog({
                   : 'text-text-secondary hover:border-border hover:text-text-primary min-w-[7.5rem] rounded-lg border border-transparent hover:bg-white'
               }
               onClick={() => {
-                setType('expense');
-                setIsDirty(true);
+                if (type !== 'expense') {
+                  setType('expense');
+                  setIsDirty(true);
+                }
               }}
               disabled={isPending}
             >

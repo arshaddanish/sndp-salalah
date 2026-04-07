@@ -1,13 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import z from 'zod';
 
 import { MOCK_TRANSACTION_CATEGORIES } from '@/lib/mock-data/transaction-categories';
 import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
 import {
   createOpeningBalanceSchema,
   createTransactionSchema,
+  type UpdateTransactionInput,
+  updateTransactionSchema,
 } from '@/lib/validations/transactions';
 import type { ActionResult } from '@/types/actions';
 import type { TransactionsQuery } from '@/types/filters/transactions';
@@ -417,33 +418,9 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
   }
 }
 
-const updateTransactionSchema = z.object({
-  type: z.enum(['income', 'expense']),
-  amount: z.string().refine((val) => !Number.isNaN(Number(val)) && Number(val) > 0, {
-    message: 'Amount must be a positive number.',
-  }),
-  transactionDate: z.string().min(1, 'Date is required.'),
-  categoryId: z.string().min(1, 'Category is required.'),
-  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque']),
-  fundAccount: z.enum(['cash', 'bank']),
-  payeeMerchant: z.string().optional().default(''),
-  paidReceiptBy: z.string().optional().default(''),
-  remarks: z.string().max(500).optional().default(''),
-});
-
 export async function updateTransaction(
   id: string,
-  input: {
-    type: string;
-    amount: string;
-    transactionDate: string;
-    categoryId: string;
-    paymentMode: string;
-    fundAccount: string;
-    payeeMerchant: string;
-    paidReceiptBy: string;
-    remarks: string;
-  },
+  input: UpdateTransactionInput,
 ): Promise<ActionResult<null>> {
   try {
     const validationResult = updateTransactionSchema.safeParse(input);
@@ -475,7 +452,7 @@ export async function updateTransaction(
     if (existing) {
       existing.type = validationResult.data.type;
       existing.amount = Number(validationResult.data.amount).toFixed(3);
-      existing.transactionDate = new Date(validationResult.data.transactionDate);
+      existing.transactionDate = new Date(`${validationResult.data.transactionDate}T00:00:00.000Z`);
       existing.categoryId = validationResult.data.categoryId;
       existing.categoryName = category.name;
       existing.paymentMode = validationResult.data.paymentMode;
