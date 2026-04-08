@@ -8,6 +8,20 @@
       "when": 1775289919982,
       "tag": "0000_chilly_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775396038796,
+      "tag": "0001_living_titanium_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775673348715,
+      "tag": "0002_youthful_payback",
+      "breakpoints": true
     }
   ]
 }
