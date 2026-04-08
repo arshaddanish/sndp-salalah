@@ -2,8 +2,9 @@
 
 import type { Member, MemberStatus } from '@/types/members';
 
-export const getMemberStatus = (expiry: Date | null): MemberStatus => {
-  if (!expiry) return 'lifetime';
+export const getMemberStatus = (expiry: Date | null, isLifetime: boolean): MemberStatus => {
+  if (isLifetime) return 'lifetime';
+  if (!expiry) return 'pending';
 
   // Normalize today to start-of-day for day-granularity comparison
   const today = new Date();
@@ -110,6 +111,10 @@ export const MOCK_MEMBERS: Member[] = [
         created_at: new Date('2020-01-01'),
       },
     ],
+    is_archived: false,
+    archived_at: null,
+    is_lifetime: false,
+    active_from: new Date('2020-01-01'),
     expiry: nextYear,
     created_at: new Date('2020-01-01'),
   },
@@ -127,6 +132,10 @@ export const MOCK_MEMBERS: Member[] = [
     profession: 'Doctor',
     shakha_id: '2',
     family_status: 'Married',
+    is_archived: false,
+    archived_at: null,
+    is_lifetime: false,
+    active_from: new Date('2019-05-12'),
     expiry: pastYear,
     created_at: new Date('2019-05-12'),
   },
@@ -144,11 +153,16 @@ export const MOCK_MEMBERS: Member[] = [
     profession: 'Businessman',
     shakha_id: '1',
     family_status: 'Single',
-    expiry: null, // Lifetime
+    is_archived: false,
+    archived_at: null,
+    is_lifetime: true,
+    active_from: null,
+    expiry: null,
     created_at: new Date('2015-08-20'),
   },
   // Adding more members...
   ...Array.from({ length: 97 }).map((_, i) => {
+    const expiry = getMockExpiry(i);
     const id = i + 4;
     const names = [
       'Anil Kumar',
@@ -207,7 +221,11 @@ export const MOCK_MEMBERS: Member[] = [
       profession: professions[i % professions.length] || 'Technician',
       shakha_id: ((i % 5) + 1).toString(),
       family_status: familyStatuses[i % familyStatuses.length] || 'Single',
-      expiry: getMockExpiry(i),
+      is_archived: false,
+      archived_at: null,
+      is_lifetime: false,
+      active_from: expiry ? new Date(2020, 0, 1) : null,
+      expiry,
       created_at: new Date(2020, 0, 1),
     };
   }),

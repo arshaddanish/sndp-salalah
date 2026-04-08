@@ -13,10 +13,10 @@ import type { ListRequest } from '../api/filters';
  * These are field-specific predicates for filtering
  */
 export type MembersFilter = {
-  status?: 'active' | 'expired' | 'near-expiry' | 'lifetime';
+  status?: 'active' | 'expired' | 'near-expiry' | 'lifetime' | 'pending';
   shakha?: string;
-  createdStart?: string; // ISO date
-  createdEnd?: string; // ISO date
+  activeWindowStart?: string; // ISO date
+  activeWindowEnd?: string; // ISO date
 };
 
 /**

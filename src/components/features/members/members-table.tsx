@@ -27,13 +27,14 @@ type MembersTableProps = PaginatedTableProps<Member> & {
   searchQuery: string;
   statusFilter: string;
   shakhaFilter: string;
-  startDate: string;
-  endDate: string;
+  activeWindowStartDate: string;
+  activeWindowEndDate: string;
   shakhaOptions: Array<{ label: string; value: string }>;
 };
 
 const statusOptions = [
   { label: 'All', value: 'all' },
+  { label: 'Pending', value: 'pending' },
   { label: 'Active', value: 'active' },
   { label: 'Near Expiry', value: 'near-expiry' },
   { label: 'Expired', value: 'expired' },
@@ -56,8 +57,11 @@ const columns: ColumnDef<Member>[] = [
     accessorKey: 'expiry',
     header: 'Expiry',
     cell: ({ row }) => {
+      if (row.original.is_lifetime) {
+        return 'Lifetime';
+      }
       const expiry = row.original.expiry;
-      return expiry ? format(expiry, 'dd MMM yyyy') : 'Lifetime';
+      return expiry ? format(expiry, 'dd MMM yyyy') : 'Pending';
     },
   },
   {
@@ -73,14 +77,15 @@ const columns: ColumnDef<Member>[] = [
     id: 'status',
     header: 'Status',
     cell: ({ row }) => {
-      const status = getMemberStatus(row.original.expiry);
-      return (
-        <Badge variant={status}>
-          {status === 'near-expiry'
-            ? 'Near Expiry'
-            : status.charAt(0).toUpperCase() + status.slice(1)}
-        </Badge>
-      );
+      const status = getMemberStatus(row.original.expiry, row.original.is_lifetime);
+      let statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+      if (status === 'near-expiry') {
+        statusLabel = 'Near Expiry';
+      } else if (status === 'pending') {
+        statusLabel = 'Pending';
+      }
+
+      return <Badge variant={status}>{statusLabel}</Badge>;
     },
   },
 ];
@@ -91,8 +96,8 @@ export function MembersTable({
   searchQuery,
   statusFilter,
   shakhaFilter,
-  startDate,
-  endDate,
+  activeWindowStartDate,
+  activeWindowEndDate,
   shakhaOptions,
   pageSize,
   pageIndex,
@@ -118,8 +123,8 @@ export function MembersTable({
 
   const currentStatusFilter = searchParams.get('status') ?? statusFilter;
   const currentShakhaFilter = searchParams.get('shakha') ?? shakhaFilter;
-  const currentStartDate = searchParams.get('createdStart') ?? startDate;
-  const currentEndDate = searchParams.get('createdEnd') ?? endDate;
+  const currentStartDate = searchParams.get('activeWindowStart') ?? activeWindowStartDate;
+  const currentEndDate = searchParams.get('activeWindowEnd') ?? activeWindowEndDate;
 
   const paginationState = useMemo<PaginationState>(
     () => ({ pageIndex, pageSize }),
@@ -197,9 +202,14 @@ export function MembersTable({
           <DateRangeFilter
             startDate={currentStartDate}
             endDate={currentEndDate}
-            onStartChange={(v) => updateUrl({ createdStart: v })}
-            onEndChange={(v) => updateUrl({ createdEnd: v })}
-            onClear={() => updateUrl({ createdStart: null, createdEnd: null })}
+            onStartChange={(v) => updateUrl({ activeWindowStart: v })}
+            onEndChange={(v) => updateUrl({ activeWindowEnd: v })}
+            onClear={() => updateUrl({ activeWindowStart: null, activeWindowEnd: null })}
+            startLabel="Active From"
+            endLabel="Active Until"
+            inactiveLabel="Active Range"
+            activeLabel="Range Filtered"
+            clearLabel="Clear Range"
           />
         </div>
       </div>

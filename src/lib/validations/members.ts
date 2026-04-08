@@ -54,17 +54,26 @@ export const createMemberSchema = z.object({
   approvedBy: requiredText('Approved By').max(120, 'Approved By is too long'),
   receivedOn: requiredDate('Received On'),
   checkedBy: requiredText('Checked By').max(120, 'Checked By is too long'),
-  expiry: optionalDate,
   applicationNo: requiredText('Application No').max(50, 'Application No is too long'),
   secretary: optionalText(),
   president: optionalText(),
-  photoKey: requiredText('Photo key'),
+  photoKey: requiredText('Photo'),
 });
 
 export type FamilyMemberInput = z.infer<typeof familyMemberInputSchema>;
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
-export const updateMemberSchema = createMemberSchema;
+export const updateMemberSchema = createMemberSchema.extend({
+  photoKey: z.string().trim().optional().or(z.literal('')),
+  expiry: optionalDate,
+});
+
+export const setMemberLifetimeSchema = z.object({
+  memberId: requiredText('Member ID'),
+  isLifetime: z.boolean(),
+});
+
+export type SetMemberLifetimeInput = z.infer<typeof setMemberLifetimeSchema>;
 
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 
@@ -83,3 +92,10 @@ export const renewMembershipSchema = z.object({
 });
 
 export type RenewMembershipInput = z.infer<typeof renewMembershipSchema>;
+
+export const updateMemberPhotoSchema = z.object({
+  memberId: requiredText('Member ID'),
+  photoKey: requiredText('Photo').max(500, 'Photo key is too long'),
+});
+
+export type UpdateMemberPhotoInput = z.infer<typeof updateMemberPhotoSchema>;
