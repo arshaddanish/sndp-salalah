@@ -1,4 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   date,
@@ -81,6 +82,12 @@ export const members = pgTable(
     index('members_shakha_id_idx').on(table.shakha_id),
     index('members_active_from_idx').on(table.active_from),
     index('members_expiry_idx').on(table.expiry),
+    index('members_name_trgm_idx').using('gin', sql`lower(${table.name}) gin_trgm_ops`),
+    index('members_email_trgm_idx').using('gin', sql`lower(${table.email}) gin_trgm_ops`),
+    index('members_whatsapp_no_trgm_idx').using(
+      'gin',
+      sql`lower(${table.whatsapp_no}) gin_trgm_ops`,
+    ),
   ],
 );
 
