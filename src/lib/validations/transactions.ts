@@ -57,6 +57,31 @@ export const createOpeningBalanceSchema = z.object({
     }),
   remarks: transactionRemarksSchema,
 });
+export const updateTransactionSchema = z.object({
+  type: z.enum(['income', 'expense']),
+  amount: z
+    .string()
+    .trim()
+    .min(1, 'Amount is required')
+    .regex(OMR_AMOUNT_PATTERN, 'Amount must be a valid OMR value with up to 3 decimals')
+    .refine((value) => Number(value) > 0, 'Amount must be greater than 0'),
+  transactionDate: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Transaction date is required')
+    .refine((value) => !Number.isNaN(new Date(`${value}T00:00:00.000Z`).getTime()), {
+      message: 'Transaction date is invalid',
+    }),
+  categoryId: z.string().trim().min(1, 'Category is required'),
+  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque'], {
+    message: 'Please select a payment method.',
+  }),
+  fundAccount: z.enum(['cash', 'bank'], { message: 'Please select a fund account.' }),
+  payeeMerchant: transactionPartySchema.optional().default(''),
+  paidReceiptBy: transactionPartySchema.optional().default(''),
+  remarks: transactionRemarksSchema,
+});
 
+export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 export type CreateOpeningBalanceInput = z.infer<typeof createOpeningBalanceSchema>;

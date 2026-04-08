@@ -7,6 +7,8 @@ import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
 import {
   createOpeningBalanceSchema,
   createTransactionSchema,
+  type UpdateTransactionInput,
+  updateTransactionSchema,
 } from '@/lib/validations/transactions';
 import type { ActionResult } from '@/types/actions';
 import type { TransactionsQuery } from '@/types/filters/transactions';
@@ -396,4 +398,78 @@ export async function fetchTransactions(
       totalCount: visibleRows.length,
     },
   };
+}
+
+export async function deleteTransaction(id: string): Promise<ActionResult<null>> {
+  try {
+    const index = MOCK_TRANSACTIONS.findIndex((t) => t.id === id);
+    if (index === -1) {
+      return { success: false, error: 'Transaction not found.' };
+    }
+    MOCK_TRANSACTIONS.splice(index, 1);
+    revalidatePath('/transactions');
+    return { success: true, data: null };
+  } catch (error) {
+    console.error('Error deleting transaction:', error);
+    return {
+      success: false,
+      error: 'Unable to delete transaction. Please try again.',
+    };
+  }
+}
+
+export async function updateTransaction(
+  id: string,
+  input: UpdateTransactionInput,
+): Promise<ActionResult<null>> {
+  try {
+    const validationResult = updateTransactionSchema.safeParse(input);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message ?? 'Invalid transaction input.',
+      };
+    }
+
+    const index = MOCK_TRANSACTIONS.findIndex((t) => t.id === id);
+    if (index === -1) {
+      return { success: false, error: 'Transaction not found.' };
+    }
+
+    const category = MOCK_TRANSACTION_CATEGORIES.find(
+      (cat) => cat.id === validationResult.data.categoryId,
+    );
+
+    if (!category || category.is_system || category.type !== validationResult.data.type) {
+      return {
+        success: false,
+        error: 'Please select a valid category for the selected transaction type.',
+      };
+    }
+
+    const existing = MOCK_TRANSACTIONS[index];
+    if (existing) {
+      existing.type = validationResult.data.type;
+      existing.amount = Number(validationResult.data.amount).toFixed(3);
+      existing.transactionDate = new Date(`${validationResult.data.transactionDate}T00:00:00.000Z`);
+      existing.categoryId = validationResult.data.categoryId;
+      existing.categoryName = category.name;
+      existing.paymentMode = validationResult.data.paymentMode;
+      existing.fundAccount = validationResult.data.fundAccount;
+      existing.payeeMerchant = validationResult.data.payeeMerchant;
+      existing.paidReceiptBy = validationResult.data.paidReceiptBy;
+      existing.remarks = validationResult.data.remarks ?? '';
+      existing.updatedAt = new Date();
+    }
+
+    revalidatePath('/transactions');
+    return { success: true, data: null };
+  } catch (error) {
+    console.error('Error updating transaction:', error);
+    return {
+      success: false,
+      error: 'Unable to update transaction. Please try again.',
+    };
+  }
 }

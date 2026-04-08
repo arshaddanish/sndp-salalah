@@ -1,8 +1,10 @@
 'use client';
 
 import { format } from 'date-fns';
-import type { Dispatch, SetStateAction } from 'react';
+import { Edit2, Trash2 } from 'lucide-react';
+import { type Dispatch, type SetStateAction, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
@@ -12,10 +14,14 @@ import {
 } from '@/components/ui/sheet';
 import type { RegularTransactionRow } from '@/types/transactions';
 
+import { DeleteTransactionDialog } from './delete-transaction-dialog';
+import { EditTransactionDialog } from './edit-transaction-dialog';
+
 type TransactionDetailDrawerProps = {
   transaction: RegularTransactionRow | null;
   isOpen: boolean;
   onOpenChange: Dispatch<SetStateAction<boolean>>;
+  categoryOptions: Array<{ label: string; value: string }>;
 };
 
 const paymentModeLabel: Record<RegularTransactionRow['paymentMode'], string> = {
@@ -43,7 +49,11 @@ export function TransactionDetailDrawer({
   transaction,
   isOpen,
   onOpenChange,
+  categoryOptions,
 }: Readonly<TransactionDetailDrawerProps>) {
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
   if (!transaction) {
     return null;
   }
@@ -58,7 +68,12 @@ export function TransactionDetailDrawer({
   const signedAmount = `${isIncome ? '+' : '-'} ${amount} OMR`;
 
   return (
-    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+    <Sheet
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!isDeleteOpen && !isEditOpen) onOpenChange(open);
+      }}
+    >
       <SheetContent>
         <SheetHeader>
           <SheetTitle>Transaction #{transaction.transactionCode}</SheetTitle>
@@ -80,15 +95,11 @@ export function TransactionDetailDrawer({
             <DetailField label="Date">
               {format(transaction.transactionDate, 'dd MMM yyyy')}
             </DetailField>
-
             <DetailField label="Category">{transaction.categoryName}</DetailField>
-
             <DetailField label="Payment Method">
               {paymentModeLabel[transaction.paymentMode]}
             </DetailField>
-
             <DetailField label="Fund">{fundAccountLabel[transaction.fundAccount]}</DetailField>
-
             <DetailField label="Amount">
               <span
                 className={`font-semibold tabular-nums ${isIncome ? 'text-success' : 'text-danger'}`}
@@ -96,15 +107,12 @@ export function TransactionDetailDrawer({
                 {signedAmount}
               </span>
             </DetailField>
-
             <DetailField label="Payee / Merchant">
               {transaction.payeeMerchant || '\u2014'}
             </DetailField>
-
             <DetailField label="Paid / Receipt By">
               {transaction.paidReceiptBy || '\u2014'}
             </DetailField>
-
             <DetailField label="Cash Balance">
               <span
                 className={`font-semibold tabular-nums ${
@@ -114,7 +122,6 @@ export function TransactionDetailDrawer({
                 {cashBalance} OMR
               </span>
             </DetailField>
-
             <DetailField label="Bank Balance">
               <span
                 className={`font-semibold tabular-nums ${
@@ -124,11 +131,9 @@ export function TransactionDetailDrawer({
                 {bankBalance} OMR
               </span>
             </DetailField>
-
             <DetailField label="Total Balance">
               <span className="font-semibold tabular-nums">{totalBalance} OMR</span>
             </DetailField>
-
             {transaction.attachmentKey ? (
               <div className="col-span-2">
                 <DetailField label="Attachment">
@@ -136,7 +141,6 @@ export function TransactionDetailDrawer({
                 </DetailField>
               </div>
             ) : null}
-
             <div className="col-span-2">
               <DetailField label="Remarks">
                 <p className="leading-relaxed break-words whitespace-pre-wrap">
@@ -144,16 +148,63 @@ export function TransactionDetailDrawer({
                 </p>
               </DetailField>
             </div>
-
             <DetailField label="Created">
               {format(transaction.createdAt, 'dd MMM yyyy, HH:mm')}
             </DetailField>
-
             <DetailField label="Updated">
               {format(transaction.updatedAt, 'dd MMM yyyy, HH:mm')}
             </DetailField>
           </dl>
         </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4">
+          <Button
+            variant="danger"
+            size="sm"
+            // EXACT FIX: Added || isEditOpen to disabled condition
+            disabled={isDeleteOpen || isEditOpen}
+            onClick={() => setIsDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </Button>
+
+          <Button
+            variant="primary"
+            size="sm"
+            // For symmetry, disabling edit while delete is open (already in your code, but kept here for clarity)
+            disabled={isDeleteOpen || isEditOpen}
+            onClick={() => setIsEditOpen(true)}
+          >
+            <Edit2 className="h-4 w-4" />
+            Edit
+          </Button>
+        </div>
+
+        {isEditOpen && (
+          <EditTransactionDialog
+            isOpen={isEditOpen}
+            onOpenChange={setIsEditOpen}
+            transaction={transaction}
+            categoryOptions={categoryOptions}
+            onSuccess={() => {
+              setIsEditOpen(false);
+              onOpenChange(false);
+            }}
+          />
+        )}
+
+        {isDeleteOpen && (
+          <DeleteTransactionDialog
+            isOpen={isDeleteOpen}
+            onOpenChange={setIsDeleteOpen}
+            transaction={transaction}
+            onSuccess={() => {
+              setIsDeleteOpen(false);
+              onOpenChange(false);
+            }}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );
