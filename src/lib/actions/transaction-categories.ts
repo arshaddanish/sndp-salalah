@@ -1,6 +1,6 @@
 'use server';
 
-import { eq, ilike, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
@@ -113,13 +113,13 @@ export async function createTransactionCategory(
     }
 
     const sanitizedName = validationResult.data.name;
+    // Fix 1: use sanitizedName (already validated), not undefined `next.name`
     const normalizedName = normalizeCategoryName(sanitizedName);
 
-    // In createTransactionCategory - replace existing check with:
     const existing = await db
       .select({ id: transactionCategories.id })
       .from(transactionCategories)
-      .where(sql`lower(${transactionCategories.name}) = ${normalizedNextName}`)
+      .where(sql`lower(${transactionCategories.name}) = ${normalizedName}`)
       .limit(1);
 
     if (existing.length > 0) {
@@ -195,6 +195,7 @@ export async function updateTransactionCategory(
       };
     }
 
+    // Fix 2: derive both normalized names from validated data and existing row
     const normalizedNextName = normalizeCategoryName(validationResult.data.name);
     const normalizedCurrentName = normalizeCategoryName(existing.name);
     const typeHasChanged = validationResult.data.type !== existing.type;
@@ -207,15 +208,18 @@ export async function updateTransactionCategory(
     }
 
     if (normalizedNextName !== normalizedCurrentName) {
-      // In updateTransactionCategory - replace duplicate check with:
+      // Fix 3: use normalizedNextName (correct variable) in the WHERE clause
+      // and fix the duplicate check — query already excludes current id via .limit(1)
+      // so just check if any row came back
       const duplicate = await db
         .select({ id: transactionCategories.id })
         .from(transactionCategories)
-        .where(sql`lower(${transactionCategories.name}) = ${normalizedName}`)
+        .where(
+          sql`lower(${transactionCategories.name}) = ${normalizedNextName} AND ${transactionCategories.id} != ${id}`,
+        )
         .limit(1);
 
-      const hasDuplicate = duplicate.some((c) => c.id !== id);
-      if (hasDuplicate) {
+      if (duplicate.length > 0) {
         return {
           success: false,
           error: 'A category with this name already exists.',
