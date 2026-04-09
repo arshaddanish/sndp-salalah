@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:generate": "dotenv -e .env.local -- drizzle-kit generate",
-    "db:migrate": "dotenv -e .env.local -- tsx src/lib/db/migrate.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "prepare": "husky",
     "type-check": "tsc --noEmit",
     "preinstall": "npx only-allow pnpm"
@@ -22,12 +22,12 @@
     ]
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.10.0",
-    "@paralleldrive/cuid2": "^2.2.2",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-table": "^8.21.3",
+    "@neondatabase/serverless": "^0.10.0",
+    "@paralleldrive/cuid2": "^2.2.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -38,7 +38,6 @@
     "react-dom": "19.2.3",
     "recharts": "^3.8.0",
     "tailwind-merge": "^3.5.0",
-    "ws": "^8.20.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -51,7 +50,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.4",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
@@ -64,7 +62,6 @@
     "prettier-plugin-tailwindcss": "^0.7.2",
     "secretlint": "^11.3.1",
     "tailwindcss": "^4",
-    "tsx": "^4.21.0",
     "typescript": "^5"
   },
   "packageManager": "pnpm@10.0.0",
