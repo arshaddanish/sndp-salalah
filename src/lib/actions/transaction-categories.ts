@@ -113,8 +113,6 @@ export async function createTransactionCategory(
     }
 
     const sanitizedName = validationResult.data.name;
-    // Fix 1: use sanitizedName (already validated), not undefined `next.name`
-    const normalizedName = normalizeCategoryName(sanitizedName);
 
     const existing = await db
       .select({ id: transactionCategories.id })
