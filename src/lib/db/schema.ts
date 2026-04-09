@@ -1,5 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
+import { index } from 'drizzle-orm/pg-core';
+
 import {
   boolean,
   date,
@@ -24,7 +26,13 @@ export const shakhas = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [uniqueIndex('shakhas_name_unique').on(table.name)],
+  (table) => [
+    uniqueIndex('transaction_categories_name_unique').on(table.name),
+    index('transaction_categories_name_trgm_idx').using(
+      'gin',
+      sql`lower(${table.name}) gin_trgm_ops`,
+    ),
+  ],
 );
 
 export const transactionCategories = pgTable(

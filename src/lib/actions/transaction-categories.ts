@@ -116,10 +116,12 @@ export async function createTransactionCategory(
     const sanitizedName = validationResult.data.name;
     const normalizedName = normalizeCategoryName(sanitizedName);
 
+    // In createTransactionCategory - replace existing check with:
     const existing = await db
-      .select()
+      .select({ id: transactionCategories.id })
       .from(transactionCategories)
-      .where(ilike(transactionCategories.name, normalizedName));
+      .where(ilike(transactionCategories.name, normalizedName))
+      .limit(1);
 
     if (existing.length > 0) {
       return {
@@ -199,10 +201,12 @@ export async function updateTransactionCategory(
     }
 
     if (normalizedNextName !== normalizedCurrentName) {
+      // In updateTransactionCategory - replace duplicate check with:
       const duplicate = await db
-        .select()
+        .select({ id: transactionCategories.id })
         .from(transactionCategories)
-        .where(ilike(transactionCategories.name, normalizedNextName));
+        .where(ilike(transactionCategories.name, normalizedNextName))
+        .limit(1);
 
       const hasDuplicate = duplicate.some((c) => c.id !== id);
       if (hasDuplicate) {
