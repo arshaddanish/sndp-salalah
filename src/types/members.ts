@@ -16,6 +16,7 @@ export type Member = {
   blood_group: string | null;
   profession: string | null;
   shakha_id: string;
+  shakhaName?: string | null;
   residential_area?: string | null;
   passport_no?: string | null;
   address_india?: string | null;

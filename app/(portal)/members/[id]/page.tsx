@@ -7,7 +7,7 @@ import { MemberPaymentHistory } from '@/components/features/members/member-payme
 import { MemberProfileActions } from '@/components/features/members/member-profile-actions';
 import { MemberProfileHeader } from '@/components/features/members/member-profile-header';
 import { MemberProfileSections } from '@/components/features/members/member-profile-sections';
-import { fetchMemberById, fetchMemberTransactions } from '@/lib/actions/members';
+import { fetchMemberProfileByIdentifier, fetchMemberTransactions } from '@/lib/actions/members';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,18 +21,21 @@ type MemberProfilePageProps = {
 };
 
 export default async function MemberProfilePage({ params }: Readonly<MemberProfilePageProps>) {
-  const { id } = await params;
+  const { id: memberCodeParam } = await params;
 
-  const [memberResult, transactionsResult] = await Promise.all([
-    fetchMemberById(id),
-    fetchMemberTransactions(id),
-  ]);
+  const memberResult = await fetchMemberProfileByIdentifier(memberCodeParam);
 
-  if (!memberResult.success || !memberResult.data) {
+  if (!memberResult.success) {
     notFound();
   }
 
-  const member = memberResult.data;
+  if (!memberResult.data) {
+    notFound();
+  }
+
+  const { member } = memberResult.data;
+
+  const transactionsResult = await fetchMemberTransactions(member.id);
   const transactions = transactionsResult.success ? (transactionsResult.data ?? []) : [];
   const transactionsError = transactionsResult.success
     ? null
@@ -55,6 +58,7 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
 
         <MemberProfileActions
           memberId={member.id}
+          memberCode={member.member_code}
           memberName={member.name}
           expiry={member.expiry?.toISOString() ?? null}
           isLifetime={member.is_lifetime}

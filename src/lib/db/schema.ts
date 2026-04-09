@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { sql } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   date,
@@ -111,3 +111,24 @@ export const family_members = pgTable(
   },
   (table) => [index('family_members_member_id_idx').on(table.member_id)],
 );
+
+// ─── Drizzle Relations ───────────────────────────────────────────────────────
+
+export const membersRelations = relations(members, ({ one, many }) => ({
+  shakha: one(shakhas, {
+    fields: [members.shakha_id],
+    references: [shakhas.id],
+  }),
+  family_members: many(family_members),
+}));
+
+export const shakhasRelations = relations(shakhas, ({ many }) => ({
+  members: many(members),
+}));
+
+export const familyMembersRelations = relations(family_members, ({ one }) => ({
+  member: one(members, {
+    fields: [family_members.member_id],
+    references: [members.id],
+  }),
+}));

@@ -170,7 +170,7 @@ async function runMemberSubmit(
       setErrorMessage(result.error ?? 'Unable to update member. Please try again.');
       return;
     }
-    push(`/members/${result.data.id}`);
+    push(`/members/${initialData.member_code}`);
   } else {
     const payloadWithPhoto: CreateMemberInput = { ...payload, photoKey };
     const vr = createMemberSchema.safeParse(payloadWithPhoto);
@@ -183,7 +183,7 @@ async function runMemberSubmit(
       setErrorMessage(result.error ?? 'Unable to create member. Please try again.');
       return;
     }
-    push(`/members/${result.data.id}`);
+    push(`/members/${result.data.memberCode}`);
   }
 }
 
@@ -874,7 +874,9 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
         <Button
           type="button"
           variant="secondary"
-          onClick={() => router.push(isEditMode ? `/members/${initialData!.id}` : '/members')}
+          onClick={() =>
+            router.push(isEditMode ? `/members/${initialData!.member_code}` : '/members')
+          }
           disabled={isPending}
         >
           Cancel
