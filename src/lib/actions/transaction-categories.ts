@@ -1,8 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { eq, ilike, sql } from 'drizzle-orm';
 
-import { MOCK_TRANSACTION_CATEGORIES } from '@/lib/mock-data/transaction-categories';
+import { db } from '@/lib/db';
+import { transactionCategories } from '@/lib/db/schema';
 import {
   createCategorySchema,
   deleteCategorySchema,
@@ -19,19 +21,6 @@ function normalizeCategoryName(name: string): string {
   return name.trim().toLowerCase();
 }
 
-function getNextCategoryId(): string {
-  const maxId = MOCK_TRANSACTION_CATEGORIES.reduce((currentMax, category) => {
-    const parsedValue = Number.parseInt(category.id.replaceAll(/\D+/g, ''), 10);
-    if (Number.isNaN(parsedValue)) {
-      return currentMax;
-    }
-
-    return Math.max(currentMax, parsedValue);
-  }, 0);
-
-  return `cat-${maxId + 1}`;
-}
-
 export async function fetchTransactionCategories(
   page: number,
   pageSize: number,
@@ -46,33 +35,53 @@ export async function fetchTransactionCategories(
     };
   }
 
-  const start = (page - 1) * pageSize;
-  const paginatedItems = MOCK_TRANSACTION_CATEGORIES.slice(start, start + pageSize);
+  try {
+    const offset = (page - 1) * pageSize;
 
-  return {
-    success: true,
-    data: {
-      items: paginatedItems,
-      totalCount: MOCK_TRANSACTION_CATEGORIES.length,
-    },
-  };
+    const [items, countResult] = await Promise.all([
+      db.select().from(transactionCategories).limit(pageSize).offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(transactionCategories),
+    ]);
+
+    const totalCount = Number(countResult[0]?.count ?? 0);
+
+    const itemsWithUsageCount: TransactionCategoryWithUsageCount[] = items.map((item) => ({
+      ...item,
+      transactionCount: 0,
+    }));
+
+    return {
+      success: true,
+      data: {
+        items: itemsWithUsageCount,
+        totalCount,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching transaction categories:', error);
+    return {
+      success: false,
+      error: 'Unable to load transaction categories.',
+    };
+  }
 }
 
 export async function fetchTransactionCategoryOptions(): Promise<
   ActionResult<TransactionCategoryOption[]>
 > {
   try {
-    const options = MOCK_TRANSACTION_CATEGORIES.filter((category) => !category.is_system).map(
-      (category) => ({
-        id: category.id,
-        name: category.name,
-        type: category.type,
-      }),
-    );
+    const items = await db
+      .select({
+        id: transactionCategories.id,
+        name: transactionCategories.name,
+        type: transactionCategories.type,
+      })
+      .from(transactionCategories)
+      .where(eq(transactionCategories.is_system, false));
 
     return {
       success: true,
-      data: options,
+      data: items,
     };
   } catch (error) {
     console.error('Error fetching transaction category options:', error);
@@ -100,34 +109,33 @@ export async function createTransactionCategory(
 
     const sanitizedName = validationResult.data.name;
     const normalizedName = normalizeCategoryName(sanitizedName);
-    const hasDuplicateName = MOCK_TRANSACTION_CATEGORIES.some(
-      (category) => normalizeCategoryName(category.name) === normalizedName,
-    );
 
-    if (hasDuplicateName) {
+    const existing = await db
+      .select()
+      .from(transactionCategories)
+      .where(ilike(transactionCategories.name, normalizedName));
+
+    if (existing.length > 0) {
       return {
         success: false,
         error: 'A category with this name already exists.',
       };
     }
 
-    const createdCategory: TransactionCategoryWithUsageCount = {
-      id: getNextCategoryId(),
-      name: sanitizedName,
-      type: validationResult.data.type,
-      is_system: false,
-      transactionCount: 0,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
-    MOCK_TRANSACTION_CATEGORIES.unshift(createdCategory);
+    const [created] = await db
+      .insert(transactionCategories)
+      .values({
+        name: sanitizedName,
+        type: validationResult.data.type,
+        is_system: false,
+      })
+      .returning();
 
     revalidatePath('/transactions/categories');
 
     return {
       success: true,
-      data: createdCategory,
+      data: { ...created!, transactionCount: 0 },
     };
   } catch (error) {
     console.error('Error creating transaction category:', error);
@@ -154,18 +162,19 @@ export async function updateTransactionCategory(
       };
     }
 
-    const categoryIndex = MOCK_TRANSACTION_CATEGORIES.findIndex((category) => category.id === id);
+    const [existing] = await db
+      .select()
+      .from(transactionCategories)
+      .where(eq(transactionCategories.id, id));
 
-    if (categoryIndex === -1) {
+    if (!existing) {
       return {
         success: false,
         error: 'Category not found',
       };
     }
 
-    const targetCategory = MOCK_TRANSACTION_CATEGORIES[categoryIndex]!;
-
-    if (targetCategory.is_system) {
+    if (existing.is_system) {
       return {
         success: false,
         error: 'System category names cannot be changed.',
@@ -173,25 +182,24 @@ export async function updateTransactionCategory(
     }
 
     const normalizedNextName = normalizeCategoryName(validationResult.data.name);
-    const normalizedCurrentName = normalizeCategoryName(targetCategory.name);
-    const typeHasChanged = validationResult.data.type !== targetCategory.type;
+    const normalizedCurrentName = normalizeCategoryName(existing.name);
+    const typeHasChanged = validationResult.data.type !== existing.type;
 
     if (normalizedNextName === normalizedCurrentName && !typeHasChanged) {
-      const unchangedCategory = { ...targetCategory };
       return {
         success: true,
-        data: unchangedCategory,
+        data: { ...existing, transactionCount: 0 },
       };
     }
 
-    // Only check for duplicate names if name actually changed
     if (normalizedNextName !== normalizedCurrentName) {
-      const hasDuplicateName = MOCK_TRANSACTION_CATEGORIES.some(
-        (category) =>
-          category.id !== id && normalizeCategoryName(category.name) === normalizedNextName,
-      );
+      const duplicate = await db
+        .select()
+        .from(transactionCategories)
+        .where(ilike(transactionCategories.name, normalizedNextName));
 
-      if (hasDuplicateName) {
+      const hasDuplicate = duplicate.some((c) => c.id !== id);
+      if (hasDuplicate) {
         return {
           success: false,
           error: 'A category with this name already exists.',
@@ -199,30 +207,21 @@ export async function updateTransactionCategory(
       }
     }
 
-    targetCategory.name = validationResult.data.name;
-    targetCategory.type = validationResult.data.type;
-
-    const hasDuplicateName = MOCK_TRANSACTION_CATEGORIES.some(
-      (category) =>
-        category.id !== id && normalizeCategoryName(category.name) === normalizedNextName,
-    );
-
-    if (hasDuplicateName) {
-      return {
-        success: false,
-        error: 'A category with this name already exists.',
-      };
-    }
-
-    targetCategory.name = validationResult.data.name;
-    targetCategory.type = validationResult.data.type;
-    targetCategory.updated_at = new Date();
+    const [updated] = await db
+      .update(transactionCategories)
+      .set({
+        name: validationResult.data.name,
+        type: validationResult.data.type,
+        updated_at: new Date(),
+      })
+      .where(eq(transactionCategories.id, id))
+      .returning();
 
     revalidatePath('/transactions/categories');
 
     return {
       success: true,
-      data: targetCategory,
+      data: { ...updated!, transactionCount: 0 },
     };
   } catch (error) {
     console.error('Error updating transaction category:', error);
@@ -245,18 +244,18 @@ export async function deleteTransactionCategory(id: string): Promise<ActionResul
       };
     }
 
-    const categoryIndex = MOCK_TRANSACTION_CATEGORIES.findIndex(
-      (category) => category.id === validationResult.data.id,
-    );
+    const [category] = await db
+      .select()
+      .from(transactionCategories)
+      .where(eq(transactionCategories.id, validationResult.data.id));
 
-    if (categoryIndex === -1) {
+    if (!category) {
       return {
         success: false,
         error: 'Category not found',
       };
     }
 
-    const category = MOCK_TRANSACTION_CATEGORIES[categoryIndex]!;
     if (category.is_system) {
       return {
         success: false,
@@ -264,22 +263,15 @@ export async function deleteTransactionCategory(id: string): Promise<ActionResul
       };
     }
 
-    if (category.transactionCount > 0) {
-      return {
-        success: false,
-        error: `This category is used in ${category.transactionCount} transaction${category.transactionCount === 1 ? '' : 's'} and cannot be deleted.`,
-      };
-    }
-
-    MOCK_TRANSACTION_CATEGORIES.splice(categoryIndex, 1);
+    await db
+      .delete(transactionCategories)
+      .where(eq(transactionCategories.id, validationResult.data.id));
 
     revalidatePath('/transactions/categories');
 
     return {
       success: true,
-      data: {
-        id: validationResult.data.id,
-      },
+      data: { id: validationResult.data.id },
     };
   } catch (error) {
     console.error('Error deleting transaction category:', error);
