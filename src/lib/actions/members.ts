@@ -1,10 +1,29 @@
 'use server';
 
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  isNull,
+  lt,
+  lte,
+  not,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
-import { getMemberStatus, MOCK_MEMBERS } from '@/lib/mock-data/members';
-import { MOCK_SHAKHAS } from '@/lib/mock-data/shakhas';
+import { db } from '@/lib/db';
+import { family_members, members, shakhas } from '@/lib/db/schema';
 import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
+import { parseDateOrNull, parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
+import { getMemberStatus } from '@/lib/utils/member-status';
 import {
   type CreateMemberInput,
   createMemberSchema,
@@ -20,7 +39,6 @@ import type { TransactionPaymentMode } from '@/types/transactions';
 
 /**
  * Filter options for members endpoint
- * API-Ready: Pass these filters directly to backend API
  * Follows enterprise API naming: 'q' for full-text search, specific field names for filters
  */
 type MembersFilterOptions = {
@@ -31,39 +49,69 @@ type MembersFilterOptions = {
   activeWindowEnd?: string; // Filter by activity window end date
 };
 
-function parseStartDate(value: string | undefined): Date | null {
-  if (!value) {
+type MembersWhereCondition = SQL<unknown>;
+
+function buildSearchCondition(query: string): MembersWhereCondition | null {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) {
     return null;
   }
 
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
+  const memberCodeNum = Number.parseInt(normalizedQuery, 10);
 
-  parsed.setHours(0, 0, 0, 0);
-  return parsed;
+  return (
+    or(
+      ilike(members.name, `%${normalizedQuery}%`),
+      ilike(members.email, `%${normalizedQuery}%`),
+      ilike(members.whatsapp_no, `%${normalizedQuery}%`),
+      ...(Number.isNaN(memberCodeNum) ? [] : [eq(members.member_code, memberCodeNum)]),
+    ) ?? null
+  );
 }
 
-function parseEndDate(value: string | undefined): Date | null {
-  if (!value) {
-    return null;
+function buildStatusCondition(status: string): MembersWhereCondition | null {
+  switch (status) {
+    case 'lifetime':
+      return eq(members.is_lifetime, true);
+    case 'pending':
+      return and(eq(members.is_lifetime, false), isNull(members.expiry)) ?? null;
+    case 'expired':
+      return and(eq(members.is_lifetime, false), lt(members.expiry, sql`CURRENT_DATE`)) ?? null;
+    case 'near-expiry':
+      return (
+        and(
+          eq(members.is_lifetime, false),
+          gte(members.expiry, sql`CURRENT_DATE`),
+          lte(members.expiry, sql`CURRENT_DATE + INTERVAL '30 days'`),
+        ) ?? null
+      );
+    case 'active':
+      return (
+        and(
+          eq(members.is_lifetime, false),
+          gt(members.expiry, sql`CURRENT_DATE + INTERVAL '30 days'`),
+        ) ?? null
+      );
+    default:
+      return null;
   }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  parsed.setHours(23, 59, 59, 999);
-  return parsed;
 }
 
-/**
- * Apply member filters (client-side for mocked data, server-side on API)
- * API-Ready: This logic will move to the backend when API is implemented
- */
-function filterMembers(members: Member[], filters: MembersFilterOptions): Member[] {
+function buildActivityWindowConditions(
+  activeWindowStart?: string,
+  activeWindowEnd?: string,
+): MembersWhereCondition[] {
+  const startDate = parseStartOfDayOrNull(activeWindowStart);
+  const endDate = parseEndOfDayOrNull(activeWindowEnd);
+
+  if (!startDate || !endDate) {
+    return [];
+  }
+
+  return [lte(members.active_from, startDate), gte(members.expiry, endDate)];
+}
+
+function buildMembersWhereClause(filters: MembersFilterOptions): SQL<unknown> | undefined {
   const {
     q = '',
     status = 'all',
@@ -71,63 +119,53 @@ function filterMembers(members: Member[], filters: MembersFilterOptions): Member
     activeWindowStart = '',
     activeWindowEnd = '',
   } = filters;
-  const activeWindowStartFilter = parseStartDate(activeWindowStart);
-  const activeWindowEndFilter = parseEndDate(activeWindowEnd);
-  const hasActivityWindowFilter =
-    activeWindowStartFilter !== null || activeWindowEndFilter !== null;
 
-  if (
-    activeWindowStartFilter !== null &&
-    activeWindowEndFilter !== null &&
-    activeWindowStartFilter.getTime() > activeWindowEndFilter.getTime()
-  ) {
-    return [];
+  const conditions: MembersWhereCondition[] = [eq(members.is_archived, false)];
+
+  const searchCondition = buildSearchCondition(q);
+  if (searchCondition) {
+    conditions.push(searchCondition);
   }
 
-  return members.filter((member) => {
-    if (member.is_archived) {
-      return false;
+  if (shakha && shakha !== 'all') {
+    conditions.push(eq(members.shakha_id, shakha));
+  }
+
+  if (status && status !== 'all') {
+    const statusCondition = buildStatusCondition(status);
+    if (statusCondition) {
+      conditions.push(statusCondition);
     }
+  }
 
-    // Full-text search filter
-    const matchesSearch =
-      q === '' ||
-      [member.name, member.email, member.member_code.toString(), member.whatsapp_no].some((value) =>
-        String(value || '')
-          .toLowerCase()
-          .includes(q.toLowerCase()),
-      );
+  conditions.push(...buildActivityWindowConditions(activeWindowStart, activeWindowEnd));
 
-    // Status filter
-    const memberStatus = getMemberStatus(member.expiry, member.is_lifetime);
-    const matchesStatus = status === 'all' || memberStatus === status;
+  return and(...conditions);
+}
 
-    // Shakha filter
-    const matchesShakha = shakha === 'all' || member.shakha_id.toString() === shakha;
+export async function fetchShakhaOptions(): Promise<
+  ActionResult<Array<{ label: string; value: string }>>
+> {
+  try {
+    const result = await db
+      .select({
+        label: shakhas.name,
+        value: shakhas.id,
+      })
+      .from(shakhas)
+      .orderBy(asc(shakhas.name));
 
-    // Activity window filter (member must be active for the full selected window)
-    let matchesDate = true;
-    if (hasActivityWindowFilter) {
-      if (member.is_lifetime || member.active_from === null || member.expiry === null) {
-        matchesDate = false;
-      } else {
-        const memberActiveFromTime = member.active_from.getTime();
-        const memberExpiryTime = member.expiry.getTime();
-        const matchesStartDate =
-          activeWindowStartFilter === null ||
-          (memberActiveFromTime <= activeWindowStartFilter.getTime() &&
-            memberExpiryTime >= activeWindowStartFilter.getTime());
-        const matchesEndDate =
-          activeWindowEndFilter === null ||
-          (memberActiveFromTime <= activeWindowEndFilter.getTime() &&
-            memberExpiryTime >= activeWindowEndFilter.getTime());
-
-        matchesDate = matchesStartDate && matchesEndDate;
-      }
-    }
-
-    return matchesSearch && matchesStatus && matchesShakha && matchesDate;
-  });
+    return {
+      success: true,
+      data: result,
+    };
+  } catch (error) {
+    console.error('Error fetching shakha options:', error);
+    return {
+      success: false,
+      error: 'Unable to load shakha options.',
+    };
+  }
 }
 
 export async function fetchMembers(
@@ -146,18 +184,25 @@ export async function fetchMembers(
   }
 
   try {
-    const sorted = [...MOCK_MEMBERS].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
-    const filteredMembers = filterMembers(sorted, filters ?? {});
-    const start = (page - 1) * pageSize;
-    const paginatedData = filteredMembers.slice(start, start + pageSize);
+    const whereClause = buildMembersWhereClause(filters ?? {});
+
+    // Fetch data and count in parallel
+    const [items, countResult] = await Promise.all([
+      db
+        .select()
+        .from(members)
+        .where(whereClause)
+        .limit(pageSize)
+        .offset((page - 1) * pageSize)
+        .orderBy(desc(members.created_at)),
+      db.select({ count: count() }).from(members).where(whereClause),
+    ]);
 
     return {
       success: true,
       data: {
-        items: paginatedData,
-        totalCount: filteredMembers.length,
+        items,
+        totalCount: countResult[0]?.count ?? 0,
       },
     };
   } catch (error) {
@@ -167,72 +212,6 @@ export async function fetchMembers(
       error: 'Unable to load members. Please try again.',
     };
   }
-}
-
-export async function fetchShakhaOptions(): Promise<
-  ActionResult<Array<{ label: string; value: string }>>
-> {
-  try {
-    const uniqueShakhas = Array.from(new Set(MOCK_MEMBERS.map((member) => member.shakha_id))).sort(
-      (a, b) => a.localeCompare(b),
-    );
-
-    return {
-      success: true,
-      data: uniqueShakhas.map((id) => ({ label: `Shakha ${id}`, value: id })),
-    };
-  } catch (error) {
-    console.error('Error fetching shakha options:', error);
-    return {
-      success: false,
-      error: 'Unable to load shakha options.',
-    };
-  }
-}
-
-function getNextMemberCode(): number {
-  const maxMemberCode = MOCK_MEMBERS.reduce(
-    (maxCode, member) => Math.max(maxCode, member.member_code),
-    1000,
-  );
-
-  return maxMemberCode + 1;
-}
-
-function getNextMemberId(): string {
-  const maxNumericId = MOCK_MEMBERS.reduce((maxId, member) => {
-    const parsedValue = Number.parseInt(member.id.replaceAll(/\D+/g, ''), 10);
-    if (Number.isNaN(parsedValue)) {
-      return maxId;
-    }
-
-    return Math.max(maxId, parsedValue);
-  }, 0);
-
-  return `m${maxNumericId + 1}`;
-}
-
-function normalizeOptionalText(value: string | undefined): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function parseDateOrNull(value: string | undefined): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return null;
-  }
-
-  const parsed = new Date(trimmed);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export async function createMember(
@@ -250,76 +229,86 @@ export async function createMember(
     }
 
     const parsedData = validationResult.data;
-    const normalizedCivilId = parsedData.civilIdNo.trim().toLowerCase();
-    const hasDuplicateCivilId = MOCK_MEMBERS.some(
-      (member) => member.civil_id_no.trim().toLowerCase() === normalizedCivilId,
-    );
+    const normalizedCivilId = parsedData.civilIdNo.trim();
 
-    if (hasDuplicateCivilId) {
+    try {
+      // Use transaction to atomically insert member + family members
+      const result = await db.transaction(async (tx) => {
+        // Insert member
+        const insertedMembers = await tx
+          .insert(members)
+          .values({
+            civil_id_no: normalizedCivilId,
+            name: parsedData.name.trim(),
+            dob: new Date(parsedData.dob),
+            family_status: parsedData.familyStatus,
+            email: parsedData.email,
+            photo_key: parsedData.photoKey,
+            gsm_no: parsedData.gsmNo.trim(),
+            whatsapp_no: parsedData.whatsappNo.trim(),
+            blood_group: parsedData.bloodGroup,
+            profession: parsedData.profession.trim(),
+            shakha_id: parsedData.officeShakhaId ?? '1',
+            residential_area: parsedData.residentialArea.trim(),
+            passport_no: parsedData.passportNo.trim(),
+            address_india: parsedData.addressIndia.trim(),
+            tel_no_india: parsedData.telNoIndia,
+            is_family_in_oman: parsedData.isFamilyInOman,
+            application_no: parsedData.applicationNo.trim(),
+            received_on: new Date(parsedData.receivedOn),
+            submitted_by: parsedData.submittedBy.trim(),
+            shakha_india: parsedData.shakhaIndia,
+            checked_by: parsedData.checkedBy.trim(),
+            approved_by: parsedData.approvedBy.trim(),
+            president: parsedData.president,
+            secretary: parsedData.secretary,
+            union: parsedData.union,
+            district: parsedData.district,
+          })
+          .returning({ id: members.id, member_code: members.member_code });
+
+        if (!insertedMembers[0]) {
+          throw new Error('Failed to create member');
+        }
+
+        const insertedMember = insertedMembers[0];
+
+        // Insert family members if any
+        if (parsedData.familyMembers && parsedData.familyMembers.length > 0) {
+          await tx.insert(family_members).values(
+            parsedData.familyMembers.map((fm) => ({
+              member_id: insertedMember.id,
+              name: fm.name.trim(),
+              relation: fm.relation,
+              dob: parseDateOrNull(fm.dob),
+            })),
+          );
+        }
+
+        return insertedMember;
+      });
+
+      revalidatePath('/members');
+
       return {
-        success: false,
-        error: 'A member with this Civil ID already exists.',
+        success: true,
+        data: {
+          id: result.id,
+          memberCode: result.member_code,
+        },
       };
+    } catch (dbError: unknown) {
+      // Handle PostgreSQL unique constraint violations
+      const error = dbError as { code?: string };
+      if (error.code === '23505') {
+        // Unique constraint violation
+        return {
+          success: false,
+          error: 'A member with this Civil ID already exists.',
+        };
+      }
+      throw dbError;
     }
-
-    const memberCode = getNextMemberCode();
-    const createdAt = new Date();
-    const newMemberId = getNextMemberId();
-
-    const createdMember: Member = {
-      id: newMemberId,
-      member_code: memberCode,
-      civil_id_no: parsedData.civilIdNo.trim(),
-      name: parsedData.name.trim(),
-      dob: new Date(parsedData.dob),
-      family_status: normalizeOptionalText(parsedData.familyStatus),
-      email: normalizeOptionalText(parsedData.email),
-      photo_key: parsedData.photoKey,
-      gsm_no: parsedData.gsmNo.trim(),
-      whatsapp_no: parsedData.whatsappNo.trim(),
-      blood_group: normalizeOptionalText(parsedData.bloodGroup),
-      profession: parsedData.profession.trim(),
-      shakha_id: normalizeOptionalText(parsedData.officeShakhaId) ?? '1',
-      residential_area: parsedData.residentialArea.trim(),
-      passport_no: parsedData.passportNo.trim(),
-      address_india: parsedData.addressIndia.trim(),
-      tel_no_india: normalizeOptionalText(parsedData.telNoIndia),
-      is_family_in_oman: parsedData.isFamilyInOman,
-      application_no: parsedData.applicationNo.trim(),
-      received_on: new Date(parsedData.receivedOn),
-      submitted_by: parsedData.submittedBy.trim(),
-      shakha_india: normalizeOptionalText(parsedData.shakhaIndia),
-      checked_by: parsedData.checkedBy.trim(),
-      approved_by: parsedData.approvedBy.trim(),
-      president: normalizeOptionalText(parsedData.president),
-      secretary: normalizeOptionalText(parsedData.secretary),
-      union: normalizeOptionalText(parsedData.union),
-      district: normalizeOptionalText(parsedData.district),
-      family_members: parsedData.familyMembers.map((familyMember, index) => ({
-        id: `${newMemberId}-f${index + 1}`,
-        name: familyMember.name.trim(),
-        relation: normalizeOptionalText(familyMember.relation),
-        dob: parseDateOrNull(familyMember.dob),
-        created_at: createdAt,
-      })),
-      is_archived: false,
-      archived_at: null,
-      is_lifetime: false,
-      active_from: null,
-      expiry: null,
-      created_at: createdAt,
-    };
-
-    MOCK_MEMBERS.unshift(createdMember);
-    revalidatePath('/members');
-
-    return {
-      success: true,
-      data: {
-        id: createdMember.id,
-        memberCode: createdMember.member_code,
-      },
-    };
   } catch (error) {
     console.error('Error creating member:', error);
     return {
@@ -331,12 +320,22 @@ export async function createMember(
 
 export async function fetchMemberById(id: string): Promise<ActionResult<MemberDetail>> {
   try {
-    const member = MOCK_MEMBERS.find((item) => item.id === id);
-    if (!member || member.is_archived) {
+    const member = await db.query.members.findFirst({
+      where: and(eq(members.id, id), eq(members.is_archived, false)),
+      with: {
+        family_members: {
+          orderBy: asc(family_members.created_at),
+        },
+      },
+    });
+
+    if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
-    const shakha = MOCK_SHAKHAS.find((s) => s.id === member.shakha_id);
+    const shakha = await db.query.shakhas.findFirst({
+      where: eq(shakhas.id, member.shakha_id),
+    });
 
     return {
       success: true,
@@ -357,6 +356,7 @@ export async function fetchMemberTransactions(
   memberId: string,
 ): Promise<ActionResult<MemberTransaction[]>> {
   try {
+    // Pending transactions table integration: replace this with a DB query.
     const memberTransactions = MOCK_TRANSACTIONS.filter(
       (txn) => txn.memberId === memberId && txn.entryKind === 'regular',
     )
@@ -393,10 +393,16 @@ export async function renewMembership(
     }
 
     const data = validationResult.data;
-    const member = MOCK_MEMBERS.find((m) => m.id === data.memberId);
-    if (!member || member.is_archived) {
+
+    // Fetch member from DB
+    const member = await db.query.members.findFirst({
+      where: and(eq(members.id, data.memberId), eq(members.is_archived, false)),
+    });
+
+    if (!member) {
       return { success: false, error: 'Member not found.' };
     }
+
     if (member.is_lifetime) {
       return {
         success: false,
@@ -404,12 +410,12 @@ export async function renewMembership(
       };
     }
 
+    // Pending transactions table integration: replace this with a DB insert.
     const maxCode = MOCK_TRANSACTIONS.reduce(
       (max, txn) => Math.max(max, txn.transactionCode),
       1000,
     );
     const newTransactionId = `txn-renew-${Date.now()}`;
-
     const attachmentKey = data.attachmentKey?.trim();
 
     MOCK_TRANSACTIONS.push({
@@ -432,6 +438,7 @@ export async function renewMembership(
       updatedAt: new Date(),
     });
 
+    // Update member expiry in DB
     const normalizedToday = new Date();
     normalizedToday.setHours(0, 0, 0, 0);
 
@@ -450,9 +457,14 @@ export async function renewMembership(
           : new Date(normalizedToday);
     }
 
-    member.active_from = nextActiveFrom;
-    member.expiry = new Date(data.newExpiry);
-    member.is_lifetime = false;
+    await db
+      .update(members)
+      .set({
+        active_from: nextActiveFrom,
+        expiry: new Date(data.newExpiry),
+        is_lifetime: false,
+      })
+      .where(eq(members.id, data.memberId));
 
     revalidatePath(`/members/${data.memberId}`);
     revalidatePath('/transactions');
@@ -477,69 +489,95 @@ export async function updateMember(
     }
 
     const data = validationResult.data;
-    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === memberId);
-    if (memberIndex === -1) {
-      return { success: false, error: 'Member not found.' };
+    const normalizedCivilId = data.civilIdNo.trim();
+
+    try {
+      await db.transaction(async (tx) => {
+        // Check if member exists and not archived
+        const existing = await tx.query.members.findFirst({
+          where: and(eq(members.id, memberId), eq(members.is_archived, false)),
+        });
+
+        if (!existing) {
+          throw new Error('Member not found or archived');
+        }
+
+        // Check for civil_id uniqueness (excluding current member)
+        const duplicate = await tx.query.members.findFirst({
+          where: and(eq(members.civil_id_no, normalizedCivilId), not(eq(members.id, memberId))),
+        });
+
+        if (duplicate) {
+          throw new Error('A member with this Civil ID already exists.');
+        }
+
+        // Update member
+        await tx
+          .update(members)
+          .set({
+            name: data.name.trim(),
+            dob: new Date(data.dob),
+            profession: data.profession.trim(),
+            whatsapp_no: data.whatsappNo.trim(),
+            gsm_no: data.gsmNo.trim(),
+            family_status: data.familyStatus,
+            blood_group: data.bloodGroup,
+            residential_area: data.residentialArea.trim(),
+            civil_id_no: normalizedCivilId,
+            passport_no: data.passportNo.trim(),
+            email: data.email,
+            tel_no_india: data.telNoIndia,
+            address_india: data.addressIndia.trim(),
+            is_family_in_oman: data.isFamilyInOman,
+            shakha_india: data.shakhaIndia,
+            union: data.union,
+            district: data.district,
+            shakha_id: data.officeShakhaId ?? existing.shakha_id,
+            submitted_by: data.submittedBy.trim(),
+            approved_by: data.approvedBy.trim(),
+            received_on: new Date(data.receivedOn),
+            checked_by: data.checkedBy.trim(),
+            expiry: parseDateOrNull(data.expiry) ?? existing.expiry,
+            application_no: data.applicationNo.trim(),
+            secretary: data.secretary,
+            president: data.president,
+            photo_key: data.photoKey?.trim() || existing.photo_key,
+          })
+          .where(eq(members.id, memberId));
+
+        // Delete all existing family members for this member
+        await tx.delete(family_members).where(eq(family_members.member_id, memberId));
+
+        // Insert new family members
+        if (data.familyMembers && data.familyMembers.length > 0) {
+          await tx.insert(family_members).values(
+            data.familyMembers.map((fm) => ({
+              member_id: memberId,
+              name: fm.name.trim(),
+              relation: fm.relation,
+              dob: parseDateOrNull(fm.dob),
+            })),
+          );
+        }
+      });
+
+      revalidatePath(`/members/${memberId}`);
+      revalidatePath('/members');
+
+      return { success: true, data: { id: memberId } };
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === '23505') {
+        return { success: false, error: 'A member with this Civil ID already exists.' };
+      }
+      if (err.message === 'Member not found or archived') {
+        return { success: false, error: 'Member not found.' };
+      }
+      if (err.message?.includes('Civil ID')) {
+        return { success: false, error: err.message };
+      }
+      throw error;
     }
-
-    const existing = MOCK_MEMBERS[memberIndex]!;
-    if (existing.is_archived) {
-      return { success: false, error: 'Member not found.' };
-    }
-
-    const normalizedCivilId = data.civilIdNo.trim().toLowerCase();
-    const hasDuplicateCivilId = MOCK_MEMBERS.some(
-      (m) => m.id !== memberId && m.civil_id_no.trim().toLowerCase() === normalizedCivilId,
-    );
-    if (hasDuplicateCivilId) {
-      return { success: false, error: 'A member with this Civil ID already exists.' };
-    }
-
-    const updatedMember: Member = {
-      ...existing,
-      name: data.name.trim(),
-      dob: new Date(data.dob),
-      profession: data.profession.trim(),
-      whatsapp_no: data.whatsappNo.trim(),
-      gsm_no: data.gsmNo.trim(),
-      family_status: normalizeOptionalText(data.familyStatus),
-      blood_group: normalizeOptionalText(data.bloodGroup),
-      residential_area: data.residentialArea.trim(),
-      civil_id_no: data.civilIdNo.trim(),
-      passport_no: data.passportNo.trim(),
-      email: normalizeOptionalText(data.email),
-      tel_no_india: normalizeOptionalText(data.telNoIndia),
-      address_india: data.addressIndia.trim(),
-      is_family_in_oman: data.isFamilyInOman,
-      family_members: data.familyMembers.map((fm, i) => ({
-        id: existing.family_members?.[i]?.id ?? `${memberId}-f${i + 1}`,
-        name: fm.name.trim(),
-        relation: normalizeOptionalText(fm.relation),
-        dob: parseDateOrNull(fm.dob),
-        created_at: existing.family_members?.[i]?.created_at ?? new Date(),
-      })),
-      shakha_india: normalizeOptionalText(data.shakhaIndia),
-      union: normalizeOptionalText(data.union),
-      district: normalizeOptionalText(data.district),
-      shakha_id: normalizeOptionalText(data.officeShakhaId) ?? existing.shakha_id,
-      submitted_by: data.submittedBy.trim(),
-      approved_by: data.approvedBy.trim(),
-      received_on: new Date(data.receivedOn),
-      checked_by: data.checkedBy.trim(),
-      expiry: parseDateOrNull(data.expiry) ?? existing.expiry,
-      application_no: data.applicationNo.trim(),
-      secretary: normalizeOptionalText(data.secretary),
-      president: normalizeOptionalText(data.president),
-      photo_key: data.photoKey?.trim() || existing.photo_key,
-      is_lifetime: existing.is_lifetime,
-    };
-
-    MOCK_MEMBERS[memberIndex] = updatedMember;
-
-    revalidatePath(`/members/${memberId}`);
-    revalidatePath('/members');
-
-    return { success: true, data: { id: memberId } };
   } catch (error) {
     console.error('Error updating member:', error);
     return { success: false, error: 'Unable to update member. Please try again.' };
@@ -557,19 +595,21 @@ export async function updateMemberPhoto(
       return { success: false, error: firstError?.message ?? 'Invalid photo input' };
     }
 
-    const memberIndex = MOCK_MEMBERS.findIndex((m) => m.id === validationResult.data.memberId);
-    if (memberIndex === -1) {
+    const { memberId: validatedId, photoKey: validatedKey } = validationResult.data;
+
+    // Check if member exists and not archived
+    const member = await db.query.members.findFirst({
+      where: and(eq(members.id, validatedId), eq(members.is_archived, false)),
+    });
+
+    if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
-    const existing = MOCK_MEMBERS[memberIndex]!;
-    if (existing.is_archived) {
-      return { success: false, error: 'Member not found.' };
-    }
+    await db.update(members).set({ photo_key: validatedKey }).where(eq(members.id, validatedId));
 
-    MOCK_MEMBERS[memberIndex] = { ...existing, photo_key: validationResult.data.photoKey };
-    revalidatePath(`/members/${validationResult.data.memberId}`);
-    return { success: true, data: { id: validationResult.data.memberId } };
+    revalidatePath(`/members/${validatedId}`);
+    return { success: true, data: { id: validatedId } };
   } catch (error) {
     console.error('Error updating member photo:', error);
     return { success: false, error: 'Unable to update photo. Please try again.' };
@@ -587,21 +627,17 @@ export async function setMemberLifetime(
     }
 
     const { memberId, isLifetime } = validationResult.data;
-    const memberIndex = MOCK_MEMBERS.findIndex((member) => member.id === memberId);
-    if (memberIndex === -1) {
+
+    // Check if member exists and not archived
+    const member = await db.query.members.findFirst({
+      where: and(eq(members.id, memberId), eq(members.is_archived, false)),
+    });
+
+    if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
-    const existing = MOCK_MEMBERS[memberIndex]!;
-    if (existing.is_archived) {
-      return { success: false, error: 'Member not found.' };
-    }
-
-    MOCK_MEMBERS[memberIndex] = {
-      ...existing,
-      is_lifetime: isLifetime,
-      expiry: existing.expiry,
-    };
+    await db.update(members).set({ is_lifetime: isLifetime }).where(eq(members.id, memberId));
 
     revalidatePath('/members');
     revalidatePath(`/members/${memberId}`);
@@ -615,22 +651,26 @@ export async function setMemberLifetime(
 
 export async function archiveMember(memberId: string): Promise<ActionResult<{ id: string }>> {
   try {
-    const memberIndex = MOCK_MEMBERS.findIndex((member) => member.id === memberId);
+    // Check if member exists
+    const member = await db.query.members.findFirst({
+      where: eq(members.id, memberId),
+    });
 
-    if (memberIndex === -1) {
+    if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
-    const existing = MOCK_MEMBERS[memberIndex]!;
-    if (existing.is_archived) {
+    if (member.is_archived) {
       return { success: true, data: { id: memberId } };
     }
 
-    MOCK_MEMBERS[memberIndex] = {
-      ...existing,
-      is_archived: true,
-      archived_at: new Date(),
-    };
+    await db
+      .update(members)
+      .set({
+        is_archived: true,
+        archived_at: new Date(),
+      })
+      .where(eq(members.id, memberId));
 
     revalidatePath('/members');
     revalidatePath(`/members/${memberId}`);
@@ -644,26 +684,21 @@ export async function archiveMember(memberId: string): Promise<ActionResult<{ id
 
 export async function deleteMember(memberId: string): Promise<ActionResult<{ id: string }>> {
   try {
-    const memberIndex = MOCK_MEMBERS.findIndex((member) => member.id === memberId);
+    // Check if member exists
+    const member = await db.query.members.findFirst({
+      where: eq(members.id, memberId),
+    });
 
-    if (memberIndex === -1) {
+    if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
-    const hasLinkedTransactions = MOCK_TRANSACTIONS.some((txn) => txn.memberId === memberId);
+    // Pending transactions table integration: re-add linked-transactions guard.
+    // For now, cascade delete on family_members FK handles cleanup
 
-    if (hasLinkedTransactions) {
-      return {
-        success: false,
-        error:
-          'Cannot delete this member because linked transactions exist. Remove or reassign transactions first.',
-      };
-    }
-
-    MOCK_MEMBERS.splice(memberIndex, 1);
+    await db.delete(members).where(eq(members.id, memberId));
 
     revalidatePath('/members');
-    revalidatePath(`/members/${memberId}`);
 
     return { success: true, data: { id: memberId } };
   } catch (error) {
