@@ -140,9 +140,16 @@ export async function createTransactionCategory(
 
     revalidatePath('/transactions/categories');
 
+    if (!created) {
+      return {
+        success: false,
+        error: 'Failed to create category',
+      };
+    }
+
     return {
       success: true,
-      data: { ...created!, transactionCount: 0 },
+      data: { ...created, transactionCount: 0 },
     };
   } catch (error) {
     console.error('Error creating transaction category:', error);

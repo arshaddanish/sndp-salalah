@@ -24,13 +24,7 @@ export const shakhas = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    (table) => [uniqueIndex('transaction_categories_name_unique').on(sql`lower(${table.name})`)],
-    index('transaction_categories_name_trgm_idx').using(
-      'gin',
-      sql`lower(${table.name}) gin_trgm_ops`,
-    ),
-  ],
+  (table) => [uniqueIndex('shakhas_name_unique').on(table.name)],
 );
 
 export const transactionCategories = pgTable(
@@ -49,7 +43,7 @@ export const transactionCategories = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [uniqueIndex('transaction_categories_name_unique').on(table.name)],
+  (table) => [uniqueIndex('transaction_categories_name_unique').on(sql`lower(${table.name})`)],
 );
 
 export const members = pgTable(
