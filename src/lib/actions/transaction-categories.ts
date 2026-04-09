@@ -119,7 +119,7 @@ export async function createTransactionCategory(
     const existing = await db
       .select({ id: transactionCategories.id })
       .from(transactionCategories)
-      .where(ilike(transactionCategories.name, normalizedName))
+      .where(sql`lower(${transactionCategories.name}) = ${normalizedNextName}`)
       .limit(1);
 
     if (existing.length > 0) {
@@ -211,7 +211,7 @@ export async function updateTransactionCategory(
       const duplicate = await db
         .select({ id: transactionCategories.id })
         .from(transactionCategories)
-        .where(ilike(transactionCategories.name, normalizedNextName))
+        .where(sql`lower(${transactionCategories.name}) = ${normalizedName}`)
         .limit(1);
 
       const hasDuplicate = duplicate.some((c) => c.id !== id);
@@ -235,9 +235,16 @@ export async function updateTransactionCategory(
 
     revalidatePath('/transactions/categories');
 
+    if (!updated) {
+      return {
+        success: false,
+        error: 'Category was deleted during update.',
+      };
+    }
+
     return {
       success: true,
-      data: { ...updated!, transactionCount: 0 },
+      data: { ...updated, transactionCount: 0 },
     };
   } catch (error) {
     console.error('Error updating transaction category:', error);
