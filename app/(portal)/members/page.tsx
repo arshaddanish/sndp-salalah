@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 export default async function MembersPage({
   searchParams,
 }: {
-  readonly searchParams?: ListMembersRequest | Promise<ListMembersRequest>;
+  readonly searchParams: Promise<ListMembersRequest>;
 }) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const searchQuery = (resolvedSearchParams.q ?? '').trim();

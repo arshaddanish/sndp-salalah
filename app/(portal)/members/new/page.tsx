@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { MemberForm } from '@/components/features/members/member-form';
-import { MOCK_SHAKHAS } from '@/lib/mock-data/shakhas';
+import { fetchShakhaOptions } from '@/lib/actions/members';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -10,10 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default async function NewMemberPage() {
-  const shakhaOptions = MOCK_SHAKHAS.slice(0, 100).map((shakha) => ({
-    label: shakha.name,
-    value: shakha.id,
-  }));
+  const result = await fetchShakhaOptions();
+  const shakhaOptions = result.success ? (result.data ?? []) : [];
 
   return (
     <div className="space-y-6">

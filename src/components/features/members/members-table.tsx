@@ -19,7 +19,7 @@ import { FilterDropdown } from '@/components/ui/dropdown-filter';
 import { Input } from '@/components/ui/input';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
 import { useQuerySearch } from '@/hooks/use-query-search';
-import { getMemberStatus } from '@/lib/mock-data/members';
+import { getMemberStatus } from '@/lib/utils/member-status';
 import type { Member } from '@/types/members';
 import type { PaginatedTableProps } from '@/types/pagination';
 

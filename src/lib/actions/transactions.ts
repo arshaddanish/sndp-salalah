@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { MOCK_TRANSACTION_CATEGORIES } from '@/lib/mock-data/transaction-categories';
 import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
+import { parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import {
   createOpeningBalanceSchema,
   createTransactionSchema,
@@ -34,34 +35,6 @@ function getNextTransactionCode(): number {
   }, 1000);
 
   return maxRegularTransactionCode + 1;
-}
-
-function parseStartDate(value: string | undefined): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  parsed.setHours(0, 0, 0, 0);
-  return parsed;
-}
-
-function parseEndDate(value: string | undefined): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  parsed.setHours(23, 59, 59, 999);
-  return parsed;
 }
 
 function isRegularTransactionRow(
@@ -283,8 +256,8 @@ export async function fetchTransactions(
   const categoryIdFilter = (query?.categoryId ?? '').trim();
   const typeFilter = (query?.type ?? '').trim().toLowerCase();
   const fundAccountFilter = (query?.fundAccount ?? '').trim().toLowerCase();
-  const startDateFilter = parseStartDate(query?.startDate);
-  const endDateFilter = parseEndDate(query?.endDate);
+  const startDateFilter = parseStartOfDayOrNull(query?.startDate);
+  const endDateFilter = parseEndOfDayOrNull(query?.endDate);
 
   const compareByLedgerOrderAsc = (
     left: TransactionStatementRow,
