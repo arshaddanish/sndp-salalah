@@ -27,7 +27,7 @@ export const shakhas = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex('transaction_categories_name_unique').on(table.name),
+    (table) => [uniqueIndex('transaction_categories_name_unique').on(sql`lower(${table.name})`)],
     index('transaction_categories_name_trgm_idx').using(
       'gin',
       sql`lower(${table.name}) gin_trgm_ops`,
