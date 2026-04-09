@@ -1,7 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
 import { index } from 'drizzle-orm/pg-core';
-
 import {
   boolean,
   date,
