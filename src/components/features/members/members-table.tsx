@@ -51,7 +51,15 @@ const columns: ColumnDef<Member>[] = [
     ),
   },
   { accessorKey: 'whatsapp_no', header: 'Whatsapp' },
-  { accessorKey: 'email', header: 'Email' },
+  {
+    accessorKey: 'gsm_no',
+    header: 'GSM',
+    cell: ({ row }) => (
+      <span className="text-text-secondary">
+        {row.original.gsm_no ?? <span className="text-text-muted">—</span>}
+      </span>
+    ),
+  },
   { accessorKey: 'family_status', header: 'Marital Status' },
   {
     accessorKey: 'expiry',
@@ -68,8 +76,8 @@ const columns: ColumnDef<Member>[] = [
     accessorKey: 'shakha_id',
     header: 'Shakha',
     cell: ({ row }) => (
-      <span className="text-text-secondary text-xs font-medium uppercase">
-        Shakha {row.original.shakha_id}
+      <span className="text-text-secondary text-sm font-medium">
+        {row.original.shakhaName ?? '—'}
       </span>
     ),
   },
@@ -219,7 +227,7 @@ export function MembersTable({
         columns={columns}
         isLoading={isPending || isSearching}
         skeletonRowCount={currentPageSize}
-        onRowClick={(member) => router.push(`/members/${member.id}`)}
+        onRowClick={(member) => router.push(`/members/${member.member_code}`)}
         footer={
           <DataTablePagination
             table={table}

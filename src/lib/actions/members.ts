@@ -51,6 +51,24 @@ type MembersFilterOptions = {
 
 type MembersWhereCondition = SQL<unknown>;
 
+type ResolvedMemberProfile = {
+  member: MemberDetail;
+};
+
+function parseMemberCodeIdentifier(identifier: string): number | null {
+  if (!/^\d+$/.test(identifier)) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(identifier, 10);
+
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > 2147483647) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function buildSearchCondition(query: string): MembersWhereCondition | null {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) {
@@ -189,8 +207,46 @@ export async function fetchMembers(
     // Fetch data and count in parallel
     const [items, countResult] = await Promise.all([
       db
-        .select()
+        .select({
+          id: members.id,
+          member_code: members.member_code,
+          civil_id_no: members.civil_id_no,
+          name: members.name,
+          dob: members.dob,
+          family_status: members.family_status,
+          email: members.email,
+          photo_key: members.photo_key,
+          gsm_no: members.gsm_no,
+          whatsapp_no: members.whatsapp_no,
+          blood_group: members.blood_group,
+          profession: members.profession,
+          shakha_id: members.shakha_id,
+          shakhaName: shakhas.name,
+          residential_area: members.residential_area,
+          passport_no: members.passport_no,
+          address_india: members.address_india,
+          tel_no_india: members.tel_no_india,
+          is_family_in_oman: members.is_family_in_oman,
+          application_no: members.application_no,
+          received_on: members.received_on,
+          submitted_by: members.submitted_by,
+          shakha_india: members.shakha_india,
+          checked_by: members.checked_by,
+          approved_by: members.approved_by,
+          president: members.president,
+          secretary: members.secretary,
+          union_name: members.union_name,
+          district: members.district,
+          is_archived: members.is_archived,
+          archived_at: members.archived_at,
+          is_lifetime: members.is_lifetime,
+          active_from: members.active_from,
+          expiry: members.expiry,
+          created_at: members.created_at,
+          updated_at: members.updated_at,
+        })
         .from(members)
+        .leftJoin(shakhas, eq(shakhas.id, members.shakha_id))
         .where(whereClause)
         .limit(pageSize)
         .offset((page - 1) * pageSize)
@@ -262,7 +318,7 @@ export async function createMember(
             approved_by: parsedData.approvedBy.trim(),
             president: parsedData.president,
             secretary: parsedData.secretary,
-            union: parsedData.union,
+            union_name: parsedData.unionName,
             district: parsedData.district,
           })
           .returning({ id: members.id, member_code: members.member_code });
@@ -349,6 +405,55 @@ export async function fetchMemberById(id: string): Promise<ActionResult<MemberDe
   } catch (error) {
     console.error('Error fetching member:', error);
     return { success: false, error: 'Unable to load member profile. Please try again.' };
+  }
+}
+
+export async function fetchMemberProfileByIdentifier(
+  identifier: string,
+): Promise<ActionResult<ResolvedMemberProfile>> {
+  const normalizedIdentifier = identifier.trim();
+
+  if (!normalizedIdentifier) {
+    return { success: false, error: 'MEMBER_NOT_FOUND' };
+  }
+
+  const parsedMemberCode = parseMemberCodeIdentifier(normalizedIdentifier);
+  if (parsedMemberCode === null) {
+    return { success: false, error: 'MEMBER_NOT_FOUND' };
+  }
+
+  try {
+    const member = await db.query.members.findFirst({
+      where: and(eq(members.is_archived, false), eq(members.member_code, parsedMemberCode)),
+      with: {
+        family_members: {
+          orderBy: asc(family_members.created_at),
+        },
+      },
+    });
+
+    if (!member) {
+      return { success: false, error: 'MEMBER_NOT_FOUND' };
+    }
+
+    const shakha = await db.query.shakhas.findFirst({
+      where: eq(shakhas.id, member.shakha_id),
+    });
+
+    return {
+      success: true,
+      data: {
+        member: {
+          ...member,
+          shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
+          status: getMemberStatus(member.expiry, member.is_lifetime),
+          familyMembersList: member.family_members ?? [],
+        },
+      },
+    };
+  } catch (error) {
+    console.error('Error resolving member profile identifier:', error);
+    throw error;
   }
 }
 
@@ -530,7 +635,7 @@ export async function updateMember(
             address_india: data.addressIndia.trim(),
             is_family_in_oman: data.isFamilyInOman,
             shakha_india: data.shakhaIndia,
-            union: data.union,
+            union_name: data.unionName,
             district: data.district,
             shakha_id: data.officeShakhaId ?? existing.shakha_id,
             submitted_by: data.submittedBy.trim(),

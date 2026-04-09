@@ -36,7 +36,7 @@ export const createMemberSchema = z.object({
   isFamilyInOman: z.boolean(),
   familyMembers: z.array(familyMemberInputSchema),
   shakhaIndia: optionalText(),
-  union: optionalText(),
+  unionName: optionalText(),
   district: optionalText(),
   officeShakhaId: optionalText(),
   submittedBy: requiredText('Submitted By').max(120, 'Submitted By is too long'),

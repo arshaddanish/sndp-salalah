@@ -20,6 +20,7 @@ import { SetMemberLifetimeDialog } from './set-member-lifetime-dialog';
 
 type MemberProfileActionsProps = {
   memberId: string;
+  memberCode: number;
   memberName: string;
   expiry: string | null;
   isLifetime: boolean;
@@ -28,6 +29,7 @@ type MemberProfileActionsProps = {
 
 export function MemberProfileActions({
   memberId,
+  memberCode,
   memberName,
   expiry,
   isLifetime,
@@ -70,7 +72,7 @@ export function MemberProfileActions({
             <DropdownMenuLabel>Member Actions</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={() => router.push(`/members/${memberId}/edit`)}
+              onSelect={() => router.push(`/members/${memberCode}/edit`)}
               className="cursor-pointer"
             >
               <Edit2 className="mr-2 h-4 w-4" />

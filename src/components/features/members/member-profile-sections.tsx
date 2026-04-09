@@ -115,7 +115,7 @@ export function MemberProfileSections({ member }: Readonly<MemberProfileSections
 
           <SectionDivider title="SNDP India Unit" />
           <InfoField label="Shakha (India)" value={member.shakha_india} />
-          <InfoField label="Union" value={member.union} />
+          <InfoField label="Union" value={member.union_name} />
           <InfoField label="District" value={member.district} />
         </div>
       </Card>
