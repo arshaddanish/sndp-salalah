@@ -40,7 +40,12 @@ export async function fetchTransactionCategories(
     const offset = (page - 1) * pageSize;
 
     const [items, countResult] = await Promise.all([
-      db.select().from(transactionCategories).limit(pageSize).offset(offset),
+      db
+        .select()
+        .from(transactionCategories)
+        .orderBy(transactionCategories.created_at)
+        .limit(pageSize)
+        .offset(offset),
       db.select({ count: sql<number>`count(*)` }).from(transactionCategories),
     ]);
 
