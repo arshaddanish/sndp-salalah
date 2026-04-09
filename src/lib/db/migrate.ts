@@ -6,9 +6,9 @@ const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);
 
 async function main() {
-  console.log('Running migrations...');
+  console.warn('Running migrations...');
   await migrate(db, { migrationsFolder: './drizzle' });
-  console.log('Migrations complete!');
+  console.warn('Migrations complete!');
   process.exit(0);
 }
 
