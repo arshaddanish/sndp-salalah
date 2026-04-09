@@ -22,7 +22,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { family_members, members, shakhas } from '@/lib/db/schema';
 import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
-import { parseDateOrNull } from '@/lib/utils/date';
+import { parseDateOrNull, parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import { getMemberStatus } from '@/lib/utils/member-status';
 import {
   type CreateMemberInput,
@@ -101,8 +101,8 @@ function buildActivityWindowConditions(
   activeWindowStart?: string,
   activeWindowEnd?: string,
 ): MembersWhereCondition[] {
-  const startDate = parseDateOrNull(activeWindowStart);
-  const endDate = parseDateOrNull(activeWindowEnd);
+  const startDate = parseStartOfDayOrNull(activeWindowStart);
+  const endDate = parseEndOfDayOrNull(activeWindowEnd);
 
   if (!startDate || !endDate) {
     return [];
