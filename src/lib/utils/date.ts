@@ -8,7 +8,9 @@ export function parseDateOrNull(value: string | null | undefined): Date | null {
     return null;
   }
 
-  const parsed = new Date(trimmed);
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+    ? new Date(`${trimmed}T00:00:00.000Z`)
+    : new Date(trimmed);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
@@ -18,7 +20,7 @@ export function parseStartOfDayOrNull(value: string | null | undefined): Date | 
     return null;
   }
 
-  parsed.setHours(0, 0, 0, 0);
+  parsed.setUTCHours(0, 0, 0, 0);
   return parsed;
 }
 
@@ -28,6 +30,6 @@ export function parseEndOfDayOrNull(value: string | null | undefined): Date | nu
     return null;
   }
 
-  parsed.setHours(23, 59, 59, 999);
+  parsed.setUTCHours(23, 59, 59, 999);
   return parsed;
 }
