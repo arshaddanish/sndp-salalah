@@ -60,7 +60,7 @@ export const members = pgTable(
     approved_by: text('approved_by'),
     president: text('president'),
     secretary: text('secretary'),
-    union: text('union'),
+    union_name: text('union_name'),
     district: text('district'),
     shakha_id: text('shakha_id')
       .notNull()

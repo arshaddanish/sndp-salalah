@@ -244,7 +244,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
       isFamilyInOman,
       familyMembers: familyRows,
       shakhaIndia: getFormValue(formData, 'shakhaIndia'),
-      union: getFormValue(formData, 'union'),
+      unionName: getFormValue(formData, 'unionName'),
       district: getFormValue(formData, 'district'),
       officeShakhaId: getFormValue(formData, 'officeShakhaId'),
       submittedBy: getFormValue(formData, 'submittedBy'),
@@ -695,13 +695,13 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-text-secondary text-sm font-medium" htmlFor="union">
+            <label className="text-text-secondary text-sm font-medium" htmlFor="unionName">
               Union
             </label>
             <Input
-              id="union"
-              name="union"
-              defaultValue={initialData?.union ?? ''}
+              id="unionName"
+              name="unionName"
+              defaultValue={initialData?.union_name ?? ''}
               disabled={isPending}
             />
           </div>

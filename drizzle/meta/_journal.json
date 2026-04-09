@@ -22,6 +22,13 @@
       "when": 1775673348715,
       "tag": "0002_youthful_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775731200000,
+      "tag": "0003_rename_members_union_name",
+      "breakpoints": true
     }
   ]
 }

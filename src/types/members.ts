@@ -29,7 +29,7 @@ export type Member = {
   approved_by?: string | null;
   president?: string | null;
   secretary?: string | null;
-  union?: string | null;
+  union_name?: string | null;
   district?: string | null;
   family_members?: MemberFamilyMember[];
   is_archived: boolean;

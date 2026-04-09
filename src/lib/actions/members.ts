@@ -262,7 +262,7 @@ export async function createMember(
             approved_by: parsedData.approvedBy.trim(),
             president: parsedData.president,
             secretary: parsedData.secretary,
-            union: parsedData.union,
+            union_name: parsedData.unionName,
             district: parsedData.district,
           })
           .returning({ id: members.id, member_code: members.member_code });
@@ -530,7 +530,7 @@ export async function updateMember(
             address_india: data.addressIndia.trim(),
             is_family_in_oman: data.isFamilyInOman,
             shakha_india: data.shakhaIndia,
-            union: data.union,
+            union_name: data.unionName,
             district: data.district,
             shakha_id: data.officeShakhaId ?? existing.shakha_id,
             submitted_by: data.submittedBy.trim(),
