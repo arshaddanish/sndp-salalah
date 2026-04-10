@@ -733,7 +733,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5">
             <label className="text-text-secondary text-sm font-medium" htmlFor="officeShakhaId">
-              Shakha
+              Shakha *
             </label>
             <select
               id="officeShakhaId"
@@ -749,6 +749,11 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
                 </option>
               ))}
             </select>
+            <FormFieldError
+              fieldErrors={fieldErrors}
+              fieldKey="officeShakhaId"
+              errorId="officeShakhaId-error"
+            />
           </div>
 
           <div className="space-y-1.5">

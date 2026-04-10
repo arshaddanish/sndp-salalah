@@ -55,6 +55,150 @@ type ResolvedMemberProfile = {
   member: MemberDetail;
 };
 
+type PostgresLikeError = {
+  code?: string;
+  constraint?: string;
+  message?: string;
+  cause?: unknown;
+};
+
+function collectErrorChain(error: unknown): PostgresLikeError[] {
+  const collected: PostgresLikeError[] = [];
+  const visited = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current && !visited.has(current) && collected.length < 6) {
+    visited.add(current);
+    if (typeof current === 'object') {
+      const candidate = current as PostgresLikeError;
+      collected.push(candidate);
+      current = candidate.cause;
+      continue;
+    }
+    break;
+  }
+
+  return collected;
+}
+
+function extractFirstKnownErrorCode(error: unknown): string | null {
+  const chain = collectErrorChain(error);
+  for (const item of chain) {
+    if (typeof item.code === 'string' && item.code.length > 0) {
+      return item.code;
+    }
+  }
+  return null;
+}
+
+function extractJoinedErrorMessage(error: unknown): string {
+  const messages = collectErrorChain(error)
+    .map((item) => item.message)
+    .filter((message): message is string => typeof message === 'string' && message.length > 0);
+
+  return messages.join(' | ');
+}
+
+function mapMemberMutationErrorByCode(code: string | null): string | null {
+  if (!code) {
+    return null;
+  }
+
+  const codeMap: Record<string, string> = {
+    '23505': 'A member with this Civil ID already exists.',
+    '23503': 'Please select a valid office shakha.',
+    '23502': 'Please complete all required fields and try again.',
+    '22P02': 'One of the submitted values is invalid. Please review the form and try again.',
+    '42501': 'Database permission error while saving the member. Please contact an administrator.',
+    '25006': 'Database is in read-only mode. Member updates are temporarily unavailable.',
+  };
+
+  return codeMap[code] ?? `Unable to save member due to a database error (${code}).`;
+}
+
+const MEMBER_MUTATION_MESSAGE_RULES = [
+  {
+    matches: (joinedMessage: string) => joinedMessage.includes('Member not found or archived'),
+    message: 'Member not found.',
+  },
+  {
+    matches: (joinedMessage: string) => joinedMessage.includes('Civil ID'),
+    message: 'A member with this Civil ID already exists.',
+  },
+  {
+    matches: (_: string, normalizedMessage: string) =>
+      normalizedMessage.includes('violates foreign key constraint') &&
+      normalizedMessage.includes('shakha_id'),
+    message: 'Please select a valid office shakha.',
+  },
+  {
+    matches: (_: string, normalizedMessage: string) =>
+      normalizedMessage.includes('violates unique constraint') &&
+      normalizedMessage.includes('civil_id_no'),
+    message: 'A member with this Civil ID already exists.',
+  },
+  {
+    matches: (_: string, normalizedMessage: string) =>
+      normalizedMessage.includes('null value in column'),
+    message: 'Please complete all required fields and try again.',
+  },
+  {
+    matches: (_: string, normalizedMessage: string) =>
+      normalizedMessage.includes('invalid input syntax') && normalizedMessage.includes('date'),
+    message: 'One of the submitted dates is invalid. Please review the form and try again.',
+  },
+  {
+    matches: (_: string, normalizedMessage: string) =>
+      normalizedMessage.includes('read-only') || normalizedMessage.includes('readonly'),
+    message: 'Database is in read-only mode. Member updates are temporarily unavailable.',
+  },
+];
+
+function mapMemberMutationErrorByMessage(joinedMessage: string): string | null {
+  if (!joinedMessage) {
+    return null;
+  }
+
+  const normalizedMessage = joinedMessage.toLowerCase();
+
+  for (const rule of MEMBER_MUTATION_MESSAGE_RULES) {
+    if (rule.matches(joinedMessage, normalizedMessage)) {
+      return rule.message;
+    }
+  }
+
+  return null;
+}
+
+function mapMemberMutationError(error: unknown): string | null {
+  const joinedMessage = extractJoinedErrorMessage(error);
+  const code = extractFirstKnownErrorCode(error);
+
+  const messageMapped = mapMemberMutationErrorByMessage(joinedMessage);
+  if (messageMapped) {
+    return messageMapped;
+  }
+
+  return mapMemberMutationErrorByCode(code);
+}
+
+function buildDevDiagnosticMemberMutationError(error: unknown): string {
+  const code = extractFirstKnownErrorCode(error);
+  const joinedMessage = extractJoinedErrorMessage(error);
+
+  if (process.env.NODE_ENV === 'production') {
+    return 'Unable to update member. Please try again.';
+  }
+
+  const details = [code ? `code=${code}` : '', joinedMessage ? `message=${joinedMessage}` : '']
+    .filter((part) => part.length > 0)
+    .join(' | ');
+
+  return details
+    ? `Unable to update member. Please try again. (${details})`
+    : 'Unable to update member. Please try again. (no DB details available)';
+}
+
 function parseMemberCodeIdentifier(identifier: string): number | null {
   if (!/^\d+$/.test(identifier)) {
     return null;
@@ -286,63 +430,63 @@ export async function createMember(
 
     const parsedData = validationResult.data;
     const normalizedCivilId = parsedData.civilIdNo.trim();
+    const normalizedOfficeShakhaId = parsedData.officeShakhaId.trim();
 
     try {
-      // Use transaction to atomically insert member + family members
-      const result = await db.transaction(async (tx) => {
-        // Insert member
-        const insertedMembers = await tx
-          .insert(members)
-          .values({
-            civil_id_no: normalizedCivilId,
-            name: parsedData.name.trim(),
-            dob: new Date(parsedData.dob),
-            family_status: parsedData.familyStatus,
-            email: parsedData.email,
-            photo_key: parsedData.photoKey,
-            gsm_no: parsedData.gsmNo.trim(),
-            whatsapp_no: parsedData.whatsappNo.trim(),
-            blood_group: parsedData.bloodGroup,
-            profession: parsedData.profession.trim(),
-            shakha_id: parsedData.officeShakhaId ?? '1',
-            residential_area: parsedData.residentialArea.trim(),
-            passport_no: parsedData.passportNo.trim(),
-            address_india: parsedData.addressIndia.trim(),
-            tel_no_india: parsedData.telNoIndia,
-            is_family_in_oman: parsedData.isFamilyInOman,
-            application_no: parsedData.applicationNo.trim(),
-            received_on: new Date(parsedData.receivedOn),
-            submitted_by: parsedData.submittedBy.trim(),
-            shakha_india: parsedData.shakhaIndia,
-            checked_by: parsedData.checkedBy.trim(),
-            approved_by: parsedData.approvedBy.trim(),
-            president: parsedData.president,
-            secretary: parsedData.secretary,
-            union_name: parsedData.unionName,
-            district: parsedData.district,
-          })
-          .returning({ id: members.id, member_code: members.member_code });
+      const insertedMembers = await db
+        .insert(members)
+        .values({
+          civil_id_no: normalizedCivilId,
+          name: parsedData.name.trim(),
+          dob: new Date(parsedData.dob),
+          family_status: parsedData.familyStatus,
+          email: parsedData.email,
+          photo_key: parsedData.photoKey,
+          gsm_no: parsedData.gsmNo.trim(),
+          whatsapp_no: parsedData.whatsappNo.trim(),
+          blood_group: parsedData.bloodGroup,
+          profession: parsedData.profession.trim(),
+          shakha_id: normalizedOfficeShakhaId,
+          residential_area: parsedData.residentialArea.trim(),
+          passport_no: parsedData.passportNo.trim(),
+          address_india: parsedData.addressIndia.trim(),
+          tel_no_india: parsedData.telNoIndia,
+          is_family_in_oman: parsedData.isFamilyInOman,
+          application_no: parsedData.applicationNo.trim(),
+          received_on: new Date(parsedData.receivedOn),
+          submitted_by: parsedData.submittedBy.trim(),
+          shakha_india: parsedData.shakhaIndia,
+          checked_by: parsedData.checkedBy.trim(),
+          approved_by: parsedData.approvedBy.trim(),
+          president: parsedData.president,
+          secretary: parsedData.secretary,
+          union_name: parsedData.unionName,
+          district: parsedData.district,
+        })
+        .returning({ id: members.id, member_code: members.member_code });
 
-        if (!insertedMembers[0]) {
-          throw new Error('Failed to create member');
-        }
+      if (!insertedMembers[0]) {
+        throw new Error('Failed to create member');
+      }
 
-        const insertedMember = insertedMembers[0];
+      const result = insertedMembers[0];
 
-        // Insert family members if any
-        if (parsedData.familyMembers && parsedData.familyMembers.length > 0) {
-          await tx.insert(family_members).values(
+      // Insert family members if any. If this fails, remove the inserted member row to avoid partial writes.
+      if (parsedData.familyMembers && parsedData.familyMembers.length > 0) {
+        try {
+          await db.insert(family_members).values(
             parsedData.familyMembers.map((fm) => ({
-              member_id: insertedMember.id,
+              member_id: result.id,
               name: fm.name.trim(),
               relation: fm.relation,
               dob: parseDateOrNull(fm.dob),
             })),
           );
+        } catch (familyInsertError) {
+          await db.delete(members).where(eq(members.id, result.id));
+          throw familyInsertError;
         }
-
-        return insertedMember;
-      });
+      }
 
       revalidatePath('/members');
 
@@ -354,22 +498,24 @@ export async function createMember(
         },
       };
     } catch (dbError: unknown) {
-      // Handle PostgreSQL unique constraint violations
-      const error = dbError as { code?: string };
-      if (error.code === '23505') {
-        // Unique constraint violation
-        return {
-          success: false,
-          error: 'A member with this Civil ID already exists.',
-        };
+      const mappedError = mapMemberMutationError(dbError);
+      if (mappedError) {
+        return { success: false, error: mappedError };
       }
       throw dbError;
     }
   } catch (error) {
     console.error('Error creating member:', error);
+    const mappedError = mapMemberMutationError(error);
+    if (mappedError) {
+      return { success: false, error: mappedError };
+    }
     return {
       success: false,
-      error: 'An unexpected error occurred while creating the member',
+      error:
+        process.env.NODE_ENV === 'production'
+          ? 'Unable to create member. Please try again.'
+          : `Unable to create member. Please try again. (${extractJoinedErrorMessage(error) || 'no DB details available'})`,
     };
   }
 }
@@ -595,97 +741,91 @@ export async function updateMember(
 
     const data = validationResult.data;
     const normalizedCivilId = data.civilIdNo.trim();
+    const normalizedOfficeShakhaId = data.officeShakhaId.trim();
 
     try {
-      await db.transaction(async (tx) => {
-        // Check if member exists and not archived
-        const existing = await tx.query.members.findFirst({
-          where: and(eq(members.id, memberId), eq(members.is_archived, false)),
-        });
-
-        if (!existing) {
-          throw new Error('Member not found or archived');
-        }
-
-        // Check for civil_id uniqueness (excluding current member)
-        const duplicate = await tx.query.members.findFirst({
-          where: and(eq(members.civil_id_no, normalizedCivilId), not(eq(members.id, memberId))),
-        });
-
-        if (duplicate) {
-          throw new Error('A member with this Civil ID already exists.');
-        }
-
-        // Update member
-        await tx
-          .update(members)
-          .set({
-            name: data.name.trim(),
-            dob: new Date(data.dob),
-            profession: data.profession.trim(),
-            whatsapp_no: data.whatsappNo.trim(),
-            gsm_no: data.gsmNo.trim(),
-            family_status: data.familyStatus,
-            blood_group: data.bloodGroup,
-            residential_area: data.residentialArea.trim(),
-            civil_id_no: normalizedCivilId,
-            passport_no: data.passportNo.trim(),
-            email: data.email,
-            tel_no_india: data.telNoIndia,
-            address_india: data.addressIndia.trim(),
-            is_family_in_oman: data.isFamilyInOman,
-            shakha_india: data.shakhaIndia,
-            union_name: data.unionName,
-            district: data.district,
-            shakha_id: data.officeShakhaId ?? existing.shakha_id,
-            submitted_by: data.submittedBy.trim(),
-            approved_by: data.approvedBy.trim(),
-            received_on: new Date(data.receivedOn),
-            checked_by: data.checkedBy.trim(),
-            expiry: parseDateOrNull(data.expiry) ?? existing.expiry,
-            application_no: data.applicationNo.trim(),
-            secretary: data.secretary,
-            president: data.president,
-            photo_key: data.photoKey?.trim() || existing.photo_key,
-          })
-          .where(eq(members.id, memberId));
-
-        // Delete all existing family members for this member
-        await tx.delete(family_members).where(eq(family_members.member_id, memberId));
-
-        // Insert new family members
-        if (data.familyMembers && data.familyMembers.length > 0) {
-          await tx.insert(family_members).values(
-            data.familyMembers.map((fm) => ({
-              member_id: memberId,
-              name: fm.name.trim(),
-              relation: fm.relation,
-              dob: parseDateOrNull(fm.dob),
-            })),
-          );
-        }
+      // Check if member exists and not archived
+      const existing = await db.query.members.findFirst({
+        where: and(eq(members.id, memberId), eq(members.is_archived, false)),
       });
+
+      if (!existing) {
+        throw new Error('Member not found or archived');
+      }
+
+      // Check for civil_id uniqueness (excluding current member)
+      const duplicate = await db.query.members.findFirst({
+        where: and(eq(members.civil_id_no, normalizedCivilId), not(eq(members.id, memberId))),
+      });
+
+      if (duplicate) {
+        throw new Error('A member with this Civil ID already exists.');
+      }
+
+      await db
+        .update(members)
+        .set({
+          name: data.name.trim(),
+          dob: new Date(data.dob),
+          profession: data.profession.trim(),
+          whatsapp_no: data.whatsappNo.trim(),
+          gsm_no: data.gsmNo.trim(),
+          family_status: data.familyStatus,
+          blood_group: data.bloodGroup,
+          residential_area: data.residentialArea.trim(),
+          civil_id_no: normalizedCivilId,
+          passport_no: data.passportNo.trim(),
+          email: data.email,
+          tel_no_india: data.telNoIndia,
+          address_india: data.addressIndia.trim(),
+          is_family_in_oman: data.isFamilyInOman,
+          shakha_india: data.shakhaIndia,
+          union_name: data.unionName,
+          district: data.district,
+          shakha_id: normalizedOfficeShakhaId,
+          submitted_by: data.submittedBy.trim(),
+          approved_by: data.approvedBy.trim(),
+          received_on: new Date(data.receivedOn),
+          checked_by: data.checkedBy.trim(),
+          expiry: parseDateOrNull(data.expiry) ?? existing.expiry,
+          application_no: data.applicationNo.trim(),
+          secretary: data.secretary,
+          president: data.president,
+          photo_key: data.photoKey?.trim() || existing.photo_key,
+        })
+        .where(eq(members.id, memberId));
+
+      await db.delete(family_members).where(eq(family_members.member_id, memberId));
+
+      if (data.familyMembers && data.familyMembers.length > 0) {
+        await db.insert(family_members).values(
+          data.familyMembers.map((fm) => ({
+            member_id: memberId,
+            name: fm.name.trim(),
+            relation: fm.relation,
+            dob: parseDateOrNull(fm.dob),
+          })),
+        );
+      }
 
       revalidatePath(`/members/${memberId}`);
       revalidatePath('/members');
 
       return { success: true, data: { id: memberId } };
     } catch (error: unknown) {
-      const err = error as { code?: string; message?: string };
-      if (err.code === '23505') {
-        return { success: false, error: 'A member with this Civil ID already exists.' };
-      }
-      if (err.message === 'Member not found or archived') {
-        return { success: false, error: 'Member not found.' };
-      }
-      if (err.message?.includes('Civil ID')) {
-        return { success: false, error: err.message };
+      const mappedError = mapMemberMutationError(error);
+      if (mappedError) {
+        return { success: false, error: mappedError };
       }
       throw error;
     }
   } catch (error) {
     console.error('Error updating member:', error);
-    return { success: false, error: 'Unable to update member. Please try again.' };
+    const mappedError = mapMemberMutationError(error);
+    if (mappedError) {
+      return { success: false, error: mappedError };
+    }
+    return { success: false, error: buildDevDiagnosticMemberMutationError(error) };
   }
 }
 
