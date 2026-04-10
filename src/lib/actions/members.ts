@@ -91,6 +91,20 @@ function extractFirstKnownErrorCode(error: unknown): string | null {
   return null;
 }
 
+function extractFirstKnownConstraint(error: unknown): string | null {
+  const chain = collectErrorChain(error);
+  for (const item of chain) {
+    if (typeof item.constraint === 'string' && item.constraint.length > 0) {
+      return item.constraint;
+    }
+  }
+
+  const joinedMessage = extractJoinedErrorMessage(error);
+  const constraintPattern = /constraint\s+"([^"]+)"/i;
+  const match = constraintPattern.exec(joinedMessage);
+  return match?.[1] ?? null;
+}
+
 function extractJoinedErrorMessage(error: unknown): string {
   const messages = collectErrorChain(error)
     .map((item) => item.message)
@@ -105,7 +119,7 @@ function mapMemberMutationErrorByCode(code: string | null): string | null {
   }
 
   const codeMap: Record<string, string> = {
-    '23505': 'A member with this Civil ID already exists.',
+    '23505': 'A duplicate member record was detected. Please verify the details and try again.',
     '23503': 'Please select a valid office shakha.',
     '23502': 'Please complete all required fields and try again.',
     '22P02': 'One of the submitted values is invalid. Please review the form and try again.',
@@ -122,20 +136,10 @@ const MEMBER_MUTATION_MESSAGE_RULES = [
     message: 'Member not found.',
   },
   {
-    matches: (joinedMessage: string) => joinedMessage.includes('Civil ID'),
-    message: 'A member with this Civil ID already exists.',
-  },
-  {
     matches: (_: string, normalizedMessage: string) =>
       normalizedMessage.includes('violates foreign key constraint') &&
       normalizedMessage.includes('shakha_id'),
     message: 'Please select a valid office shakha.',
-  },
-  {
-    matches: (_: string, normalizedMessage: string) =>
-      normalizedMessage.includes('violates unique constraint') &&
-      normalizedMessage.includes('civil_id_no'),
-    message: 'A member with this Civil ID already exists.',
   },
   {
     matches: (_: string, normalizedMessage: string) =>
@@ -170,9 +174,48 @@ function mapMemberMutationErrorByMessage(joinedMessage: string): string | null {
   return null;
 }
 
+function mapMemberUniqueConstraintError(
+  constraint: string | null,
+  normalizedMessage: string,
+): string {
+  const normalizedConstraint = constraint?.toLowerCase() ?? '';
+  const hasUniqueConstraintMessage = normalizedMessage.includes('violates unique constraint');
+  const hasCivilIdKeyDetail =
+    normalizedMessage.includes('key (civil_id_no)=') ||
+    normalizedMessage.includes('key ("civil_id_no")=');
+  const hasMemberCodeKeyDetail =
+    normalizedMessage.includes('key (member_code)=') ||
+    normalizedMessage.includes('key ("member_code")=');
+
+  if (
+    normalizedConstraint.includes('members_civil_id_no_unique') ||
+    (hasUniqueConstraintMessage && normalizedMessage.includes('civil_id_no')) ||
+    hasCivilIdKeyDetail
+  ) {
+    return 'A member with this Civil ID already exists.';
+  }
+
+  if (
+    normalizedConstraint.includes('members_member_code_unique') ||
+    (hasUniqueConstraintMessage && normalizedMessage.includes('member_code')) ||
+    hasMemberCodeKeyDetail
+  ) {
+    return 'Unable to generate a new member ID right now. Please try again.';
+  }
+
+  return 'A duplicate member record was detected. Please verify the details and try again.';
+}
+
 function mapMemberMutationError(error: unknown): string | null {
   const joinedMessage = extractJoinedErrorMessage(error);
+  const normalizedMessage = joinedMessage.toLowerCase();
   const code = extractFirstKnownErrorCode(error);
+  const constraint = extractFirstKnownConstraint(error);
+  const hasUniqueConstraintMessage = normalizedMessage.includes('violates unique constraint');
+
+  if (code === '23505' || constraint !== null || hasUniqueConstraintMessage) {
+    return mapMemberUniqueConstraintError(constraint, normalizedMessage);
+  }
 
   const messageMapped = mapMemberMutationErrorByMessage(joinedMessage);
   if (messageMapped) {
