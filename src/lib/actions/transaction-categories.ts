@@ -117,7 +117,8 @@ export async function createTransactionCategory(
     const existing = await db
       .select({ id: transactionCategories.id })
       .from(transactionCategories)
-      .where(sql`lower(${transactionCategories.name}) = ${normalizedName}`)
+      // CORRECT
+      .where(sql`lower(${transactionCategories.name}) = ${normalizeCategoryName(sanitizedName)}`)
       .limit(1);
 
     if (existing.length > 0) {
