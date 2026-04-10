@@ -212,9 +212,7 @@ export async function updateTransactionCategory(
       const duplicate = await db
         .select({ id: transactionCategories.id })
         .from(transactionCategories)
-        .where(
-          sql`lower(${transactionCategories.name}) = ${normalizedNextName} AND ${transactionCategories.id} != ${id}`,
-        )
+        .where(sql`lower(${transactionCategories.name}) = ${normalizedNextName}`)
         .limit(1);
 
       if (duplicate.length > 0) {
