@@ -1,6 +1,6 @@
 'use server';
 
-import { eq, ilike, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
@@ -113,13 +113,13 @@ export async function createTransactionCategory(
     }
 
     const sanitizedName = validationResult.data.name;
-    const normalizedName = normalizeCategoryName(sanitizedName);
+    
 
     // In createTransactionCategory - replace existing check with:
     const existing = await db
       .select({ id: transactionCategories.id })
       .from(transactionCategories)
-      .where(sql`lower(${transactionCategories.name}) = ${normalizedNextName}`)
+.where(sql`lower(${transactionCategories.name}) = ${normalizeCategoryName(sanitizedName)}`)
       .limit(1);
 
     if (existing.length > 0) {
