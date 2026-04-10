@@ -113,13 +113,11 @@ export async function createTransactionCategory(
     }
 
     const sanitizedName = validationResult.data.name;
-    // Fix 1: use sanitizedName (already validated), not undefined `next.name`
-    const normalizedName = normalizeCategoryName(sanitizedName);
 
     const existing = await db
       .select({ id: transactionCategories.id })
       .from(transactionCategories)
-      .where(sql`lower(${transactionCategories.name}) = ${normalizedName}`)
+      .where(sql`lower(${transactionCategories.name}) = ${normalizeCategoryName(sanitizedName)}`)
       .limit(1);
 
     if (existing.length > 0) {

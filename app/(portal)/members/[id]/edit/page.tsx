@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { MemberForm } from '@/components/features/members/member-form';
-import { fetchMemberById, fetchShakhaOptions } from '@/lib/actions/members';
+import { fetchMemberProfileByIdentifier, fetchShakhaOptions } from '@/lib/actions/members';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,18 +18,22 @@ type EditMemberPageProps = {
 };
 
 export default async function EditMemberPage({ params }: Readonly<EditMemberPageProps>) {
-  const { id } = await params;
+  const { id: memberCodeParam } = await params;
 
   const [memberResult, shakhaResult] = await Promise.all([
-    fetchMemberById(id),
+    fetchMemberProfileByIdentifier(memberCodeParam),
     fetchShakhaOptions(),
   ]);
 
-  if (!memberResult.success || !memberResult.data) {
+  if (!memberResult.success) {
     notFound();
   }
 
-  const member = memberResult.data;
+  if (!memberResult.data) {
+    notFound();
+  }
+
+  const { member } = memberResult.data;
   const shakhaOptions = shakhaResult.success ? (shakhaResult.data ?? []) : [];
 
   return (
@@ -37,7 +41,7 @@ export default async function EditMemberPage({ params }: Readonly<EditMemberPage
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm">
         <Link
-          href={`/members/${id}`}
+          href={`/members/${member.member_code}`}
           className="text-text-secondary hover:text-accent flex items-center gap-1 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />

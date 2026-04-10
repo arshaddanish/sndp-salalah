@@ -93,7 +93,7 @@ export const MOCK_MEMBERS: Member[] = [
     approved_by: 'R. Madhavan',
     president: 'Pradeep Kumar',
     secretary: 'Girish Nair',
-    union: 'Kollam Union',
+    union_name: 'Kollam Union',
     district: 'Kollam',
     family_members: [
       {

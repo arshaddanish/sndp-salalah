@@ -1,5 +1,8 @@
 {
   "id": "88adbda1-833b-4751-89b9-db56b8ab5e33",
+
+  "id": "c715a692-490f-4f6a-8bde-d55d8bef8b0d",
+
   "prevId": "4aeacfa1-2bcd-48d5-9d62-7cb1496e1026",
   "version": "7",
   "dialect": "postgresql",
@@ -253,8 +256,12 @@
           "primaryKey": false,
           "notNull": false
         },
+
         "union": {
           "name": "union",
+        "union_name": {
+          "name": "union_name",
+
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -489,6 +496,7 @@
         }
       },
       "indexes": {
+
         "transaction_categories_name_trgm_idx": {
           "name": "transaction_categories_name_trgm_idx",
           "columns": [
@@ -565,6 +573,9 @@
       "indexes": {
         "transaction_categories_name_unique": {
           "name": "transaction_categories_name_unique",
+        "shakhas_name_unique": {
+          "name": "shakhas_name_unique",
+
           "columns": [
             {
               "expression": "name",
