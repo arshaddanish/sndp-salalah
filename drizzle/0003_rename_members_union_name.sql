@@ -1,0 +1,1 @@
+ALTER TABLE "members" RENAME COLUMN "union" TO "union_name";

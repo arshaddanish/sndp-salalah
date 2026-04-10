@@ -1,25 +1,14 @@
 import { z } from 'zod';
 
-const requiredText = (label: string) => z.string().trim().min(1, `${label} is required`);
-
-const optionalText = () => z.string().trim().optional().or(z.literal(''));
+import {
+  optionalDate,
+  optionalText,
+  optionalTextMax,
+  requiredDate,
+  requiredText,
+} from '@/lib/validations/common';
 
 const emailSchema = z.email();
-
-const optionalTextMax = (label: string, max: number) =>
-  z.string().trim().max(max, `${label} is too long`).optional().or(z.literal(''));
-
-const isValidDateValue = (value: string) => !Number.isNaN(Date.parse(value));
-
-const requiredDate = (label: string) =>
-  requiredText(label).refine((value) => isValidDateValue(value), `${label} must be a valid date`);
-
-const optionalDate = z
-  .string()
-  .trim()
-  .optional()
-  .or(z.literal(''))
-  .refine((value) => !value || isValidDateValue(value), 'Date must be valid');
 
 export const familyMemberInputSchema = z.object({
   name: requiredText('Family member name').max(120, 'Family member name is too long'),
@@ -47,7 +36,7 @@ export const createMemberSchema = z.object({
   isFamilyInOman: z.boolean(),
   familyMembers: z.array(familyMemberInputSchema),
   shakhaIndia: optionalText(),
-  union: optionalText(),
+  unionName: optionalText(),
   district: optionalText(),
   officeShakhaId: optionalText(),
   submittedBy: requiredText('Submitted By').max(120, 'Submitted By is too long'),

@@ -16,6 +16,7 @@ export type Member = {
   blood_group: string | null;
   profession: string | null;
   shakha_id: string;
+  shakhaName?: string | null;
   residential_area?: string | null;
   passport_no?: string | null;
   address_india?: string | null;
@@ -29,7 +30,7 @@ export type Member = {
   approved_by?: string | null;
   president?: string | null;
   secretary?: string | null;
-  union?: string | null;
+  union_name?: string | null;
   district?: string | null;
   family_members?: MemberFamilyMember[];
   is_archived: boolean;
