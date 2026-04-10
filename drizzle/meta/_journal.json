@@ -26,13 +26,15 @@
     {
       "idx": 3,
       "version": "7",
-
-      "when": 1775734436763,
-      "tag": "0003_woozy_guardian",
-
       "when": 1775731200000,
       "tag": "0003_rename_members_union_name",
-
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775734436763,
+      "tag": "0004_woozy_guardian",
       "breakpoints": true
     }
   ]
