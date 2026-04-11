@@ -65,7 +65,7 @@
         "approved_by": { "name": "approved_by", "type": "text", "primaryKey": false, "notNull": false },
         "president": { "name": "president", "type": "text", "primaryKey": false, "notNull": false },
         "secretary": { "name": "secretary", "type": "text", "primaryKey": false, "notNull": false },
-        "union": { "name": "union", "type": "text", "primaryKey": false, "notNull": false },
+        "union_name": { "name": "union_name", "type": "text", "primaryKey": false, "notNull": false },
         "district": { "name": "district", "type": "text", "primaryKey": false, "notNull": false },
         "shakha_id": { "name": "shakha_id", "type": "text", "primaryKey": false, "notNull": true },
         "is_archived": { "name": "is_archived", "type": "boolean", "primaryKey": false, "notNull": true, "default": false },
