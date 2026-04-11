@@ -36,13 +36,13 @@
       "when": 1775734436763,
       "tag": "0004_woozy_guardian",
       "breakpoints": true
-    }
+    },
     {
-  "idx": 5,
-  "version": "7",
-  "when": 1775734436764,
-  "tag": "0005_striped_carlie_cooper",
-  "breakpoints": true
-}
+      "idx": 5,
+      "version": "7",
+      "when": 1775734436764,
+      "tag": "0005_striped_carlie_cooper",
+      "breakpoints": true
+    }
   ]
 }
