@@ -141,7 +141,7 @@ export const transactions = pgTable(
     entry_kind: text('entry_kind', { enum: ['regular', 'opening_balance'] }).notNull(),
     category_id: text('category_id').references(() => transactionCategories.id),
     type: text('type', { enum: ['income', 'expense'] }),
-    payment_mode: text('payment_mode', { enum: ['cash', 'bank'] }),
+    payment_mode: text('payment_mode', { enum: ['cash', 'bank', 'online_transaction', 'cheque'] }),
     fund_account: text('fund_account', { enum: ['cash', 'bank'] }).notNull(),
     payee_merchant: text('payee_merchant'),
     paid_receipt_by: text('paid_receipt_by'),
