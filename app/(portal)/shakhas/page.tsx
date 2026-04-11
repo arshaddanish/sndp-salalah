@@ -14,7 +14,7 @@ export const metadata = {
 export default async function ShakhasPage({
   searchParams,
 }: Readonly<{
-  searchParams?: ListShakhasRequest | Promise<ListShakhasRequest>;
+  searchParams?: Promise<ListShakhasRequest>;
 }>) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const { page, pageSize } = normalizePagination(resolvedSearchParams);
