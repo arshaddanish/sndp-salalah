@@ -43,6 +43,13 @@
       "when": 1775734436764,
       "tag": "0005_striped_carlie_cooper",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775893852456,
+      "tag": "0006_smooth_magneto",
+      "breakpoints": true
     }
   ]
 }
