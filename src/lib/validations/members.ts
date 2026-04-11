@@ -38,7 +38,7 @@ export const createMemberSchema = z.object({
   shakhaIndia: optionalText(),
   unionName: optionalText(),
   district: optionalText(),
-  officeShakhaId: optionalText(),
+  officeShakhaId: requiredText('Office Shakha').max(120, 'Office Shakha is too long'),
   submittedBy: requiredText('Submitted By').max(120, 'Submitted By is too long'),
   approvedBy: requiredText('Approved By').max(120, 'Approved By is too long'),
   receivedOn: requiredDate('Received On'),

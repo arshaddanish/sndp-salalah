@@ -73,7 +73,7 @@ function buildTransactionsQuery(filters: TransactionsFilterState): TransactionsQ
 export default async function TransactionsPage({
   searchParams,
 }: Readonly<{
-  searchParams?: ListTransactionsRequest | Promise<ListTransactionsRequest>;
+  searchParams?: Promise<ListTransactionsRequest>;
 }>) {
   const queryParams = (await searchParams) ?? {};
   const { page, pageSize } = normalizePagination(queryParams);
