@@ -85,7 +85,11 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
         entry_kind: 'regular',
         category_id: category.id,
         type: validationResult.data.type,
-        payment_mode: validationResult.data.paymentMode,
+        payment_mode: validationResult.data.paymentMode as
+          | 'cash'
+          | 'bank'
+          | 'online_transaction'
+          | 'cheque',
         fund_account: validationResult.data.fundAccount,
         payee_merchant: validationResult.data.payeeMerchant,
         paid_receipt_by: validationResult.data.paidReceiptBy,
@@ -409,7 +413,11 @@ export async function updateTransaction(
         amount: Number(validationResult.data.amount).toFixed(3),
         transaction_date: new Date(validationResult.data.transactionDate),
         category_id: validationResult.data.categoryId,
-        payment_mode: validationResult.data.paymentMode,
+        payment_mode: validationResult.data.paymentMode as
+          | 'cash'
+          | 'bank'
+          | 'online_transaction'
+          | 'cheque',
         fund_account: validationResult.data.fundAccount,
         payee_merchant: validationResult.data.payeeMerchant,
         paid_receipt_by: validationResult.data.paidReceiptBy,
