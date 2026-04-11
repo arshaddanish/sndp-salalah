@@ -69,4 +69,3 @@ jobs:
       - run: pnpm run build
         env:
           DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
-          ENABLE_ACTIONS_PLAYGROUND: 'false'

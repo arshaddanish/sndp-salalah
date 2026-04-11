@@ -21,6 +21,7 @@ import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
 import { family_members, members, shakhas } from '@/lib/db/schema';
+import { shouldShowDetailedErrors } from '@/lib/env';
 import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
 import { parseDateOrNull, parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import { getMemberStatus } from '@/lib/utils/member-status';
@@ -212,8 +213,10 @@ function mapMemberMutationError(error: unknown): string | null {
   const code = extractFirstKnownErrorCode(error);
   const constraint = extractFirstKnownConstraint(error);
   const hasUniqueConstraintMessage = normalizedMessage.includes('violates unique constraint');
+  const normalizedConstraint = constraint?.toLowerCase() ?? '';
+  const hasUniqueConstraintName = normalizedConstraint.includes('unique');
 
-  if (code === '23505' || constraint !== null || hasUniqueConstraintMessage) {
+  if (code === '23505' || hasUniqueConstraintMessage || hasUniqueConstraintName) {
     return mapMemberUniqueConstraintError(constraint, normalizedMessage);
   }
 
@@ -229,7 +232,7 @@ function buildDevDiagnosticMemberMutationError(error: unknown): string {
   const code = extractFirstKnownErrorCode(error);
   const joinedMessage = extractJoinedErrorMessage(error);
 
-  if (process.env.NODE_ENV === 'production') {
+  if (!shouldShowDetailedErrors) {
     return 'Unable to update member. Please try again.';
   }
 
@@ -476,60 +479,58 @@ export async function createMember(
     const normalizedOfficeShakhaId = parsedData.officeShakhaId.trim();
 
     try {
-      const insertedMembers = await db
-        .insert(members)
-        .values({
-          civil_id_no: normalizedCivilId,
-          name: parsedData.name.trim(),
-          dob: new Date(parsedData.dob),
-          family_status: parsedData.familyStatus,
-          email: parsedData.email,
-          photo_key: parsedData.photoKey,
-          gsm_no: parsedData.gsmNo.trim(),
-          whatsapp_no: parsedData.whatsappNo.trim(),
-          blood_group: parsedData.bloodGroup,
-          profession: parsedData.profession.trim(),
-          shakha_id: normalizedOfficeShakhaId,
-          residential_area: parsedData.residentialArea.trim(),
-          passport_no: parsedData.passportNo.trim(),
-          address_india: parsedData.addressIndia.trim(),
-          tel_no_india: parsedData.telNoIndia,
-          is_family_in_oman: parsedData.isFamilyInOman,
-          application_no: parsedData.applicationNo.trim(),
-          received_on: new Date(parsedData.receivedOn),
-          submitted_by: parsedData.submittedBy.trim(),
-          shakha_india: parsedData.shakhaIndia,
-          checked_by: parsedData.checkedBy.trim(),
-          approved_by: parsedData.approvedBy.trim(),
-          president: parsedData.president,
-          secretary: parsedData.secretary,
-          union_name: parsedData.unionName,
-          district: parsedData.district,
-        })
-        .returning({ id: members.id, member_code: members.member_code });
+      const result = await db.transaction(async (tx) => {
+        const insertedMembers = await tx
+          .insert(members)
+          .values({
+            civil_id_no: normalizedCivilId,
+            name: parsedData.name.trim(),
+            dob: new Date(parsedData.dob),
+            family_status: parsedData.familyStatus,
+            email: parsedData.email,
+            photo_key: parsedData.photoKey,
+            gsm_no: parsedData.gsmNo.trim(),
+            whatsapp_no: parsedData.whatsappNo.trim(),
+            blood_group: parsedData.bloodGroup,
+            profession: parsedData.profession.trim(),
+            shakha_id: normalizedOfficeShakhaId,
+            residential_area: parsedData.residentialArea.trim(),
+            passport_no: parsedData.passportNo.trim(),
+            address_india: parsedData.addressIndia.trim(),
+            tel_no_india: parsedData.telNoIndia,
+            is_family_in_oman: parsedData.isFamilyInOman,
+            application_no: parsedData.applicationNo.trim(),
+            received_on: new Date(parsedData.receivedOn),
+            submitted_by: parsedData.submittedBy.trim(),
+            shakha_india: parsedData.shakhaIndia,
+            checked_by: parsedData.checkedBy.trim(),
+            approved_by: parsedData.approvedBy.trim(),
+            president: parsedData.president,
+            secretary: parsedData.secretary,
+            union_name: parsedData.unionName,
+            district: parsedData.district,
+          })
+          .returning({ id: members.id, member_code: members.member_code });
 
-      if (!insertedMembers[0]) {
-        throw new Error('Failed to create member');
-      }
+        if (!insertedMembers[0]) {
+          throw new Error('Failed to create member');
+        }
 
-      const result = insertedMembers[0];
+        const insertedMember = insertedMembers[0];
 
-      // Insert family members if any. If this fails, remove the inserted member row to avoid partial writes.
-      if (parsedData.familyMembers && parsedData.familyMembers.length > 0) {
-        try {
-          await db.insert(family_members).values(
+        if (parsedData.familyMembers && parsedData.familyMembers.length > 0) {
+          await tx.insert(family_members).values(
             parsedData.familyMembers.map((fm) => ({
-              member_id: result.id,
+              member_id: insertedMember.id,
               name: fm.name.trim(),
               relation: fm.relation,
               dob: parseDateOrNull(fm.dob),
             })),
           );
-        } catch (familyInsertError) {
-          await db.delete(members).where(eq(members.id, result.id));
-          throw familyInsertError;
         }
-      }
+
+        return insertedMember;
+      });
 
       revalidatePath('/members');
 
@@ -555,10 +556,9 @@ export async function createMember(
     }
     return {
       success: false,
-      error:
-        process.env.NODE_ENV === 'production'
-          ? 'Unable to create member. Please try again.'
-          : `Unable to create member. Please try again. (${extractJoinedErrorMessage(error) || 'no DB details available'})`,
+      error: shouldShowDetailedErrors
+        ? `Unable to create member. Please try again. (${extractJoinedErrorMessage(error) || 'no DB details available'})`
+        : 'Unable to create member. Please try again.',
     };
   }
 }
@@ -796,60 +796,62 @@ export async function updateMember(
         throw new Error('Member not found or archived');
       }
 
-      // Check for civil_id uniqueness (excluding current member)
-      const duplicate = await db.query.members.findFirst({
-        where: and(eq(members.civil_id_no, normalizedCivilId), not(eq(members.id, memberId))),
+      await db.transaction(async (tx) => {
+        // Check for civil_id uniqueness (excluding current member)
+        const duplicate = await tx.query.members.findFirst({
+          where: and(eq(members.civil_id_no, normalizedCivilId), not(eq(members.id, memberId))),
+        });
+
+        if (duplicate) {
+          throw new Error('A member with this Civil ID already exists.');
+        }
+
+        await tx
+          .update(members)
+          .set({
+            name: data.name.trim(),
+            dob: new Date(data.dob),
+            profession: data.profession.trim(),
+            whatsapp_no: data.whatsappNo.trim(),
+            gsm_no: data.gsmNo.trim(),
+            family_status: data.familyStatus,
+            blood_group: data.bloodGroup,
+            residential_area: data.residentialArea.trim(),
+            civil_id_no: normalizedCivilId,
+            passport_no: data.passportNo.trim(),
+            email: data.email,
+            tel_no_india: data.telNoIndia,
+            address_india: data.addressIndia.trim(),
+            is_family_in_oman: data.isFamilyInOman,
+            shakha_india: data.shakhaIndia,
+            union_name: data.unionName,
+            district: data.district,
+            shakha_id: normalizedOfficeShakhaId,
+            submitted_by: data.submittedBy.trim(),
+            approved_by: data.approvedBy.trim(),
+            received_on: new Date(data.receivedOn),
+            checked_by: data.checkedBy.trim(),
+            expiry: parseDateOrNull(data.expiry) ?? existing.expiry,
+            application_no: data.applicationNo.trim(),
+            secretary: data.secretary,
+            president: data.president,
+            photo_key: data.photoKey?.trim() || existing.photo_key,
+          })
+          .where(eq(members.id, memberId));
+
+        await tx.delete(family_members).where(eq(family_members.member_id, memberId));
+
+        if (data.familyMembers && data.familyMembers.length > 0) {
+          await tx.insert(family_members).values(
+            data.familyMembers.map((fm) => ({
+              member_id: memberId,
+              name: fm.name.trim(),
+              relation: fm.relation,
+              dob: parseDateOrNull(fm.dob),
+            })),
+          );
+        }
       });
-
-      if (duplicate) {
-        throw new Error('A member with this Civil ID already exists.');
-      }
-
-      await db
-        .update(members)
-        .set({
-          name: data.name.trim(),
-          dob: new Date(data.dob),
-          profession: data.profession.trim(),
-          whatsapp_no: data.whatsappNo.trim(),
-          gsm_no: data.gsmNo.trim(),
-          family_status: data.familyStatus,
-          blood_group: data.bloodGroup,
-          residential_area: data.residentialArea.trim(),
-          civil_id_no: normalizedCivilId,
-          passport_no: data.passportNo.trim(),
-          email: data.email,
-          tel_no_india: data.telNoIndia,
-          address_india: data.addressIndia.trim(),
-          is_family_in_oman: data.isFamilyInOman,
-          shakha_india: data.shakhaIndia,
-          union_name: data.unionName,
-          district: data.district,
-          shakha_id: normalizedOfficeShakhaId,
-          submitted_by: data.submittedBy.trim(),
-          approved_by: data.approvedBy.trim(),
-          received_on: new Date(data.receivedOn),
-          checked_by: data.checkedBy.trim(),
-          expiry: parseDateOrNull(data.expiry) ?? existing.expiry,
-          application_no: data.applicationNo.trim(),
-          secretary: data.secretary,
-          president: data.president,
-          photo_key: data.photoKey?.trim() || existing.photo_key,
-        })
-        .where(eq(members.id, memberId));
-
-      await db.delete(family_members).where(eq(family_members.member_id, memberId));
-
-      if (data.familyMembers && data.familyMembers.length > 0) {
-        await db.insert(family_members).values(
-          data.familyMembers.map((fm) => ({
-            member_id: memberId,
-            name: fm.name.trim(),
-            relation: fm.relation,
-            dob: parseDateOrNull(fm.dob),
-          })),
-        );
-      }
 
       revalidatePath(`/members/${memberId}`);
       revalidatePath('/members');

@@ -275,7 +275,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
       try {
         await runMemberSubmit(
           { isEditMode, initialData, payload, photoFile },
-          { setFieldErrors, setErrorMessage, push: router.push },
+          { setFieldErrors, setErrorMessage, push: (href) => router.push(href) },
         );
       } catch (error) {
         console.error('Unexpected error during member submit:', error);
