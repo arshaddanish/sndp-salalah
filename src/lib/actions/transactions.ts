@@ -270,7 +270,11 @@ export async function fetchTransactions(
         .from(transactions)
         .leftJoin(transactionCategories, eq(transactions.category_id, transactionCategories.id))
         .where(and(...conditions))
-        .orderBy(desc(transactions.transaction_date), desc(transactions.created_at))
+        .orderBy(
+          desc(transactions.transaction_date),
+          desc(transactions.created_at),
+          desc(transactions.transaction_code),
+        )
         .limit(pageSize)
         .offset(offset),
       db
@@ -359,6 +363,10 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
       return { success: false, error: 'Transaction not found.' };
     }
 
+    if (existing.entry_kind !== 'regular') {
+      return { success: false, error: 'Only regular transactions can be deleted.' };
+    }
+
     await db.delete(transactions).where(eq(transactions.id, id));
     revalidatePath('/transactions');
     return { success: true, data: null };
@@ -406,6 +414,10 @@ export async function updateTransaction(
 
     if (!existing) {
       return { success: false, error: 'Transaction not found.' };
+    }
+
+    if (existing.entry_kind !== 'regular') {
+      return { success: false, error: 'Only regular transactions can be updated.' };
     }
 
     await db
