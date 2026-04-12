@@ -1,5 +1,5 @@
 import { createShakha, deleteShakha, fetchShakhas, updateShakha } from '@/lib/actions/shakhas';
-
+import { createTransaction, fetchTransactions } from '@/lib/actions/transactions';
 export type JsonRecord = Record<string, unknown>;
 // eslint-disable-next-line no-unused-vars
 export type ActionValidator = (payload: JsonRecord) => string | null;
@@ -99,5 +99,54 @@ export const ACTION_CATEGORIES: ActionCategory[] = [
     title: 'Members',
     description: 'Member profile and renewal actions',
     actions: [],
+  },
+  {
+    id: 'transactions',
+    title: 'Transactions',
+    description: 'Transaction management actions',
+    actions: [
+      {
+        id: 'create-transaction',
+        title: 'Create Transaction',
+        description: 'Create a new transaction.',
+        defaultInput: JSON.stringify(
+          {
+            type: 'income',
+            amount: '100.000',
+            transactionDate: '2026-04-12',
+            categoryId: '',
+            paymentMode: 'cash',
+            fundAccount: 'cash',
+            payeeMerchant: '',
+            paidReceiptBy: '',
+            remarks: 'Test transaction',
+          },
+          null,
+          2,
+        ),
+        validate: (payload) => {
+          if (!isNonEmptyString(payload['type'] as string)) return 'type is required.';
+          if (!isNonEmptyString(payload['amount'] as string)) return 'amount is required.';
+          if (!isNonEmptyString(payload['transactionDate'] as string))
+            return 'transactionDate is required.';
+          if (!isNonEmptyString(payload['categoryId'] as string)) return 'categoryId is required.';
+          return null;
+        },
+        onRun: (payload) => createTransaction(payload),
+      },
+      {
+        id: 'fetch-transactions',
+        title: 'Fetch Transactions',
+        description: 'Fetch paginated transactions.',
+        defaultInput: JSON.stringify({ page: 1, pageSize: 10 }, null, 2),
+        validate: (payload) => {
+          if (typeof payload['page'] !== 'number') return 'page must be a number.';
+          if (typeof payload['pageSize'] !== 'number') return 'pageSize must be a number.';
+          return null;
+        },
+        onRun: (payload) =>
+          fetchTransactions(payload['page'] as number, payload['pageSize'] as number),
+      },
+    ],
   },
 ];

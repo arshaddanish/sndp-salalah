@@ -1,4 +1,3 @@
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
 import type { Metadata } from 'next';
 
 import { DashboardFinancialActivity } from '@/components/features/dashboard/dashboard-financial-activity';
@@ -6,15 +5,12 @@ import { DashboardFinancialChart } from '@/components/features/dashboard/dashboa
 import { DashboardKpis } from '@/components/features/dashboard/dashboard-kpis';
 import { DashboardMemberActivity } from '@/components/features/dashboard/dashboard-member-activity';
 import { DashboardMemberChart } from '@/components/features/dashboard/dashboard-member-chart';
-import { db } from '@/lib/db';
-import { members } from '@/lib/db/schema';
-import type {
-  FinancialActivityMetrics,
-  FinancialTrendData,
-  KpiData,
-  MemberActivityMetrics,
-  MemberStatusData,
-} from '@/types/dashboard';
+import {
+  getDashboardMemberActivity,
+  getDashboardMemberKpis,
+  getDashboardMemberStatus,
+} from '@/lib/db/queries/dashboard';
+import type { FinancialActivityMetrics, FinancialTrendData, KpiData } from '@/types/dashboard';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -22,100 +18,19 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-  const startOfMonth = new Date(currentYear, currentMonth, 1);
-  const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-  const [
-    totalMembersResult,
-    nearExpiryResult,
-    memberStatusResult,
-    newThisMonthResult,
-    renewedThisMonthResult,
-    expiredThisMonthResult,
-  ] = await Promise.all([
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(eq(members.is_archived, false)),
-
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(
-        and(
-          eq(members.is_archived, false),
-          gte(members.expiry, now),
-          lt(members.expiry, thirtyDaysFromNow),
-        ),
-      ),
-
-    db
-      .select({
-        active: sql<number>`count(*) filter (where expiry >= ${now} and is_archived = false and is_lifetime = false)`,
-        expired: sql<number>`count(*) filter (where expiry < ${now} and is_archived = false)`,
-        lifetime: sql<number>`count(*) filter (where is_lifetime = true and is_archived = false)`,
-        pending: sql<number>`count(*) filter (where expiry is null and is_lifetime = false and is_archived = false)`,
-      })
-      .from(members),
-
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(and(eq(members.is_archived, false), gte(members.active_from, startOfMonth))),
-
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(
-        and(
-          eq(members.is_archived, false),
-          gte(members.active_from, startOfMonth),
-          gte(members.expiry, now),
-        ),
-      ),
-
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(
-        and(
-          eq(members.is_archived, false),
-          gte(members.expiry, startOfMonth),
-          lt(members.expiry, now),
-        ),
-      ),
+  const [kpis, memberStatus, memberActivity] = await Promise.all([
+    getDashboardMemberKpis(),
+    getDashboardMemberStatus(),
+    getDashboardMemberActivity(),
   ]);
 
-  const totalMembers = Number(totalMembersResult[0]?.count ?? 0);
-  const nearExpiry = Number(nearExpiryResult[0]?.count ?? 0);
-  const statusRow = memberStatusResult[0];
-  const periodLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' });
-
   const kpiStats: KpiData = {
-    totalMembers,
-    nearExpiry,
+    totalMembers: kpis.totalMembers,
+    nearExpiry: kpis.nearExpiry,
     cashInHand: 1250,
     cashInBank: 14890.5,
     ytdIncome: 5400,
     ytdExpense: 2150,
-  };
-
-  const memberStatusData: MemberStatusData = {
-    pending: Number(statusRow?.pending ?? 0),
-    active: Number(statusRow?.active ?? 0),
-    expired: Number(statusRow?.expired ?? 0),
-    lifetime: Number(statusRow?.lifetime ?? 0),
-    nearExpiry,
-  };
-
-  const monthlyActivity: MemberActivityMetrics = {
-    period: periodLabel,
-    newThisMonth: Number(newThisMonthResult[0]?.count ?? 0),
-    renewedThisMonth: Number(renewedThisMonthResult[0]?.count ?? 0),
-    expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
   };
 
   const financialActivity: FinancialActivityMetrics = {
@@ -153,10 +68,10 @@ export default async function DashboardPage() {
       </div>
       <DashboardKpis data={kpiStats} />
       <div className="grid gap-6 lg:grid-cols-2">
-        <DashboardMemberChart data={memberStatusData} />
+        <DashboardMemberChart data={memberStatus} />
         <div className="space-y-6">
           <DashboardFinancialActivity data={financialActivity} />
-          <DashboardMemberActivity data={monthlyActivity} />
+          <DashboardMemberActivity data={memberActivity} />
         </div>
       </div>
       <DashboardFinancialChart data={financialTrend} />
