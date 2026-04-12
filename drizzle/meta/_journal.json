@@ -71,6 +71,13 @@
       "when": 1776004259633,
       "tag": "0009_seed_system_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776014275165,
+      "tag": "0010_medical_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

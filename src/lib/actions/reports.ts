@@ -1,7 +1,6 @@
 'use server';
 
-import { format } from 'date-fns';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte, sql } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { transactionCategories, transactions } from '@/lib/db/schema';
@@ -57,29 +56,39 @@ export async function fetchReportData(
       conditions.push(lte(transactions.transaction_date, end));
     }
 
-    const filteredRows = await db
-      .select({
-        id: transactions.id,
-        amount: transactions.amount,
-        type: transactions.type,
-        fundAccount: transactions.fund_account,
-        transactionDate: transactions.transaction_date,
-        categoryName: transactionCategories.name,
-      })
-      .from(transactions)
-      .leftJoin(transactionCategories, eq(transactions.category_id, transactionCategories.id))
-      .where(and(...conditions));
-
-    const incomeTotalsByCategory = new Map<string, number>();
-    const expenseTotalsByCategory = new Map<string, number>();
-    const monthlyTotals = new Map<
-      string,
-      {
-        monthLabel: string;
-        income: number;
-        expense: number;
-      }
-    >();
+    const [summaryRows, categoryRows, monthlyRows] = await Promise.all([
+      db
+        .select({
+          type: transactions.type,
+          fundAccount: transactions.fund_account,
+          total: sql<number>`sum(${transactions.amount})`,
+          count: sql<number>`count(${transactions.id})`,
+        })
+        .from(transactions)
+        .where(and(...conditions))
+        .groupBy(transactions.type, transactions.fund_account),
+      db
+        .select({
+          type: transactions.type,
+          categoryName: transactionCategories.name,
+          total: sql<number>`sum(${transactions.amount})`,
+        })
+        .from(transactions)
+        .leftJoin(transactionCategories, eq(transactions.category_id, transactionCategories.id))
+        .where(and(...conditions))
+        .groupBy(transactions.type, transactionCategories.name),
+      db
+        .select({
+          month: sql<string>`to_char(${transactions.transaction_date}, 'YYYY-MM')`,
+          monthLabel: sql<string>`to_char(${transactions.transaction_date}, 'Mon YY')`,
+          type: transactions.type,
+          total: sql<number>`sum(${transactions.amount})`,
+        })
+        .from(transactions)
+        .where(and(...conditions))
+        .groupBy(sql`1`, sql`2`, transactions.type)
+        .orderBy(sql`1`),
+    ]);
 
     let totalIncome = 0;
     let totalExpense = 0;
@@ -90,78 +99,41 @@ export async function fetchReportData(
     let bankIncome = 0;
     let bankExpense = 0;
 
-    filteredRows.forEach((row) => {
-      const amount = Number(row.amount);
-      const monthKey = format(row.transactionDate, 'yyyy-MM');
-      const monthlyEntry = monthlyTotals.get(monthKey) ?? {
-        monthLabel: format(row.transactionDate, 'MMM yy'),
-        income: 0,
-        expense: 0,
-      };
-
-      const categoryName = row.categoryName ?? 'Uncategorized';
-
+    summaryRows.forEach((row) => {
+      const amount = Number(row.total);
+      const count = Number(row.count);
       if (row.type === 'income') {
         totalIncome += amount;
-        incomeTransactionCount += 1;
-        incomeTotalsByCategory.set(
-          categoryName,
-          (incomeTotalsByCategory.get(categoryName) ?? 0) + amount,
-        );
-        monthlyEntry.income += amount;
-
-        if (row.fundAccount === 'cash') {
-          cashIncome += amount;
-        } else {
-          bankIncome += amount;
-        }
-      } else {
+        incomeTransactionCount += count;
+        if (row.fundAccount === 'cash') cashIncome += amount;
+        else if (row.fundAccount === 'bank') bankIncome += amount;
+      } else if (row.type === 'expense') {
         totalExpense += amount;
-        expenseTransactionCount += 1;
-        expenseTotalsByCategory.set(
-          categoryName,
-          (expenseTotalsByCategory.get(categoryName) ?? 0) + amount,
-        );
-        monthlyEntry.expense += amount;
-
-        if (row.fundAccount === 'cash') {
-          cashExpense += amount;
-        } else {
-          bankExpense += amount;
-        }
+        expenseTransactionCount += count;
+        if (row.fundAccount === 'cash') cashExpense += amount;
+        else if (row.fundAccount === 'bank') bankExpense += amount;
       }
-
-      monthlyTotals.set(monthKey, monthlyEntry);
     });
 
     const incomeBreakdown = sortBreakdownItems(
-      Array.from(incomeTotalsByCategory.entries()).map(([categoryName, total]) => ({
-        categoryName,
-        total,
-      })),
+      categoryRows
+        .filter((r) => r.type === 'income')
+        .map((r) => ({ categoryName: r.categoryName ?? 'Uncategorized', total: Number(r.total) })),
     );
 
     const expenseBreakdown = sortBreakdownItems(
-      Array.from(expenseTotalsByCategory.entries()).map(([categoryName, total]) => ({
-        categoryName,
-        total,
-      })),
+      categoryRows
+        .filter((r) => r.type === 'expense')
+        .map((r) => ({ categoryName: r.categoryName ?? 'Uncategorized', total: Number(r.total) })),
     );
 
-    const monthlyTrend: MonthlyDataPoint[] = Array.from(monthlyTotals.entries())
-      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-      .map(([, value]) => ({
-        month: value.monthLabel,
-        income: value.income,
-        expense: value.expense,
-      }));
-
-    const totalTransactions = filteredRows.length;
-
-    const fundAccountBreakdown = {
-      cash: buildFundAccountMetrics(cashIncome, cashExpense, totalIncome, totalExpense),
-      bank: buildFundAccountMetrics(bankIncome, bankExpense, totalIncome, totalExpense),
-    };
+    const monthlyMap = new Map<string, MonthlyDataPoint>();
+    monthlyRows.forEach((row) => {
+      const entry = monthlyMap.get(row.month) ?? { month: row.monthLabel, income: 0, expense: 0 };
+      if (row.type === 'income') entry.income += Number(row.total);
+      else if (row.type === 'expense') entry.expense += Number(row.total);
+      monthlyMap.set(row.month, entry);
+    });
 
     return {
       success: true,
@@ -170,14 +142,17 @@ export async function fetchReportData(
           totalIncome,
           totalExpense,
           periodNet: totalIncome - totalExpense,
-          transactionCount: totalTransactions,
+          transactionCount: incomeTransactionCount + expenseTransactionCount,
           incomeTransactionCount,
           expenseTransactionCount,
         },
-        fundAccountBreakdown,
+        fundAccountBreakdown: {
+          cash: buildFundAccountMetrics(cashIncome, cashExpense, totalIncome, totalExpense),
+          bank: buildFundAccountMetrics(bankIncome, bankExpense, totalIncome, totalExpense),
+        },
         incomeBreakdown,
         expenseBreakdown,
-        monthlyTrend,
+        monthlyTrend: Array.from(monthlyMap.values()),
       },
     };
   } catch (error) {

@@ -737,9 +737,9 @@ export async function renewMembership(
     }
 
     // Update records in a single transaction
-    const nextCode = await getNextTransactionCode();
-
     const result = await db.transaction(async (tx) => {
+      const nextCode = await getNextTransactionCode(tx);
+
       // 1. Create the payment transaction
       const [newTxn] = await tx
         .insert(transactions)
@@ -773,8 +773,14 @@ export async function renewMembership(
         existingExpiry.setHours(0, 0, 0, 0);
       }
 
+      // Only advance active_from when the member is already expired (or never had an expiry).
+      // For early renewals the existing active_from must be preserved to keep the
+      // continuous membership record intact.
+      const isExpired =
+        existingExpiry === null || existingExpiry.getTime() < normalizedToday.getTime();
+
       let nextActiveFrom = new Date(normalizedToday);
-      if (existingExpiry !== null) {
+      if (isExpired && existingExpiry !== null) {
         const dayAfterExistingExpiry = new Date(existingExpiry);
         dayAfterExistingExpiry.setDate(dayAfterExistingExpiry.getDate() + 1);
         nextActiveFrom =
@@ -786,7 +792,7 @@ export async function renewMembership(
       await tx
         .update(members)
         .set({
-          active_from: nextActiveFrom,
+          ...(isExpired ? { active_from: nextActiveFrom } : {}),
           expiry: new Date(data.newExpiry),
           is_lifetime: false,
           updated_at: new Date(),

@@ -1,6 +1,6 @@
 'use server';
 
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, count, desc, eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
@@ -58,13 +58,11 @@ export async function fetchShakhas(
         name: shakhas.name,
         created_at: shakhas.created_at,
         updated_at: shakhas.updated_at,
-        memberCount: sql<number>`(
-          SELECT count(*) 
-          FROM members 
-          WHERE members.shakha_id = shakhas.id AND members.is_archived = false
-        )`.mapWith(Number),
+        memberCount: count(members.id).mapWith(Number),
       })
       .from(shakhas)
+      .leftJoin(members, and(eq(members.shakha_id, shakhas.id), eq(members.is_archived, false)))
+      .groupBy(shakhas.id, shakhas.name, shakhas.created_at, shakhas.updated_at)
       .orderBy(desc(shakhas.created_at), desc(shakhas.id))
       .limit(pageSize)
       .offset(start);

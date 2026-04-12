@@ -184,7 +184,7 @@ export function ReportsView({ reportData, startDate, endDate }: Readonly<Reports
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   const currentStartDate = searchParams.get('startDate') ?? startDate;
   const currentEndDate = searchParams.get('endDate') ?? endDate;
@@ -231,102 +231,118 @@ export function ReportsView({ reportData, startDate, endDate }: Readonly<Reports
         />
       </div>
 
-      <SummaryCard
-        totalIncome={reportData.summary.totalIncome}
-        totalExpense={reportData.summary.totalExpense}
-        periodNet={reportData.summary.periodNet}
-        transactionCount={reportData.summary.transactionCount}
-        incomeTransactionCount={reportData.summary.incomeTransactionCount}
-        expenseTransactionCount={reportData.summary.expenseTransactionCount}
-      />
+      <div
+        className={`space-y-6 transition-opacity duration-150 ${
+          isPending ? 'pointer-events-none opacity-50' : 'opacity-100'
+        }`}
+      >
+        <SummaryCard
+          totalIncome={reportData.summary.totalIncome}
+          totalExpense={reportData.summary.totalExpense}
+          periodNet={reportData.summary.periodNet}
+          transactionCount={reportData.summary.transactionCount}
+          incomeTransactionCount={reportData.summary.incomeTransactionCount}
+          expenseTransactionCount={reportData.summary.expenseTransactionCount}
+        />
 
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-text-primary text-base font-semibold">Fund Account Breakdown</h2>
-        </div>
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-text-primary text-base font-semibold">Fund Account Breakdown</h2>
+          </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <FundAccountCard
-            title="Cash Fund"
-            income={reportData.fundAccountBreakdown.cash.income}
-            expense={reportData.fundAccountBreakdown.cash.expense}
-            net={reportData.fundAccountBreakdown.cash.net}
-            incomeShare={reportData.fundAccountBreakdown.cash.incomeShare}
-            expenseShare={reportData.fundAccountBreakdown.cash.expenseShare}
-          />
-          <FundAccountCard
-            title="Bank Fund"
-            income={reportData.fundAccountBreakdown.bank.income}
-            expense={reportData.fundAccountBreakdown.bank.expense}
-            net={reportData.fundAccountBreakdown.bank.net}
-            incomeShare={reportData.fundAccountBreakdown.bank.incomeShare}
-            expenseShare={reportData.fundAccountBreakdown.bank.expenseShare}
-          />
-        </div>
-      </div>
-
-      <Card>
-        <div className="mb-4">
-          <h2 className="text-text-primary text-base font-semibold">Income vs Expense (Monthly)</h2>
-        </div>
-
-        <div className="overflow-x-auto pb-2">
-          <div style={{ minWidth: `${Math.max(600, chartData.length * 60)}px` }}>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--color-border)"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="month"
-                  stroke="var(--color-text-secondary)"
-                  style={{ fontSize: '12px' }}
-                />
-                <YAxis
-                  stroke="var(--color-text-secondary)"
-                  style={{ fontSize: '12px' }}
-                  width={48}
-                />
-                <Tooltip
-                  formatter={(value) => formatCurrency(Number(value))}
-                  contentStyle={{
-                    backgroundColor: 'var(--color-surface)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                  }}
-                />
-                <Legend wrapperStyle={{ paddingTop: '16px' }} />
-                <Bar
-                  dataKey="income"
-                  fill="var(--color-success)"
-                  radius={[6, 6, 0, 0]}
-                  name="Income"
-                />
-                <Bar
-                  dataKey="expense"
-                  fill="var(--color-danger)"
-                  radius={[6, 6, 0, 0]}
-                  name="Expense"
-                />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <FundAccountCard
+              title="Cash Fund"
+              income={reportData.fundAccountBreakdown.cash.income}
+              expense={reportData.fundAccountBreakdown.cash.expense}
+              net={reportData.fundAccountBreakdown.cash.net}
+              incomeShare={reportData.fundAccountBreakdown.cash.incomeShare}
+              expenseShare={reportData.fundAccountBreakdown.cash.expenseShare}
+            />
+            <FundAccountCard
+              title="Bank Fund"
+              income={reportData.fundAccountBreakdown.bank.income}
+              expense={reportData.fundAccountBreakdown.bank.expense}
+              net={reportData.fundAccountBreakdown.bank.net}
+              incomeShare={reportData.fundAccountBreakdown.bank.incomeShare}
+              expenseShare={reportData.fundAccountBreakdown.bank.expenseShare}
+            />
           </div>
         </div>
-      </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <BreakdownTable
-          title="Income Breakdown"
-          rows={reportData.incomeBreakdown}
-          amountClassName="text-success"
-        />
-        <BreakdownTable
-          title="Expense Breakdown"
-          rows={reportData.expenseBreakdown}
-          amountClassName="text-danger"
-        />
+        <Card>
+          <div className="mb-4">
+            <h2 className="text-text-primary text-base font-semibold">
+              Income vs Expense (Monthly)
+            </h2>
+          </div>
+
+          <div className="overflow-x-auto pb-2">
+            <div style={{ minWidth: `${Math.max(600, chartData.length * 60)}px` }}>
+              {chartData.length === 0 ? (
+                <div className="flex h-[320px] items-center justify-center">
+                  <p className="text-text-muted text-sm">
+                    No transaction data for the selected date range.
+                  </p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--color-border)"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="month"
+                      stroke="var(--color-text-secondary)"
+                      style={{ fontSize: '12px' }}
+                    />
+                    <YAxis
+                      stroke="var(--color-text-secondary)"
+                      style={{ fontSize: '12px' }}
+                      width={48}
+                    />
+                    <Tooltip
+                      formatter={(value) => formatCurrency(Number(value))}
+                      contentStyle={{
+                        backgroundColor: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: '16px' }} />
+                    <Bar
+                      dataKey="income"
+                      fill="var(--color-success)"
+                      radius={[6, 6, 0, 0]}
+                      name="Income"
+                    />
+                    <Bar
+                      dataKey="expense"
+                      fill="var(--color-danger)"
+                      radius={[6, 6, 0, 0]}
+                      name="Expense"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <BreakdownTable
+            title="Income Breakdown"
+            rows={reportData.incomeBreakdown}
+            amountClassName="text-success"
+          />
+          <BreakdownTable
+            title="Expense Breakdown"
+            rows={reportData.expenseBreakdown}
+            amountClassName="text-danger"
+          />
+        </div>
       </div>
     </div>
   );
