@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { ActionsPlayground } from '@/components/features/dev/actions-playground';
-import { isActionsPlaygroundEnabled } from '@/lib/env';
+import { isActionsWorkbenchEnabled } from '@/lib/env';
 
 export const metadata = {
   title: 'Actions Workbench | SNDP Salalah',
@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default function ActionsPlaygroundPage() {
-  if (!isActionsPlaygroundEnabled) {
+  if (!isActionsWorkbenchEnabled) {
     notFound();
   }
 

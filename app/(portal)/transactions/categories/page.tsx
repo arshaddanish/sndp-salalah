@@ -14,7 +14,7 @@ export const metadata = {
 export default async function TransactionCategoriesPage({
   searchParams,
 }: Readonly<{
-  searchParams?: ListTransactionCategoriesRequest | Promise<ListTransactionCategoriesRequest>;
+  searchParams?: Promise<ListTransactionCategoriesRequest>;
 }>) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const { page, pageSize } = normalizePagination(resolvedSearchParams);
