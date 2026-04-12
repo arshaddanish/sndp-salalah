@@ -1,5 +1,6 @@
 import { createShakha, deleteShakha, fetchShakhas, updateShakha } from '@/lib/actions/shakhas';
 import { createTransaction, fetchTransactions } from '@/lib/actions/transactions';
+import { createTransactionSchema } from '@/lib/validations/transactions';
 export type JsonRecord = Record<string, unknown>;
 // eslint-disable-next-line no-unused-vars
 export type ActionValidator = (payload: JsonRecord) => string | null;
@@ -125,26 +126,10 @@ export const ACTION_CATEGORIES: ActionCategory[] = [
           2,
         ),
         validate: (payload) => {
-          const type = payload['type'];
-          const paymentMode = payload['paymentMode'];
-          const fundAccount = payload['fundAccount'];
-          if (type !== 'income' && type !== 'expense') return 'type must be income or expense.';
-          if (!isNonEmptyString(payload['amount'] as string)) return 'amount is required.';
-          if (!isNonEmptyString(payload['transactionDate'] as string))
-            return 'transactionDate is required.';
-          if (!isNonEmptyString(payload['categoryId'] as string)) return 'categoryId is required.';
-          if (
-            paymentMode !== 'cash' &&
-            paymentMode !== 'bank' &&
-            paymentMode !== 'online_transaction' &&
-            paymentMode !== 'cheque'
-          ) {
-            return 'paymentMode is invalid.';
-          }
-          if (fundAccount !== 'cash' && fundAccount !== 'bank') {
-            return 'fundAccount is invalid.';
-          }
-          return null;
+          const result = createTransactionSchema.safeParse(payload);
+          return result.success
+            ? null
+            : (result.error.issues[0]?.message ?? 'Invalid transaction input.');
         },
         onRun: (payload) => createTransaction(payload),
       },
