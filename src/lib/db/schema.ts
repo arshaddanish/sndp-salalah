@@ -146,6 +146,7 @@ export const transactions = pgTable(
     fund_account: text('fund_account', { enum: ['cash', 'bank'] }).notNull(),
     payee_merchant: text('payee_merchant'),
     paid_receipt_by: text('paid_receipt_by'),
+    member_id: text('member_id').references(() => members.id),
     amount: numeric('amount', { precision: 10, scale: 3 }).notNull(),
     remarks: text('remarks').notNull().default(''),
     attachment_key: text('attachment_key'),

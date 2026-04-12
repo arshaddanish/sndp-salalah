@@ -1,0 +1,2 @@
+ALTER TABLE "transactions" ADD COLUMN "member_id" text;--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE no action ON UPDATE no action;

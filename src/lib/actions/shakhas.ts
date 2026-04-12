@@ -1,12 +1,10 @@
 'use server';
 
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
-import { shakhas } from '@/lib/db/schema';
-import { MOCK_MEMBERS } from '@/lib/mock-data/members';
-import type { ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
+import { members, shakhas } from '@/lib/db/schema';
 import {
   createShakhaSchema,
   deleteShakhaSchema,
@@ -14,14 +12,17 @@ import {
 } from '@/lib/validations/shakhas';
 import type { ActionResult } from '@/types/actions';
 import type { PaginationResponse } from '@/types/pagination';
+import type { ShakhaWithMemberCount } from '@/types/shakhas';
 
 /**
- * Count members assigned to a specific shakha
- * @param shakhaId shakha ID to count members for
- * @returns number of members with matching shakha_id
+ * Count members assigned to a specific shakha from the database
  */
-function countMembersForShakha(shakhaId: string): number {
-  return MOCK_MEMBERS.filter((member) => member.shakha_id === shakhaId).length;
+async function getMemberCountForShakha(shakhaId: string): Promise<number> {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(members)
+    .where(and(eq(members.shakha_id, shakhaId), eq(members.is_archived, false)));
+  return Number(result[0]?.count ?? 0);
 }
 
 function normalizeShakhaName(name: string): string {
@@ -29,11 +30,7 @@ function normalizeShakhaName(name: string): string {
 }
 
 /**
- * Fetch paginated shakhas with member counts
- *
- * @param page 1-indexed page number
- * @param pageSize items per page
- * @returns PaginationResponse with items array (including memberCount) and total count
+ * Fetch paginated shakhas with member counts from database
  */
 export async function fetchShakhas(
   page: number,
@@ -61,21 +58,21 @@ export async function fetchShakhas(
         name: shakhas.name,
         created_at: shakhas.created_at,
         updated_at: shakhas.updated_at,
+        memberCount: sql<number>`(
+          SELECT count(*) 
+          FROM members 
+          WHERE members.shakha_id = shakhas.id AND members.is_archived = false
+        )`.mapWith(Number),
       })
       .from(shakhas)
       .orderBy(desc(shakhas.created_at), desc(shakhas.id))
       .limit(pageSize)
       .offset(start);
 
-    const itemsWithCounts: ShakhaWithMemberCount[] = rows.map((shakha) => ({
-      ...shakha,
-      memberCount: countMembersForShakha(shakha.id),
-    }));
-
     return {
       success: true,
       data: {
-        items: itemsWithCounts,
+        items: rows as ShakhaWithMemberCount[],
         totalCount,
       },
     };
@@ -137,7 +134,7 @@ export async function updateShakha(
         success: true,
         data: {
           ...unchangedShakha,
-          memberCount: countMembersForShakha(shakhaId),
+          memberCount: await getMemberCountForShakha(shakhaId),
         },
       };
     }
@@ -180,7 +177,7 @@ export async function updateShakha(
       success: true,
       data: {
         ...updated,
-        memberCount: countMembersForShakha(shakhaId),
+        memberCount: await getMemberCountForShakha(shakhaId),
       },
     };
   } catch (error) {
@@ -282,7 +279,7 @@ export async function deleteShakha(shakhaId: string): Promise<ActionResult<{ id:
       };
     }
 
-    const memberCount = countMembersForShakha(shakhaId);
+    const memberCount = await getMemberCountForShakha(shakhaId);
     if (memberCount > 0) {
       return {
         success: false,

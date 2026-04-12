@@ -22,7 +22,7 @@ const OPENING_BALANCE_TRANSACTION_CODES = {
   bank: 1000,
 } as const;
 
-async function getNextTransactionCode(): Promise<number> {
+export async function getNextTransactionCode(): Promise<number> {
   const result = await db
     .select({ max: sql<number>`max(${transactions.transaction_code})` })
     .from(transactions)
