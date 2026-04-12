@@ -1,6 +1,6 @@
 'use server';
 
-import { and, asc, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
@@ -15,11 +15,7 @@ import {
 import type { ActionResult } from '@/types/actions';
 import type { TransactionsQuery } from '@/types/filters/transactions';
 import type { PaginationResponse } from '@/types/pagination';
-import type {
-  ExistingOpeningBalance,
-  RegularTransactionRow,
-  TransactionStatementRow,
-} from '@/types/transactions';
+import type { ExistingOpeningBalance, RegularTransactionRow } from '@/types/transactions';
 
 const OPENING_BALANCE_TRANSACTION_CODES = {
   cash: 999,
@@ -33,18 +29,6 @@ async function getNextTransactionCode(): Promise<number> {
     .where(eq(transactions.entry_kind, 'regular'));
 
   return (result[0]?.max ?? 1000) + 1;
-}
-
-function isRegularTransactionRow(
-  transaction: TransactionStatementRow,
-): transaction is RegularTransactionRow {
-  return (
-    transaction.entryKind === 'regular' &&
-    transaction.categoryId !== null &&
-    transaction.categoryName !== null &&
-    transaction.type !== null &&
-    transaction.paymentMode !== null
-  );
 }
 
 export async function createTransaction(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -98,12 +82,15 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
         attachment_key: validationResult.data.attachmentKey,
       })
       .returning();
+    if (!created) {
+      return { success: false, error: 'Failed to create transaction.' };
+    }
 
     revalidatePath('/transactions');
 
     return {
       success: true,
-      data: { id: created!.id },
+      data: { id: created.id },
     };
   } catch (error) {
     console.error('Error creating transaction:', error);
@@ -163,8 +150,12 @@ export async function createOpeningBalance(input: unknown): Promise<ActionResult
       })
       .returning();
 
+    if (!created) {
+      return { success: false, error: 'Failed to set opening balance.' };
+    }
+
     revalidatePath('/transactions');
-    return { success: true, data: { id: created!.id } };
+    return { success: true, data: { id: created.id } };
   } catch (error) {
     console.error('Error creating opening balance:', error);
     return {
@@ -183,7 +174,7 @@ export async function fetchOpeningBalances(): Promise<
     });
 
     const toExistingOpeningBalance = (
-      transaction: (typeof openingBalances)[0] | undefined,
+      transaction: typeof transactions.$inferSelect | undefined,
     ): ExistingOpeningBalance | null => {
       if (!transaction) return null;
       return {
@@ -209,32 +200,7 @@ export async function fetchOpeningBalances(): Promise<
     };
   }
 }
-function computeRunningBalances(
-  allTransactions: {
-    id: string;
-    amount: string;
-    type: string | null;
-    fundAccount: string;
-    entryKind: string;
-  }[],
-): Map<string, { cashBalance: string; bankBalance: string }> {
-  let cashBalance = 0;
-  let bankBalance = 0;
-  const balanceMap = new Map<string, { cashBalance: string; bankBalance: string }>();
 
-  for (const t of allTransactions) {
-    let delta = Number(t.amount);
-    if (t.entryKind === 'regular' && t.type === 'expense') delta = -delta;
-    if (t.fundAccount === 'cash') cashBalance += delta;
-    else bankBalance += delta;
-    balanceMap.set(t.id, {
-      cashBalance: cashBalance.toFixed(3),
-      bankBalance: bankBalance.toFixed(3),
-    });
-  }
-
-  return balanceMap;
-}
 export async function fetchTransactions(
   page: number,
   pageSize: number,
@@ -270,14 +236,18 @@ export async function fetchTransactions(
     }
 
     if (categoryIdFilter) conditions.push(eq(transactions.category_id, categoryIdFilter));
-    if (typeFilter) conditions.push(eq(transactions.type, typeFilter));
-    if (fundAccountFilter) conditions.push(eq(transactions.fund_account, fundAccountFilter));
+    if (typeFilter === 'income' || typeFilter === 'expense') {
+      conditions.push(eq(transactions.type, typeFilter));
+    }
+    if (fundAccountFilter === 'cash' || fundAccountFilter === 'bank') {
+      conditions.push(eq(transactions.fund_account, fundAccountFilter));
+    }
     if (startDateFilter) conditions.push(gte(transactions.transaction_date, startDateFilter));
     if (endDateFilter) conditions.push(lte(transactions.transaction_date, endDateFilter));
 
     const offset = (page - 1) * pageSize;
 
-    const [rows, countResult, allTransactions] = await Promise.all([
+    const [rows, countResult, balanceResult] = await Promise.all([
       db
         .select({
           id: transactions.id,
@@ -307,33 +277,65 @@ export async function fetchTransactions(
         .select({ count: sql<number>`count(*)` })
         .from(transactions)
         .where(and(...conditions)),
-      db
-        .select({
-          id: transactions.id,
-          amount: transactions.amount,
-          type: transactions.type,
-          fundAccount: transactions.fund_account,
-          entryKind: transactions.entry_kind,
-          transactionDate: transactions.transaction_date,
-          createdAt: transactions.created_at,
-          transactionCode: transactions.transaction_code,
-        })
-        .from(transactions)
-        .orderBy(asc(transactions.transaction_date), asc(transactions.created_at)),
+      db.execute(sql`
+        SELECT
+          id,
+          SUM(CASE
+            WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+            WHEN fund_account = 'cash' AND type = 'expense' THEN -amount::numeric
+            ELSE 0
+          END) OVER (ORDER BY transaction_date, created_at) AS cash_balance,
+          SUM(CASE
+            WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+            WHEN fund_account = 'bank' AND type = 'expense' THEN -amount::numeric
+            ELSE 0
+          END) OVER (ORDER BY transaction_date, created_at) AS bank_balance
+        FROM transactions
+        ORDER BY transaction_date, created_at
+      `),
     ]);
 
-    const balanceMap = computeRunningBalances(allTransactions);
+    const balanceMap = new Map<string, { cashBalance: string; bankBalance: string }>();
+    for (const row of balanceResult.rows as {
+      id: string;
+      cash_balance: string;
+      bank_balance: string;
+    }[]) {
+      balanceMap.set(row.id, {
+        cashBalance: Number(row.cash_balance).toFixed(3),
+        bankBalance: Number(row.bank_balance).toFixed(3),
+      });
+    }
 
     const totalCount = Number(countResult[0]?.count ?? 0);
 
-    const items: RegularTransactionRow[] = rows.filter(isRegularTransactionRow).map((row) => {
-      const balances = balanceMap.get(row.id) ?? {
-        cashBalance: '0.000',
-        bankBalance: '0.000',
-      };
-      return { ...row, ...balances };
-    });
-
+    const items: RegularTransactionRow[] = rows
+      .filter(
+        (row) =>
+          row.entryKind === 'regular' &&
+          row.categoryId !== null &&
+          row.categoryName !== null &&
+          row.type !== null &&
+          row.paymentMode !== null,
+      )
+      .map((row) => {
+        const balances = balanceMap.get(row.id) ?? {
+          cashBalance: '0.000',
+          bankBalance: '0.000',
+        };
+        return {
+          ...row,
+          entryKind: 'regular' as const,
+          categoryId: row.categoryId!,
+          categoryName: row.categoryName!,
+          type: row.type!,
+          paymentMode: row.paymentMode!,
+          payeeMerchant: row.payeeMerchant ?? '',
+          paidReceiptBy: row.paidReceiptBy ?? '',
+          attachmentKey: row.attachmentKey ?? '',
+          ...balances,
+        };
+      });
     return {
       success: true,
       data: { items, totalCount },
