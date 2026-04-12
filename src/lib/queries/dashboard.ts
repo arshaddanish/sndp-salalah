@@ -17,7 +17,7 @@ export async function getDashboardMemberKpis(): Promise<{
       .select({ count: sql<number>`count(*)` })
       .from(members)
       .where(
-        sql`${members.is_archived} = false AND ${members.expiry} >= CURRENT_DATE AND ${members.expiry} <= CURRENT_DATE + INTERVAL '30 days'`,
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.expiry} >= CURRENT_DATE AND ${members.expiry} <= CURRENT_DATE + INTERVAL '30 days'`,
       ),
   ]);
 
@@ -31,8 +31,8 @@ export async function getDashboardMemberStatus(): Promise<MemberStatusData> {
   const [statusResult] = await db
     .select({
       active: sql<number>`count(*) filter (where expiry > CURRENT_DATE + INTERVAL '30 days' and is_archived = false and is_lifetime = false)`,
-      nearExpiry: sql<number>`count(*) filter (where expiry >= CURRENT_DATE and expiry <= CURRENT_DATE + INTERVAL '30 days' and is_archived = false)`,
-      expired: sql<number>`count(*) filter (where expiry < CURRENT_DATE and is_archived = false)`,
+      nearExpiry: sql<number>`count(*) filter (where expiry >= CURRENT_DATE and expiry <= CURRENT_DATE + INTERVAL '30 days' and is_archived = false and is_lifetime = false)`,
+      expired: sql<number>`count(*) filter (where expiry < CURRENT_DATE and is_archived = false and is_lifetime = false)`,
       lifetime: sql<number>`count(*) filter (where is_lifetime = true and is_archived = false)`,
       pending: sql<number>`count(*) filter (where expiry is null and is_lifetime = false and is_archived = false)`,
     })
