@@ -5,6 +5,7 @@ import {
   date,
   index,
   integer,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -130,7 +131,43 @@ export const family_members = pgTable(
   },
   (table) => [index('family_members_member_id_idx').on(table.member_id)],
 );
-
+export const transactions = pgTable(
+  'transactions',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    transaction_code: integer('transaction_code').notNull(),
+    transaction_date: date('transaction_date', { mode: 'date' }).notNull(),
+    entry_kind: text('entry_kind', { enum: ['regular', 'opening_balance'] }).notNull(),
+    category_id: text('category_id').references(() => transactionCategories.id),
+    type: text('type', { enum: ['income', 'expense'] }),
+    payment_mode: text('payment_mode', { enum: ['cash', 'bank', 'online_transaction', 'cheque'] }),
+    fund_account: text('fund_account', { enum: ['cash', 'bank'] }).notNull(),
+    payee_merchant: text('payee_merchant'),
+    paid_receipt_by: text('paid_receipt_by'),
+    amount: numeric('amount', { precision: 10, scale: 3 }).notNull(),
+    remarks: text('remarks').notNull().default(''),
+    attachment_key: text('attachment_key'),
+    created_at: timestamp('created_at').notNull().defaultNow(),
+    updated_at: timestamp('updated_at')
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex('transactions_transaction_code_unique').on(table.transaction_code),
+    index('transactions_transaction_date_idx').on(table.transaction_date),
+    index('transactions_fund_account_idx').on(table.fund_account),
+    index('transactions_entry_kind_idx').on(table.entry_kind),
+    index('transactions_category_id_idx').on(table.category_id),
+    index('transactions_remarks_trgm_idx').using('gin', sql`lower(${table.remarks}) gin_trgm_ops`),
+    index('transactions_transaction_code_trgm_idx').using(
+      'gin',
+      sql`cast(${table.transaction_code} as text) gin_trgm_ops`,
+    ),
+  ],
+);
 // ─── Drizzle Relations ───────────────────────────────────────────────────────
 
 export const membersRelations = relations(members, ({ one, many }) => ({
@@ -149,5 +186,11 @@ export const familyMembersRelations = relations(family_members, ({ one }) => ({
   member: one(members, {
     fields: [family_members.member_id],
     references: [members.id],
+  }),
+}));
+export const transactionsRelations = relations(transactions, ({ one }) => ({
+  category: one(transactionCategories, {
+    fields: [transactions.category_id],
+    references: [transactionCategories.id],
   }),
 }));

@@ -1,9 +1,10 @@
 'use server';
 
+import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
-import { MOCK_TRANSACTION_CATEGORIES } from '@/lib/mock-data/transaction-categories';
-import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
+import { db } from '@/lib/db';
+import { transactionCategories, transactions } from '@/lib/db/schema';
 import { parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import {
   createOpeningBalanceSchema,
@@ -14,39 +15,20 @@ import {
 import type { ActionResult } from '@/types/actions';
 import type { TransactionsQuery } from '@/types/filters/transactions';
 import type { PaginationResponse } from '@/types/pagination';
-import type {
-  ExistingOpeningBalance,
-  RegularTransactionRow,
-  TransactionStatementRow,
-} from '@/types/transactions';
+import type { ExistingOpeningBalance, RegularTransactionRow } from '@/types/transactions';
 
 const OPENING_BALANCE_TRANSACTION_CODES = {
   cash: 999,
   bank: 1000,
 } as const;
 
-function getNextTransactionCode(): number {
-  const maxRegularTransactionCode = MOCK_TRANSACTIONS.reduce((maxCode, transaction) => {
-    if (transaction.entryKind !== 'regular') {
-      return maxCode;
-    }
+async function getNextTransactionCode(): Promise<number> {
+  const result = await db
+    .select({ max: sql<number>`max(${transactions.transaction_code})` })
+    .from(transactions)
+    .where(eq(transactions.entry_kind, 'regular'));
 
-    return Math.max(maxCode, transaction.transactionCode);
-  }, 1000);
-
-  return maxRegularTransactionCode + 1;
-}
-
-function isRegularTransactionRow(
-  transaction: TransactionStatementRow,
-): transaction is RegularTransactionRow {
-  return (
-    transaction.entryKind === 'regular' &&
-    transaction.categoryId !== null &&
-    transaction.categoryName !== null &&
-    transaction.type !== null &&
-    transaction.paymentMode !== null
-  );
+  return (result[0]?.max ?? 1000) + 1;
 }
 
 export async function createTransaction(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -61,53 +43,54 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
       };
     }
 
-    const category = MOCK_TRANSACTION_CATEGORIES.find(
-      (item) => item.id === validationResult.data.categoryId,
-    );
+    const category = await db.query.transactionCategories.findFirst({
+      where: and(
+        eq(transactionCategories.id, validationResult.data.categoryId),
+        eq(transactionCategories.is_system, false),
+        eq(transactionCategories.type, validationResult.data.type),
+      ),
+    });
 
-    if (!category || category.is_system || category.type !== validationResult.data.type) {
+    if (!category) {
       return {
         success: false,
         error: 'Please select a valid category for the selected transaction type.',
       };
     }
 
-    const nextTransactionCode = getNextTransactionCode();
-    const timestamp = Date.now();
-    const now = new Date();
-    const transactionDate = new Date(`${validationResult.data.transactionDate}T00:00:00.000Z`);
+    const nextTransactionCode = await getNextTransactionCode();
     const amount = Number(validationResult.data.amount).toFixed(3);
-    const remarks = validationResult.data.remarks ?? '';
 
-    const createdTransaction: TransactionStatementRow = {
-      id: `txn-${timestamp}`,
-      transactionCode: nextTransactionCode,
-      transactionDate,
-      entryKind: 'regular',
-      categoryId: category.id,
-      categoryName: category.name,
-      type: validationResult.data.type,
-      paymentMode: validationResult.data.paymentMode,
-      fundAccount: validationResult.data.fundAccount,
-      payeeMerchant: validationResult.data.payeeMerchant,
-      paidReceiptBy: validationResult.data.paidReceiptBy,
-      amount,
-      remarks,
-      cashBalance: '0.000',
-      bankBalance: '0.000',
-      ...(validationResult.data.attachmentKey
-        ? { attachmentKey: validationResult.data.attachmentKey }
-        : {}),
-      createdAt: now,
-      updatedAt: now,
-    };
+    const [created] = await db
+      .insert(transactions)
+      .values({
+        transaction_code: nextTransactionCode,
+        transaction_date: new Date(validationResult.data.transactionDate),
+        entry_kind: 'regular',
+        category_id: category.id,
+        type: validationResult.data.type,
+        payment_mode: validationResult.data.paymentMode as
+          | 'cash'
+          | 'bank'
+          | 'online_transaction'
+          | 'cheque',
+        fund_account: validationResult.data.fundAccount,
+        payee_merchant: validationResult.data.payeeMerchant,
+        paid_receipt_by: validationResult.data.paidReceiptBy,
+        amount,
+        remarks: validationResult.data.remarks ?? '',
+        attachment_key: validationResult.data.attachmentKey,
+      })
+      .returning();
+    if (!created) {
+      return { success: false, error: 'Failed to create transaction.' };
+    }
 
-    MOCK_TRANSACTIONS.unshift(createdTransaction);
     revalidatePath('/transactions');
 
     return {
       success: true,
-      data: { id: createdTransaction.id },
+      data: { id: created.id },
     };
   } catch (error) {
     console.error('Error creating transaction:', error);
@@ -130,60 +113,49 @@ export async function createOpeningBalance(input: unknown): Promise<ActionResult
       };
     }
 
-    const now = new Date();
-    const transactionDate = new Date(`${validationResult.data.transactionDate}T00:00:00.000Z`);
     const amount = Number(validationResult.data.amount).toFixed(3);
-    const remarks = validationResult.data.remarks ?? '';
+    const transactionCode = OPENING_BALANCE_TRANSACTION_CODES[validationResult.data.fundAccount];
 
-    const existingOpeningBalance = MOCK_TRANSACTIONS.find(
-      (transaction) =>
-        transaction.entryKind === 'opening_balance' &&
-        transaction.fundAccount === validationResult.data.fundAccount,
-    );
+    const existing = await db.query.transactions.findFirst({
+      where: and(
+        eq(transactions.entry_kind, 'opening_balance'),
+        eq(transactions.fund_account, validationResult.data.fundAccount),
+      ),
+    });
 
-    if (existingOpeningBalance) {
-      existingOpeningBalance.transactionCode =
-        OPENING_BALANCE_TRANSACTION_CODES[validationResult.data.fundAccount];
-      existingOpeningBalance.amount = amount;
-      existingOpeningBalance.transactionDate = transactionDate;
-      existingOpeningBalance.remarks = remarks;
-      existingOpeningBalance.updatedAt = now;
+    if (existing) {
+      await db
+        .update(transactions)
+        .set({
+          amount,
+          transaction_date: new Date(validationResult.data.transactionDate),
+          remarks: validationResult.data.remarks ?? '',
+          updated_at: new Date(),
+        })
+        .where(eq(transactions.id, existing.id));
 
       revalidatePath('/transactions');
-
-      return {
-        success: true,
-        data: { id: existingOpeningBalance.id },
-      };
+      return { success: true, data: { id: existing.id } };
     }
 
-    const timestamp = Date.now();
+    const [created] = await db
+      .insert(transactions)
+      .values({
+        transaction_code: transactionCode,
+        transaction_date: new Date(validationResult.data.transactionDate),
+        entry_kind: 'opening_balance',
+        fund_account: validationResult.data.fundAccount,
+        amount,
+        remarks: validationResult.data.remarks ?? '',
+      })
+      .returning();
 
-    const openingTransaction: TransactionStatementRow = {
-      id: `txn-${timestamp}`,
-      transactionCode: OPENING_BALANCE_TRANSACTION_CODES[validationResult.data.fundAccount],
-      transactionDate,
-      entryKind: 'opening_balance',
-      categoryId: null,
-      categoryName: null,
-      type: null,
-      paymentMode: null,
-      fundAccount: validationResult.data.fundAccount,
-      amount,
-      remarks,
-      cashBalance: '0.000',
-      bankBalance: '0.000',
-      createdAt: now,
-      updatedAt: now,
-    };
+    if (!created) {
+      return { success: false, error: 'Failed to set opening balance.' };
+    }
 
-    MOCK_TRANSACTIONS.unshift(openingTransaction);
     revalidatePath('/transactions');
-
-    return {
-      success: true,
-      data: { id: openingTransaction.id },
-    };
+    return { success: true, data: { id: created.id } };
   } catch (error) {
     console.error('Error creating opening balance:', error);
     return {
@@ -197,35 +169,27 @@ export async function fetchOpeningBalances(): Promise<
   ActionResult<{ cash: ExistingOpeningBalance | null; bank: ExistingOpeningBalance | null }>
 > {
   try {
-    const toExistingOpeningBalance = (
-      transaction: TransactionStatementRow | undefined,
-    ): ExistingOpeningBalance | null => {
-      if (!transaction) {
-        return null;
-      }
+    const openingBalances = await db.query.transactions.findMany({
+      where: eq(transactions.entry_kind, 'opening_balance'),
+    });
 
+    const toExistingOpeningBalance = (
+      transaction: typeof transactions.$inferSelect | undefined,
+    ): ExistingOpeningBalance | null => {
+      if (!transaction) return null;
       return {
         id: transaction.id,
         amount: transaction.amount,
-        transactionDate: transaction.transactionDate.toISOString().slice(0, 10),
+        transactionDate: transaction.transaction_date.toISOString().slice(0, 10),
         remarks: transaction.remarks,
       };
     };
 
-    const cashOpeningBalance = MOCK_TRANSACTIONS.find(
-      (transaction) =>
-        transaction.entryKind === 'opening_balance' && transaction.fundAccount === 'cash',
-    );
-    const bankOpeningBalance = MOCK_TRANSACTIONS.find(
-      (transaction) =>
-        transaction.entryKind === 'opening_balance' && transaction.fundAccount === 'bank',
-    );
-
     return {
       success: true,
       data: {
-        cash: toExistingOpeningBalance(cashOpeningBalance),
-        bank: toExistingOpeningBalance(bankOpeningBalance),
+        cash: toExistingOpeningBalance(openingBalances.find((t) => t.fund_account === 'cash')),
+        bank: toExistingOpeningBalance(openingBalances.find((t) => t.fund_account === 'bank')),
       },
     };
   } catch (error) {
@@ -252,134 +216,158 @@ export async function fetchTransactions(
     };
   }
 
-  const searchQuery = (query?.q ?? '').trim().toLowerCase();
-  const categoryIdFilter = (query?.categoryId ?? '').trim();
-  const typeFilter = (query?.type ?? '').trim().toLowerCase();
-  const fundAccountFilter = (query?.fundAccount ?? '').trim().toLowerCase();
-  const startDateFilter = parseStartOfDayOrNull(query?.startDate);
-  const endDateFilter = parseEndOfDayOrNull(query?.endDate);
+  try {
+    const searchQuery = (query?.q ?? '').trim();
+    const categoryIdFilter = (query?.categoryId ?? '').trim();
+    const typeFilter = (query?.type ?? '').trim();
+    const fundAccountFilter = (query?.fundAccount ?? '').trim();
+    const startDateFilter = parseStartOfDayOrNull(query?.startDate);
+    const endDateFilter = parseEndOfDayOrNull(query?.endDate);
 
-  const compareByLedgerOrderAsc = (
-    left: TransactionStatementRow,
-    right: TransactionStatementRow,
-  ) => {
-    const byDate = left.transactionDate.getTime() - right.transactionDate.getTime();
-    if (byDate !== 0) {
-      return byDate;
+    const conditions = [eq(transactions.entry_kind, 'regular')];
+
+    if (searchQuery) {
+      conditions.push(
+        or(
+          ilike(transactions.remarks, `%${searchQuery}%`),
+          sql`${transactions.transaction_code}::text ilike ${'%' + searchQuery + '%'}`,
+        )!,
+      );
     }
 
-    const byCreatedAt = left.createdAt.getTime() - right.createdAt.getTime();
-    if (byCreatedAt !== 0) {
-      return byCreatedAt;
+    if (categoryIdFilter) conditions.push(eq(transactions.category_id, categoryIdFilter));
+    if (typeFilter === 'income' || typeFilter === 'expense') {
+      conditions.push(eq(transactions.type, typeFilter));
     }
-
-    return left.transactionCode - right.transactionCode;
-  };
-
-  const compareByDisplayOrderDesc = (
-    left: TransactionStatementRow,
-    right: TransactionStatementRow,
-  ) => {
-    return -compareByLedgerOrderAsc(left, right);
-  };
-
-  const sortedForDisplay = [...MOCK_TRANSACTIONS].sort(compareByDisplayOrderDesc);
-
-  const searchedRows = sortedForDisplay.filter((transaction) => {
-    if (searchQuery.length !== 0) {
-      const matchesSearch =
-        transaction.transactionCode.toString().includes(searchQuery) ||
-        transaction.remarks.toLowerCase().includes(searchQuery);
-
-      if (!matchesSearch) {
-        return false;
-      }
+    if (fundAccountFilter === 'cash' || fundAccountFilter === 'bank') {
+      conditions.push(eq(transactions.fund_account, fundAccountFilter));
     }
+    if (startDateFilter) conditions.push(gte(transactions.transaction_date, startDateFilter));
+    if (endDateFilter) conditions.push(lte(transactions.transaction_date, endDateFilter));
 
-    const matchesCategory =
-      categoryIdFilter.length === 0 || transaction.categoryId === categoryIdFilter;
-    const matchesType = typeFilter.length === 0 || transaction.type === typeFilter;
-    const matchesFundAccount =
-      fundAccountFilter.length === 0 || transaction.fundAccount === fundAccountFilter;
+    const offset = (page - 1) * pageSize;
 
-    const transactionTime = transaction.transactionDate.getTime();
-    const matchesStartDate =
-      startDateFilter === null || transactionTime >= startDateFilter.getTime();
-    const matchesEndDate = endDateFilter === null || transactionTime <= endDateFilter.getTime();
+    const [rows, countResult, balanceResult] = await Promise.all([
+      db
+        .select({
+          id: transactions.id,
+          transactionCode: transactions.transaction_code,
+          transactionDate: transactions.transaction_date,
+          entryKind: transactions.entry_kind,
+          categoryId: transactions.category_id,
+          categoryName: transactionCategories.name,
+          type: transactions.type,
+          paymentMode: transactions.payment_mode,
+          fundAccount: transactions.fund_account,
+          payeeMerchant: transactions.payee_merchant,
+          paidReceiptBy: transactions.paid_receipt_by,
+          amount: transactions.amount,
+          remarks: transactions.remarks,
+          attachmentKey: transactions.attachment_key,
+          createdAt: transactions.created_at,
+          updatedAt: transactions.updated_at,
+        })
+        .from(transactions)
+        .leftJoin(transactionCategories, eq(transactions.category_id, transactionCategories.id))
+        .where(and(...conditions))
+        .orderBy(
+          desc(transactions.transaction_date),
+          desc(transactions.created_at),
+          desc(transactions.transaction_code),
+        )
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(transactions)
+        .where(and(...conditions)),
+      db.execute(sql`
+        SELECT
+          id,
+          SUM(CASE
+            WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+            WHEN fund_account = 'cash' AND type = 'expense' THEN -amount::numeric
+            ELSE 0
+          END) OVER (ORDER BY transaction_date, created_at) AS cash_balance,
+          SUM(CASE
+            WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+            WHEN fund_account = 'bank' AND type = 'expense' THEN -amount::numeric
+            ELSE 0
+          END) OVER (ORDER BY transaction_date, created_at) AS bank_balance
+        FROM transactions
+        ORDER BY transaction_date, created_at
+      `),
+    ]);
 
-    return (
-      matchesCategory && matchesType && matchesFundAccount && matchesStartDate && matchesEndDate
-    );
-  });
-
-  const visibleRows = searchedRows.filter(isRegularTransactionRow);
-
-  // Balances are computed in true ledger order (oldest -> newest), tracked independently
-  // per fund account. Every row gets both fund balances for detailed transaction view.
-  const balanceMap = new Map<string, { cashBalance: string; bankBalance: string }>();
-  let cashFundBalance = 0;
-  let bankFundBalance = 0;
-
-  [...MOCK_TRANSACTIONS].sort(compareByLedgerOrderAsc).forEach((transaction) => {
-    let delta = Number(transaction.amount);
-    if (transaction.entryKind === 'regular' && transaction.type === 'expense') {
-      delta = -delta;
-    }
-
-    if (transaction.fundAccount === 'cash') {
-      cashFundBalance += delta;
-    } else {
-      bankFundBalance += delta;
-    }
-
-    balanceMap.set(transaction.id, {
-      cashBalance: cashFundBalance.toFixed(3),
-      bankBalance: bankFundBalance.toFixed(3),
-    });
-  });
-
-  const rowsWithBalance: RegularTransactionRow[] = [];
-  for (const row of visibleRows) {
-    const balances = balanceMap.get(row.id);
-
-    if (balances === undefined) {
-      console.error('Missing running balance for transaction row', {
-        rowId: row.id,
-        transactionCode: row.transactionCode,
+    const balanceMap = new Map<string, { cashBalance: string; bankBalance: string }>();
+    for (const row of balanceResult.rows as {
+      id: string;
+      cash_balance: string;
+      bank_balance: string;
+    }[]) {
+      balanceMap.set(row.id, {
+        cashBalance: Number(row.cash_balance).toFixed(3),
+        bankBalance: Number(row.bank_balance).toFixed(3),
       });
-
-      return {
-        success: false,
-        error: 'Unable to compute running balance for transactions. Please try again.',
-      };
     }
 
-    rowsWithBalance.push({
-      ...row,
-      cashBalance: balances.cashBalance,
-      bankBalance: balances.bankBalance,
-    });
+    const totalCount = Number(countResult[0]?.count ?? 0);
+
+    const items: RegularTransactionRow[] = rows
+      .filter(
+        (row) =>
+          row.entryKind === 'regular' &&
+          row.categoryId !== null &&
+          row.categoryName !== null &&
+          row.type !== null &&
+          row.paymentMode !== null,
+      )
+      .map((row) => {
+        const balances = balanceMap.get(row.id) ?? {
+          cashBalance: '0.000',
+          bankBalance: '0.000',
+        };
+        return {
+          ...row,
+          entryKind: 'regular' as const,
+          categoryId: row.categoryId!,
+          categoryName: row.categoryName!,
+          type: row.type!,
+          paymentMode: row.paymentMode!,
+          payeeMerchant: row.payeeMerchant ?? '',
+          paidReceiptBy: row.paidReceiptBy ?? '',
+          attachmentKey: row.attachmentKey ?? '',
+          ...balances,
+        };
+      });
+    return {
+      success: true,
+      data: { items, totalCount },
+    };
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    return {
+      success: false,
+      error: 'Unable to load transactions. Please try again.',
+    };
   }
-
-  const start = (page - 1) * pageSize;
-  const paginatedItems = rowsWithBalance.slice(start, start + pageSize);
-
-  return {
-    success: true,
-    data: {
-      items: paginatedItems,
-      totalCount: visibleRows.length,
-    },
-  };
 }
 
 export async function deleteTransaction(id: string): Promise<ActionResult<null>> {
   try {
-    const index = MOCK_TRANSACTIONS.findIndex((t) => t.id === id);
-    if (index === -1) {
+    const existing = await db.query.transactions.findFirst({
+      where: eq(transactions.id, id),
+    });
+
+    if (!existing) {
       return { success: false, error: 'Transaction not found.' };
     }
-    MOCK_TRANSACTIONS.splice(index, 1);
+
+    if (existing.entry_kind !== 'regular') {
+      return { success: false, error: 'Only regular transactions can be deleted.' };
+    }
+
+    await db.delete(transactions).where(eq(transactions.id, id));
     revalidatePath('/transactions');
     return { success: true, data: null };
   } catch (error) {
@@ -405,36 +393,52 @@ export async function updateTransaction(
       };
     }
 
-    const index = MOCK_TRANSACTIONS.findIndex((t) => t.id === id);
-    if (index === -1) {
-      return { success: false, error: 'Transaction not found.' };
-    }
+    const category = await db.query.transactionCategories.findFirst({
+      where: and(
+        eq(transactionCategories.id, validationResult.data.categoryId),
+        eq(transactionCategories.is_system, false),
+        eq(transactionCategories.type, validationResult.data.type),
+      ),
+    });
 
-    const category = MOCK_TRANSACTION_CATEGORIES.find(
-      (cat) => cat.id === validationResult.data.categoryId,
-    );
-
-    if (!category || category.is_system || category.type !== validationResult.data.type) {
+    if (!category) {
       return {
         success: false,
         error: 'Please select a valid category for the selected transaction type.',
       };
     }
 
-    const existing = MOCK_TRANSACTIONS[index];
-    if (existing) {
-      existing.type = validationResult.data.type;
-      existing.amount = Number(validationResult.data.amount).toFixed(3);
-      existing.transactionDate = new Date(`${validationResult.data.transactionDate}T00:00:00.000Z`);
-      existing.categoryId = validationResult.data.categoryId;
-      existing.categoryName = category.name;
-      existing.paymentMode = validationResult.data.paymentMode;
-      existing.fundAccount = validationResult.data.fundAccount;
-      existing.payeeMerchant = validationResult.data.payeeMerchant;
-      existing.paidReceiptBy = validationResult.data.paidReceiptBy;
-      existing.remarks = validationResult.data.remarks ?? '';
-      existing.updatedAt = new Date();
+    const existing = await db.query.transactions.findFirst({
+      where: eq(transactions.id, id),
+    });
+
+    if (!existing) {
+      return { success: false, error: 'Transaction not found.' };
     }
+
+    if (existing.entry_kind !== 'regular') {
+      return { success: false, error: 'Only regular transactions can be updated.' };
+    }
+
+    await db
+      .update(transactions)
+      .set({
+        type: validationResult.data.type,
+        amount: Number(validationResult.data.amount).toFixed(3),
+        transaction_date: new Date(validationResult.data.transactionDate),
+        category_id: validationResult.data.categoryId,
+        payment_mode: validationResult.data.paymentMode as
+          | 'cash'
+          | 'bank'
+          | 'online_transaction'
+          | 'cheque',
+        fund_account: validationResult.data.fundAccount,
+        payee_merchant: validationResult.data.payeeMerchant,
+        paid_receipt_by: validationResult.data.paidReceiptBy,
+        remarks: validationResult.data.remarks ?? '',
+        updated_at: new Date(),
+      })
+      .where(eq(transactions.id, id));
 
     revalidatePath('/transactions');
     return { success: true, data: null };
