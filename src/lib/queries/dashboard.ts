@@ -63,7 +63,7 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
       .where(
         and(
           eq(members.is_archived, false),
-          sql`${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE)`,
+          sql`${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.active_from} < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
         ),
       ),
     db

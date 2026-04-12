@@ -125,11 +125,25 @@ export const ACTION_CATEGORIES: ActionCategory[] = [
           2,
         ),
         validate: (payload) => {
-          if (!isNonEmptyString(payload['type'] as string)) return 'type is required.';
+          const type = payload['type'];
+          const paymentMode = payload['paymentMode'];
+          const fundAccount = payload['fundAccount'];
+          if (type !== 'income' && type !== 'expense') return 'type must be income or expense.';
           if (!isNonEmptyString(payload['amount'] as string)) return 'amount is required.';
           if (!isNonEmptyString(payload['transactionDate'] as string))
             return 'transactionDate is required.';
           if (!isNonEmptyString(payload['categoryId'] as string)) return 'categoryId is required.';
+          if (
+            paymentMode !== 'cash' &&
+            paymentMode !== 'bank' &&
+            paymentMode !== 'online_transaction' &&
+            paymentMode !== 'cheque'
+          ) {
+            return 'paymentMode is invalid.';
+          }
+          if (fundAccount !== 'cash' && fundAccount !== 'bank') {
+            return 'fundAccount is invalid.';
+          }
           return null;
         },
         onRun: (payload) => createTransaction(payload),
@@ -140,8 +154,12 @@ export const ACTION_CATEGORIES: ActionCategory[] = [
         description: 'Fetch paginated transactions.',
         defaultInput: JSON.stringify({ page: 1, pageSize: 10 }, null, 2),
         validate: (payload) => {
-          if (typeof payload['page'] !== 'number') return 'page must be a number.';
-          if (typeof payload['pageSize'] !== 'number') return 'pageSize must be a number.';
+          const page = payload['page'];
+          const pageSize = payload['pageSize'];
+          if (!Number.isInteger(page) || (page as number) <= 0)
+            return 'page must be a positive integer.';
+          if (!Number.isInteger(pageSize) || (pageSize as number) <= 0)
+            return 'pageSize must be a positive integer.';
           return null;
         },
         onRun: (payload) =>
