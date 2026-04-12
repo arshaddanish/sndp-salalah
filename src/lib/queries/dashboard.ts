@@ -81,6 +81,7 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
   return {
     period: periodLabel,
     newThisMonth: Number(newThisMonthResult[0]?.count ?? 0),
+    // TODO: renewedThisMonth requires a first_joined_at column to distinguish new vs renewal
     renewedThisMonth: 0,
     expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
   };

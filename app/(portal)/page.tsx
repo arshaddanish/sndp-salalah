@@ -9,7 +9,7 @@ import {
   getDashboardMemberActivity,
   getDashboardMemberKpis,
   getDashboardMemberStatus,
-} from '@/lib/db/queries/dashboard';
+} from '@/lib/queries/dashboard';
 import type { FinancialActivityMetrics, FinancialTrendData, KpiData } from '@/types/dashboard';
 
 export const metadata: Metadata = {
