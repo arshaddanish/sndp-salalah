@@ -20,12 +20,13 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const [kpis, memberStatus, memberActivity, financialKpis, financialActivity] = await Promise.all([
+  const financialKpis = await getDashboardFinancialKpis();
+
+  const [kpis, memberStatus, memberActivity, financialActivity] = await Promise.all([
     getDashboardMemberKpis(),
     getDashboardMemberStatus(),
     getDashboardMemberActivity(),
-    getDashboardFinancialKpis(),
-    getDashboardFinancialActivity(),
+    getDashboardFinancialActivity(financialKpis),
   ]);
 
   const kpiStats: KpiData = {

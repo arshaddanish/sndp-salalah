@@ -123,7 +123,10 @@ export async function getDashboardFinancialKpis(): Promise<{
   };
 }
 
-export async function getDashboardFinancialActivity(): Promise<FinancialActivityMetrics> {
+export async function getDashboardFinancialActivity(balances: {
+  cashInHand: number;
+  cashInBank: number;
+}): Promise<FinancialActivityMetrics> {
   const [periodResult, monthResult] = await Promise.all([
     db
       .select({
@@ -150,8 +153,7 @@ export async function getDashboardFinancialActivity(): Promise<FinancialActivity
   const incomeThisMonth = Number(monthRow?.income ?? 0);
   const expensesThisMonth = Number(monthRow?.expense ?? 0);
 
-  const { cashInHand, cashInBank } = await getDashboardFinancialKpis();
-  const closingBalance = cashInHand + cashInBank;
+  const closingBalance = balances.cashInHand + balances.cashInBank;
   const openingBalance = closingBalance - incomeThisMonth + expensesThisMonth;
 
   return {
