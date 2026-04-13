@@ -1,7 +1,7 @@
 'use client';
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Users } from 'lucide-react';
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 import { Card } from '@/components/ui/card';
 import type { MemberStatusData } from '@/types/dashboard';
@@ -10,7 +10,7 @@ const STATUS_CONFIG = [
   {
     key: 'pending' as const,
     name: 'Pending',
-    color: '#a1a1aa', // zinc-400 — neutral gray for unactivated
+    color: 'var(--color-text-muted)',
     textClass: 'text-text-secondary',
   },
   {
@@ -40,7 +40,7 @@ const STATUS_CONFIG = [
 ] as const;
 
 export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData }>) {
-  const total = data.pending + data.active + data.nearExpiry + data.expired + data.lifetime;
+  const total = STATUS_CONFIG.reduce((acc, { key }) => acc + data[key], 0);
 
   // Only include slices with actual values to prevent label overlap at zero
   const chartData = STATUS_CONFIG.filter(({ key }) => data[key] > 0).map(
@@ -115,9 +115,10 @@ export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData
           {STATUS_CONFIG.map(({ key, name }) => {
             const value = data[key];
             const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+            const memberText = value === 1 ? 'member' : 'members';
             return (
               <li key={key}>
-                {name}: {value.toLocaleString()} members ({percentage}%)
+                {name}: {value.toLocaleString()} {memberText} ({percentage}%)
               </li>
             );
           })}
