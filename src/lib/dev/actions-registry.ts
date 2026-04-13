@@ -1,5 +1,6 @@
 import { createShakha, deleteShakha, fetchShakhas, updateShakha } from '@/lib/actions/shakhas';
-
+import { createTransaction, fetchTransactions } from '@/lib/actions/transactions';
+import { createTransactionSchema } from '@/lib/validations/transactions';
 export type JsonRecord = Record<string, unknown>;
 // eslint-disable-next-line no-unused-vars
 export type ActionValidator = (payload: JsonRecord) => string | null;
@@ -99,5 +100,56 @@ export const ACTION_CATEGORIES: ActionCategory[] = [
     title: 'Members',
     description: 'Member profile and renewal actions',
     actions: [],
+  },
+  {
+    id: 'transactions',
+    title: 'Transactions',
+    description: 'Transaction management actions',
+    actions: [
+      {
+        id: 'create-transaction',
+        title: 'Create Transaction',
+        description: 'Create a new transaction.',
+        defaultInput: JSON.stringify(
+          {
+            type: 'income',
+            amount: '100.000',
+            transactionDate: '2026-04-12',
+            categoryId: '',
+            paymentMode: 'cash',
+            fundAccount: 'cash',
+            payeeMerchant: '',
+            paidReceiptBy: '',
+            remarks: 'Test transaction',
+          },
+          null,
+          2,
+        ),
+        validate: (payload) => {
+          const result = createTransactionSchema.safeParse(payload);
+          return result.success
+            ? null
+            : (result.error.issues[0]?.message ?? 'Invalid transaction input.');
+        },
+        onRun: (payload) => createTransaction(payload),
+      },
+      {
+        id: 'fetch-transactions',
+        title: 'Fetch Transactions',
+        description: 'Fetch paginated transactions.',
+        defaultInput: JSON.stringify({ page: 1, pageSize: 10 }, null, 2),
+        validate: (payload) => {
+          const page = payload['page'];
+          const pageSize = payload['pageSize'];
+          if (!Number.isInteger(page) || (page as number) <= 0)
+            return 'page must be a positive integer.';
+          if (!Number.isInteger(pageSize) || (pageSize as number) <= 0)
+            return 'pageSize must be a positive integer.';
+          return null;
+        },
+        onRun: (payload) =>
+          fetchTransactions(payload['page'] as number, payload['pageSize'] as number),
+      },
+    ],
   },
 ];
