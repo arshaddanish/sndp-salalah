@@ -22,8 +22,11 @@ const OPENING_BALANCE_TRANSACTION_CODES = {
   bank: 1000,
 } as const;
 
-async function getNextTransactionCode(): Promise<number> {
-  const result = await db
+/** Shared subset of db and PgTransaction that supports Drizzle's select API */
+type TxOrDb = Pick<typeof db, 'select'>;
+
+export async function getNextTransactionCode(tx: TxOrDb = db): Promise<number> {
+  const result = await tx
     .select({ max: sql<number>`max(${transactions.transaction_code})` })
     .from(transactions)
     .where(eq(transactions.entry_kind, 'regular'));
@@ -58,30 +61,35 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
       };
     }
 
-    const nextTransactionCode = await getNextTransactionCode();
     const amount = Number(validationResult.data.amount).toFixed(3);
 
-    const [created] = await db
-      .insert(transactions)
-      .values({
-        transaction_code: nextTransactionCode,
-        transaction_date: new Date(validationResult.data.transactionDate),
-        entry_kind: 'regular',
-        category_id: category.id,
-        type: validationResult.data.type,
-        payment_mode: validationResult.data.paymentMode as
-          | 'cash'
-          | 'bank'
-          | 'online_transaction'
-          | 'cheque',
-        fund_account: validationResult.data.fundAccount,
-        payee_merchant: validationResult.data.payeeMerchant,
-        paid_receipt_by: validationResult.data.paidReceiptBy,
-        amount,
-        remarks: validationResult.data.remarks ?? '',
-        attachment_key: validationResult.data.attachmentKey,
-      })
-      .returning();
+    const created = await db.transaction(async (tx) => {
+      const nextTransactionCode = await getNextTransactionCode(tx);
+      const [row] = await tx
+        .insert(transactions)
+        .values({
+          transaction_code: nextTransactionCode,
+          transaction_date: new Date(validationResult.data.transactionDate),
+          entry_kind: 'regular',
+          category_id: category.id,
+          type: validationResult.data.type,
+          payment_mode: validationResult.data.paymentMode as
+            | 'cash'
+            | 'bank'
+            | 'online_transaction'
+            | 'cheque',
+          fund_account: validationResult.data.fundAccount,
+          payee_merchant: validationResult.data.payeeMerchant,
+          paid_receipt_by: validationResult.data.paidReceiptBy,
+          amount,
+          remarks: validationResult.data.remarks ?? '',
+          attachment_key: validationResult.data.attachmentKey,
+        })
+        .returning();
+      if (!row) throw new Error('Failed to create transaction.');
+      return row;
+    });
+
     if (!created) {
       return { success: false, error: 'Failed to create transaction.' };
     }

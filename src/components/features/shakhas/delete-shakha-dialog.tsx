@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { deleteShakha } from '@/lib/actions/shakhas';
-import type { ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
+import type { ShakhaWithMemberCount } from '@/types/shakhas';
 
 interface DeleteShakhaDialogProps {
   shakha: ShakhaWithMemberCount;

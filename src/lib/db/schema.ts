@@ -146,6 +146,7 @@ export const transactions = pgTable(
     fund_account: text('fund_account', { enum: ['cash', 'bank'] }).notNull(),
     payee_merchant: text('payee_merchant'),
     paid_receipt_by: text('paid_receipt_by'),
+    member_id: text('member_id').references(() => members.id),
     amount: numeric('amount', { precision: 10, scale: 3 }).notNull(),
     remarks: text('remarks').notNull().default(''),
     attachment_key: text('attachment_key'),
@@ -161,6 +162,7 @@ export const transactions = pgTable(
     index('transactions_fund_account_idx').on(table.fund_account),
     index('transactions_entry_kind_idx').on(table.entry_kind),
     index('transactions_category_id_idx').on(table.category_id),
+    index('transactions_member_id_idx').on(table.member_id),
     index('transactions_remarks_trgm_idx').using('gin', sql`lower(${table.remarks}) gin_trgm_ops`),
     index('transactions_transaction_code_trgm_idx').using(
       'gin',

@@ -19,10 +19,16 @@ import {
 } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
+import { getNextTransactionCode } from '@/lib/actions/transactions';
 import { db } from '@/lib/db';
-import { family_members, members, shakhas } from '@/lib/db/schema';
+import {
+  family_members,
+  members,
+  shakhas,
+  transactionCategories,
+  transactions,
+} from '@/lib/db/schema';
 import { shouldShowDetailedErrors } from '@/lib/env';
-import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
 import { parseDateOrNull, parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import { getMemberStatus } from '@/lib/utils/member-status';
 import {
@@ -36,7 +42,6 @@ import {
 import type { ActionResult } from '@/types/actions';
 import type { Member, MemberDetail, MemberTransaction } from '@/types/members';
 import type { PaginationResponse } from '@/types/pagination';
-import type { TransactionPaymentMode } from '@/types/transactions';
 
 /**
  * Filter options for members endpoint
@@ -663,25 +668,24 @@ export async function fetchMemberTransactions(
   memberId: string,
 ): Promise<ActionResult<MemberTransaction[]>> {
   try {
-    // Pending transactions table integration: replace this with a DB query.
-    const memberTransactions = MOCK_TRANSACTIONS.filter(
-      (txn) => txn.memberId === memberId && txn.entryKind === 'regular',
-    )
-      .sort((a, b) => b.transactionDate.getTime() - a.transactionDate.getTime())
-      .map((txn) => ({
-        id: txn.id,
-        transactionCode: txn.transactionCode,
-        transactionDate: txn.transactionDate,
-        amount: txn.amount,
-        paymentMode: txn.paymentMode as TransactionPaymentMode,
-        fundAccount: txn.fundAccount,
-        remarks: txn.remarks,
-        createdAt: txn.createdAt,
-      }));
+    const rows = await db
+      .select({
+        id: transactions.id,
+        transactionCode: transactions.transaction_code,
+        transactionDate: transactions.transaction_date,
+        amount: transactions.amount,
+        paymentMode: transactions.payment_mode,
+        fundAccount: transactions.fund_account,
+        remarks: transactions.remarks,
+        createdAt: transactions.created_at,
+      })
+      .from(transactions)
+      .where(eq(transactions.member_id, memberId))
+      .orderBy(desc(transactions.transaction_date), desc(transactions.created_at));
 
     return {
       success: true,
-      data: memberTransactions,
+      data: rows as MemberTransaction[],
     };
   } catch (error) {
     console.error('Error fetching member transactions:', error);
@@ -717,67 +721,93 @@ export async function renewMembership(
       };
     }
 
-    // Pending transactions table integration: replace this with a DB insert.
-    const maxCode = MOCK_TRANSACTIONS.reduce(
-      (max, txn) => Math.max(max, txn.transactionCode),
-      1000,
-    );
-    const newTransactionId = `txn-renew-${Date.now()}`;
-    const attachmentKey = data.attachmentKey?.trim();
-
-    MOCK_TRANSACTIONS.push({
-      id: newTransactionId,
-      transactionCode: maxCode + 1,
-      transactionDate: new Date(),
-      entryKind: 'regular',
-      categoryId: 'cat-1',
-      categoryName: 'Membership Fee',
-      type: 'income',
-      paymentMode: data.paymentMode,
-      fundAccount: data.fundAccount,
-      memberId: data.memberId,
-      amount: data.amount.toFixed(3),
-      cashBalance: '0.000',
-      bankBalance: '0.000',
-      remarks: data.remarks ?? '',
-      ...(attachmentKey ? { attachmentKey } : {}),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    // Find 'Membership Fee' category
+    const category = await db.query.transactionCategories.findFirst({
+      where: and(
+        eq(transactionCategories.name, 'Membership Fee'),
+        eq(transactionCategories.is_system, true),
+      ),
     });
 
-    // Update member expiry in DB
-    const normalizedToday = new Date();
-    normalizedToday.setHours(0, 0, 0, 0);
-
-    const existingExpiry = member.expiry ? new Date(member.expiry) : null;
-    if (existingExpiry) {
-      existingExpiry.setHours(0, 0, 0, 0);
+    if (!category) {
+      return {
+        success: false,
+        error: 'System configuration error: Membership Fee category not found.',
+      };
     }
 
-    let nextActiveFrom = new Date(normalizedToday);
-    if (existingExpiry !== null) {
-      const dayAfterExistingExpiry = new Date(existingExpiry);
-      dayAfterExistingExpiry.setDate(dayAfterExistingExpiry.getDate() + 1);
-      nextActiveFrom =
-        dayAfterExistingExpiry.getTime() > normalizedToday.getTime()
-          ? dayAfterExistingExpiry
-          : new Date(normalizedToday);
-    }
+    // Update records in a single transaction
+    const result = await db.transaction(async (tx) => {
+      const nextCode = await getNextTransactionCode(tx);
 
-    await db
-      .update(members)
-      .set({
-        active_from: nextActiveFrom,
-        expiry: new Date(data.newExpiry),
-        is_lifetime: false,
-      })
-      .where(eq(members.id, data.memberId));
+      // 1. Create the payment transaction
+      const [newTxn] = await tx
+        .insert(transactions)
+        .values({
+          transaction_code: nextCode,
+          transaction_date: new Date(),
+          entry_kind: 'regular',
+          category_id: category.id,
+          type: 'income',
+          payment_mode: data.paymentMode,
+          fund_account: data.fundAccount,
+          amount: data.amount.toFixed(3),
+          payee_merchant: member.name,
+          paid_receipt_by: 'System Renewal',
+          member_id: data.memberId,
+          remarks: data.remarks ?? '',
+          attachment_key: data.attachmentKey?.trim(),
+        })
+        .returning({ id: transactions.id });
+
+      if (!newTxn) {
+        throw new Error('Failed to create renewal transaction');
+      }
+
+      // 2. Update member expiry
+      const normalizedToday = new Date();
+      normalizedToday.setHours(0, 0, 0, 0);
+
+      const existingExpiry = member.expiry ? new Date(member.expiry) : null;
+      if (existingExpiry) {
+        existingExpiry.setHours(0, 0, 0, 0);
+      }
+
+      // Only advance active_from when the member is already expired (or never had an expiry).
+      // For early renewals the existing active_from must be preserved to keep the
+      // continuous membership record intact.
+      const isExpired =
+        existingExpiry === null || existingExpiry.getTime() < normalizedToday.getTime();
+
+      let nextActiveFrom = new Date(normalizedToday);
+      if (isExpired && existingExpiry !== null) {
+        const dayAfterExistingExpiry = new Date(existingExpiry);
+        dayAfterExistingExpiry.setDate(dayAfterExistingExpiry.getDate() + 1);
+        nextActiveFrom =
+          dayAfterExistingExpiry.getTime() > normalizedToday.getTime()
+            ? dayAfterExistingExpiry
+            : new Date(normalizedToday);
+      }
+
+      await tx
+        .update(members)
+        .set({
+          ...(isExpired ? { active_from: nextActiveFrom } : {}),
+          expiry: new Date(data.newExpiry),
+          is_lifetime: false,
+          updated_at: new Date(),
+        })
+        .where(eq(members.id, data.memberId));
+
+      return newTxn;
+    });
 
     revalidatePath(`/members/${data.memberId}`);
     revalidatePath('/transactions');
     revalidatePath('/members');
+    revalidatePath('/reports');
 
-    return { success: true, data: { transactionId: newTransactionId } };
+    return { success: true, data: { transactionId: result.id } };
   } catch (error) {
     console.error('Error renewing membership:', error);
     return { success: false, error: 'Unable to process renewal. Please try again.' };

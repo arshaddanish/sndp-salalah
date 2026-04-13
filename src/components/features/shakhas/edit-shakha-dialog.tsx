@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { updateShakha } from '@/lib/actions/shakhas';
-import type { ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
 import { shakhaNameSchema } from '@/lib/validations/shakhas';
+import type { ShakhaWithMemberCount } from '@/types/shakhas';
 
 interface EditShakhaDialogProps {
   shakha: ShakhaWithMemberCount;

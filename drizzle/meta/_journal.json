@@ -57,6 +57,27 @@
       "when": 1775926019509,
       "tag": "0007_high_apocalypse",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776003514744,
+      "tag": "0008_zippy_lila_cheney",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776004259633,
+      "tag": "0009_seed_system_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776014275165,
+      "tag": "0010_medical_sleepwalker",
+      "breakpoints": true
     }
   ]
 }
