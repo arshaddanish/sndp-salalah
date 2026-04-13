@@ -92,34 +92,28 @@ export async function getDashboardFinancialKpis(): Promise<{
   ytdIncome: number;
   ytdExpense: number;
 }> {
-  const [balancesResult, ytdResult] = await Promise.all([
-    db.execute(sql`
-      SELECT
-        SUM(CASE WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
-                 WHEN fund_account = 'cash' AND type = 'expense' THEN -amount::numeric ELSE 0 END) AS cash_balance,
-        SUM(CASE WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
-                 WHEN fund_account = 'bank' AND type = 'expense' THEN -amount::numeric ELSE 0 END) AS bank_balance
-      FROM transactions
-    `),
-    db.execute(sql`
-      SELECT
-        SUM(CASE WHEN type = 'income' THEN amount::numeric ELSE 0 END) AS ytd_income,
-        SUM(CASE WHEN type = 'expense' THEN amount::numeric ELSE 0 END) AS ytd_expense
-      FROM transactions
-      WHERE entry_kind = 'regular' AND transaction_date >= DATE_TRUNC('year', CURRENT_DATE)
-    `),
-  ]);
+  const result = await db.execute(sql`
+    SELECT
+      SUM(CASE WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+               WHEN fund_account = 'cash' AND type = 'expense' THEN -amount::numeric ELSE 0 END) AS cash_balance,
+      SUM(CASE WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+               WHEN fund_account = 'bank' AND type = 'expense' THEN -amount::numeric ELSE 0 END) AS bank_balance,
+      SUM(CASE WHEN entry_kind = 'regular' AND transaction_date >= DATE_TRUNC('year', CURRENT_DATE) AND type = 'income'
+               THEN amount::numeric ELSE 0 END) AS ytd_income,
+      SUM(CASE WHEN entry_kind = 'regular' AND transaction_date >= DATE_TRUNC('year', CURRENT_DATE) AND type = 'expense'
+               THEN amount::numeric ELSE 0 END) AS ytd_expense
+    FROM transactions
+  `);
 
-  const balanceRow = balancesResult.rows[0] as
-    | { cash_balance: string; bank_balance: string }
+  const row = result.rows[0] as
+    | { cash_balance: string; bank_balance: string; ytd_income: string; ytd_expense: string }
     | undefined;
-  const ytdRow = ytdResult.rows[0] as { ytd_income: string; ytd_expense: string } | undefined;
 
   return {
-    cashInHand: Number(balanceRow?.cash_balance ?? 0),
-    cashInBank: Number(balanceRow?.bank_balance ?? 0),
-    ytdIncome: Number(ytdRow?.ytd_income ?? 0),
-    ytdExpense: Number(ytdRow?.ytd_expense ?? 0),
+    cashInHand: Number(row?.cash_balance ?? 0),
+    cashInBank: Number(row?.bank_balance ?? 0),
+    ytdIncome: Number(row?.ytd_income ?? 0),
+    ytdExpense: Number(row?.ytd_expense ?? 0),
   };
 }
 
