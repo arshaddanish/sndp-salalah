@@ -55,20 +55,22 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
     .from(members)
     .limit(1);
 
-  const periodLabel = periodResult?.periodLabel ?? '';
+  const periodLabel =
+    periodResult?.periodLabel ??
+    new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
 
   const [newThisMonthResult, expiredThisMonthResult] = await Promise.all([
     db
       .select({ count: sql<number>`count(*)` })
       .from(members)
       .where(
-        sql`${members.is_archived} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.active_from} < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.active_from} < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
       ),
     db
       .select({ count: sql<number>`count(*)` })
       .from(members)
       .where(
-        sql`${members.is_archived} = false AND ${members.expiry} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.expiry} < CURRENT_DATE`,
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.expiry} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.expiry} < CURRENT_DATE`,
       ),
   ]);
 
