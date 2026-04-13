@@ -2,8 +2,11 @@ import { eq, sql } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { members } from '@/lib/db/schema';
-import type { MemberActivityMetrics, MemberStatusData } from '@/types/dashboard';
-
+import type {
+  FinancialActivityMetrics,
+  MemberActivityMetrics,
+  MemberStatusData,
+} from '@/types/dashboard';
 export async function getDashboardMemberKpis(): Promise<{
   totalMembers: number;
   nearExpiry: number;
@@ -81,5 +84,81 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
     newThisMonth: Number(newThisMonthResult[0]?.count ?? 0),
     renewedThisMonth: 0,
     expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
+  };
+}
+export async function getDashboardFinancialKpis(): Promise<{
+  cashInHand: number;
+  cashInBank: number;
+  ytdIncome: number;
+  ytdExpense: number;
+}> {
+  const [balancesResult, ytdResult] = await Promise.all([
+    db.execute(sql`
+      SELECT
+        SUM(CASE WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+                 WHEN fund_account = 'cash' AND type = 'expense' THEN -amount::numeric ELSE 0 END) AS cash_balance,
+        SUM(CASE WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+                 WHEN fund_account = 'bank' AND type = 'expense' THEN -amount::numeric ELSE 0 END) AS bank_balance
+      FROM transactions
+    `),
+    db.execute(sql`
+      SELECT
+        SUM(CASE WHEN type = 'income' THEN amount::numeric ELSE 0 END) AS ytd_income,
+        SUM(CASE WHEN type = 'expense' THEN amount::numeric ELSE 0 END) AS ytd_expense
+      FROM transactions
+      WHERE entry_kind = 'regular' AND transaction_date >= DATE_TRUNC('year', CURRENT_DATE)
+    `),
+  ]);
+
+  const balanceRow = balancesResult.rows[0] as
+    | { cash_balance: string; bank_balance: string }
+    | undefined;
+  const ytdRow = ytdResult.rows[0] as { ytd_income: string; ytd_expense: string } | undefined;
+
+  return {
+    cashInHand: Number(balanceRow?.cash_balance ?? 0),
+    cashInBank: Number(balanceRow?.bank_balance ?? 0),
+    ytdIncome: Number(ytdRow?.ytd_income ?? 0),
+    ytdExpense: Number(ytdRow?.ytd_expense ?? 0),
+  };
+}
+
+export async function getDashboardFinancialActivity(): Promise<FinancialActivityMetrics> {
+  const [periodResult, monthResult] = await Promise.all([
+    db
+      .select({
+        periodLabel: sql<string>`to_char(DATE_TRUNC('month', CURRENT_DATE), 'FMMonth YYYY')`,
+      })
+      .from(members)
+      .limit(1),
+    db.execute(sql`
+      SELECT
+        SUM(CASE WHEN type = 'income' THEN amount::numeric ELSE 0 END) AS income,
+        SUM(CASE WHEN type = 'expense' THEN amount::numeric ELSE 0 END) AS expense
+      FROM transactions
+      WHERE entry_kind = 'regular'
+        AND transaction_date >= DATE_TRUNC('month', CURRENT_DATE)
+        AND transaction_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+    `),
+  ]);
+
+  const periodLabel =
+    periodResult[0]?.periodLabel ??
+    new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
+
+  const monthRow = monthResult.rows[0] as { income: string; expense: string } | undefined;
+  const incomeThisMonth = Number(monthRow?.income ?? 0);
+  const expensesThisMonth = Number(monthRow?.expense ?? 0);
+
+  const { cashInHand, cashInBank } = await getDashboardFinancialKpis();
+  const closingBalance = cashInHand + cashInBank;
+  const openingBalance = closingBalance - incomeThisMonth + expensesThisMonth;
+
+  return {
+    period: periodLabel,
+    openingBalance,
+    incomeThisMonth,
+    expensesThisMonth,
+    closingBalance,
   };
 }

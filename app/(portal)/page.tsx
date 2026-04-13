@@ -6,11 +6,13 @@ import { DashboardKpis } from '@/components/features/dashboard/dashboard-kpis';
 import { DashboardMemberActivity } from '@/components/features/dashboard/dashboard-member-activity';
 import { DashboardMemberChart } from '@/components/features/dashboard/dashboard-member-chart';
 import {
+  getDashboardFinancialActivity,
+  getDashboardFinancialKpis,
   getDashboardMemberActivity,
   getDashboardMemberKpis,
   getDashboardMemberStatus,
 } from '@/lib/queries/dashboard';
-import type { FinancialActivityMetrics, FinancialTrendData, KpiData } from '@/types/dashboard';
+import type { FinancialTrendData, KpiData } from '@/types/dashboard';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -18,27 +20,21 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const [kpis, memberStatus, memberActivity] = await Promise.all([
+  const [kpis, memberStatus, memberActivity, financialKpis, financialActivity] = await Promise.all([
     getDashboardMemberKpis(),
     getDashboardMemberStatus(),
     getDashboardMemberActivity(),
+    getDashboardFinancialKpis(),
+    getDashboardFinancialActivity(),
   ]);
 
   const kpiStats: KpiData = {
     totalMembers: kpis.totalMembers,
     nearExpiry: kpis.nearExpiry,
-    cashInHand: 1250,
-    cashInBank: 14890.5,
-    ytdIncome: 5400,
-    ytdExpense: 2150,
-  };
-
-  const financialActivity: FinancialActivityMetrics = {
-    period: 'March 2026',
-    openingBalance: 9950,
-    incomeThisMonth: 2150,
-    expensesThisMonth: 950,
-    closingBalance: 11150,
+    cashInHand: financialKpis.cashInHand,
+    cashInBank: financialKpis.cashInBank,
+    ytdIncome: financialKpis.ytdIncome,
+    ytdExpense: financialKpis.ytdExpense,
   };
 
   const financialTrend: FinancialTrendData = {
