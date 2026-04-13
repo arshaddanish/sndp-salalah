@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 import { DashboardFinancialActivity } from '@/components/features/dashboard/dashboard-financial-activity';
 import { DashboardFinancialChart } from '@/components/features/dashboard/dashboard-financial-chart';
 import { DashboardKpis } from '@/components/features/dashboard/dashboard-kpis';
