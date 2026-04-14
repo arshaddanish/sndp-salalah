@@ -332,11 +332,33 @@ function buildActivityWindowConditions(
   const startDate = parseStartOfDayOrNull(activeWindowStart);
   const endDate = parseEndOfDayOrNull(activeWindowEnd);
 
-  if (!startDate || !endDate) {
+  // Requirement: Participate only when at least one bound is set
+  if (!startDate && !endDate) {
     return [];
   }
 
-  return [lte(members.active_from, startDate), gte(members.expiry, endDate)];
+  // Activity Window Eligibility Rule:
+  // Only non-lifetime members with non-null activity period fields participate in date matching.
+  const conditions: MembersWhereCondition[] = [
+    eq(members.is_lifetime, false),
+    not(isNull(members.active_from)),
+    not(isNull(members.expiry)),
+  ];
+
+  // Activity Window Matching Rule:
+  // Member matches only when active for the FULL defined window.
+  // [Member.ActiveFrom, Member.Expiry] covers [Filter.Start, Filter.End]
+  // if Member.ActiveFrom <= Filter.Start AND Member.Expiry >= Filter.End
+
+  if (startDate) {
+    conditions.push(lte(members.active_from, startDate));
+  }
+
+  if (endDate) {
+    conditions.push(gte(members.expiry, endDate));
+  }
+
+  return conditions;
 }
 
 function buildMembersWhereClause(filters: MembersFilterOptions): SQL<unknown> | undefined {
