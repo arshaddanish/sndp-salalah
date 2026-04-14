@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES } from '@/lib/validations/transactions';
 import { MEMBER_PHOTO_DEFAULT_MAX_BYTES } from '@/lib/validations/members';
+import { TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES } from '@/lib/validations/transactions';
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),

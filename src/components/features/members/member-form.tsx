@@ -148,37 +148,46 @@ type SubmitCallbacks = {
   push: RouterPush;
 };
 
+async function performPhotoUpload(
+  photoFile: File,
+  setErrorMessage: Dispatch<SetStateAction<string | null>>,
+): Promise<string | null> {
+  const uploadConfig = await requestMemberPhotoUpload({
+    fileName: photoFile.name,
+    fileType: photoFile.type,
+    fileSize: photoFile.size,
+  });
+
+  if (!uploadConfig.success || !uploadConfig.data) {
+    setErrorMessage(uploadConfig.error ?? 'Unable to prepare photo upload.');
+    return null;
+  }
+
+  const uploadResponse = await fetch(uploadConfig.data.uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': photoFile.type,
+    },
+    body: photoFile,
+  });
+
+  if (!uploadResponse.ok) {
+    setErrorMessage('Unable to upload photo. Please try again.');
+    return null;
+  }
+
+  return uploadConfig.data.photoKey;
+}
+
 async function runMemberSubmit(
   { isEditMode, initialData, payload, photoFile }: SubmitContext,
   { setFieldErrors, setErrorMessage, push }: SubmitCallbacks,
 ): Promise<void> {
   let photoKey = initialData?.photo_key ?? '';
   if (photoFile) {
-    const uploadConfig = await requestMemberPhotoUpload({
-      fileName: photoFile.name,
-      fileType: photoFile.type,
-      fileSize: photoFile.size,
-    });
-
-    if (!uploadConfig.success || !uploadConfig.data) {
-      setErrorMessage(uploadConfig.error ?? 'Unable to prepare photo upload.');
-      return;
-    }
-
-    const uploadResponse = await fetch(uploadConfig.data.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': photoFile.type,
-      },
-      body: photoFile,
-    });
-
-    if (!uploadResponse.ok) {
-      setErrorMessage('Unable to upload photo. Please try again.');
-      return;
-    }
-
-    photoKey = uploadConfig.data.photoKey;
+    const uploadedKey = await performPhotoUpload(photoFile, setErrorMessage);
+    if (!uploadedKey) return;
+    photoKey = uploadedKey;
   }
   if (isEditMode && initialData) {
     const updatePayload = { ...payload, photoKey };
