@@ -5,9 +5,16 @@ import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
 import { transactionCategories, transactions } from '@/lib/db/schema';
+import { getTransactionAttachmentLimits } from '@/lib/env';
+import {
+  buildTransactionAttachmentKey,
+  getPresignedDownloadUrl,
+  getPresignedUploadUrl,
+} from '@/lib/s3';
 import { parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import {
   createOpeningBalanceSchema,
+  createTransactionAttachmentUploadSchema,
   createTransactionSchema,
   type UpdateTransactionInput,
   updateTransactionSchema,
@@ -24,6 +31,11 @@ const OPENING_BALANCE_TRANSACTION_CODES = {
 
 /** Shared subset of db and PgTransaction that supports Drizzle's select API */
 type TxOrDb = Pick<typeof db, 'select'>;
+
+function normalizeAttachmentKey(attachmentKey: string | undefined): string | null {
+  const trimmed = attachmentKey?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
 
 export async function getNextTransactionCode(tx: TxOrDb = db): Promise<number> {
   const result = await tx
@@ -73,17 +85,13 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
           entry_kind: 'regular',
           category_id: category.id,
           type: validationResult.data.type,
-          payment_mode: validationResult.data.paymentMode as
-            | 'cash'
-            | 'bank'
-            | 'online_transaction'
-            | 'cheque',
+          payment_mode: validationResult.data.paymentMode,
           fund_account: validationResult.data.fundAccount,
           payee_merchant: validationResult.data.payeeMerchant,
           paid_receipt_by: validationResult.data.paidReceiptBy,
           amount,
           remarks: validationResult.data.remarks ?? '',
-          attachment_key: validationResult.data.attachmentKey,
+          attachment_key: normalizeAttachmentKey(validationResult.data.attachmentKey),
         })
         .returning();
       if (!row) throw new Error('Failed to create transaction.');
@@ -105,6 +113,96 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
     return {
       success: false,
       error: 'Unable to create transaction. Please try again.',
+    };
+  }
+}
+
+export async function requestTransactionAttachmentUpload(
+  input: unknown,
+): Promise<ActionResult<{ attachmentKey: string; uploadUrl: string }>> {
+  try {
+    const validationResult = createTransactionAttachmentUploadSchema.safeParse(input);
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message ?? 'Invalid attachment details.',
+      };
+    }
+
+    const { attachmentMaxBytes } = getTransactionAttachmentLimits();
+    if (validationResult.data.fileSize > attachmentMaxBytes) {
+      const maxSizeLabel =
+        attachmentMaxBytes >= 1024 * 1024
+          ? `${(attachmentMaxBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
+          : `${Math.ceil(attachmentMaxBytes / 1024)} KB`;
+      return {
+        success: false,
+        error: `Attachment must be ${maxSizeLabel} or smaller.`,
+      };
+    }
+
+    const attachmentKey = buildTransactionAttachmentKey(validationResult.data.fileName);
+    const uploadUrl = await getPresignedUploadUrl(
+      'transactions',
+      attachmentKey,
+      validationResult.data.fileType,
+    );
+
+    return {
+      success: true,
+      data: {
+        attachmentKey,
+        uploadUrl,
+      },
+    };
+  } catch (error) {
+    console.error('Error creating transaction attachment upload URL:', error);
+    return {
+      success: false,
+      error: 'Unable to prepare attachment upload. Please try again.',
+    };
+  }
+}
+
+export async function getTransactionAttachmentDownload(
+  transactionId: string,
+): Promise<ActionResult<{ downloadUrl: string }>> {
+  try {
+    const transaction = await db.query.transactions.findFirst({
+      where: eq(transactions.id, transactionId),
+      columns: {
+        id: true,
+        attachment_key: true,
+      },
+    });
+
+    if (!transaction) {
+      return { success: false, error: 'Transaction not found.' };
+    }
+
+    if (!transaction.attachment_key) {
+      return { success: false, error: 'No attachment found for this transaction.' };
+    }
+
+    const downloadUrl = await getPresignedDownloadUrl('transactions', transaction.attachment_key);
+
+    if (!downloadUrl) {
+      return { success: false, error: 'Unable to open attachment. Please try again.' };
+    }
+
+    return {
+      success: true,
+      data: {
+        downloadUrl,
+      },
+    };
+  } catch (error) {
+    console.error('Error creating transaction attachment download URL:', error);
+    return {
+      success: false,
+      error: 'Unable to open attachment. Please try again.',
     };
   }
 }
@@ -435,15 +533,12 @@ export async function updateTransaction(
         amount: Number(validationResult.data.amount).toFixed(3),
         transaction_date: new Date(validationResult.data.transactionDate),
         category_id: validationResult.data.categoryId,
-        payment_mode: validationResult.data.paymentMode as
-          | 'cash'
-          | 'bank'
-          | 'online_transaction'
-          | 'cheque',
+        payment_mode: validationResult.data.paymentMode,
         fund_account: validationResult.data.fundAccount,
         payee_merchant: validationResult.data.payeeMerchant,
         paid_receipt_by: validationResult.data.paidReceiptBy,
         remarks: validationResult.data.remarks ?? '',
+        attachment_key: normalizeAttachmentKey(validationResult.data.attachmentKey),
         updated_at: new Date(),
       })
       .where(eq(transactions.id, id));

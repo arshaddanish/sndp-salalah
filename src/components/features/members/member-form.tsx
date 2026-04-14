@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { UserMinus, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -8,8 +8,7 @@ import { useCallback, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { Input } from '@/components/ui/input';
-import { createMember, updateMember } from '@/lib/actions/members';
-import { uploadMemberPhoto } from '@/lib/s3/member-photo-upload';
+import { createMember, requestMemberPhotoUpload, updateMember } from '@/lib/actions/members';
 import { createMemberSchema, updateMemberSchema } from '@/lib/validations/members';
 import type { CreateMemberInput, Member } from '@/types/members';
 
@@ -155,8 +154,31 @@ async function runMemberSubmit(
 ): Promise<void> {
   let photoKey = initialData?.photo_key ?? '';
   if (photoFile) {
-    const uploadResult = await uploadMemberPhoto(photoFile);
-    photoKey = uploadResult.photoKey;
+    const uploadConfig = await requestMemberPhotoUpload({
+      fileName: photoFile.name,
+      fileType: photoFile.type,
+      fileSize: photoFile.size,
+    });
+
+    if (!uploadConfig.success || !uploadConfig.data) {
+      setErrorMessage(uploadConfig.error ?? 'Unable to prepare photo upload.');
+      return;
+    }
+
+    const uploadResponse = await fetch(uploadConfig.data.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': photoFile.type,
+      },
+      body: photoFile,
+    });
+
+    if (!uploadResponse.ok) {
+      setErrorMessage('Unable to upload photo. Please try again.');
+      return;
+    }
+
+    photoKey = uploadConfig.data.photoKey;
   }
   if (isEditMode && initialData) {
     const updatePayload = { ...payload, photoKey };

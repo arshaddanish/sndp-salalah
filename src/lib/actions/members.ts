@@ -28,11 +28,13 @@ import {
   transactionCategories,
   transactions,
 } from '@/lib/db/schema';
-import { shouldShowDetailedErrors } from '@/lib/env';
+import { getMemberPhotoLimits, shouldShowDetailedErrors } from '@/lib/env';
 import { parseDateOrNull, parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import { getMemberStatus } from '@/lib/utils/member-status';
+import { buildMemberPhotoKey, getPresignedDownloadUrl, getPresignedUploadUrl } from '@/lib/s3';
 import {
   type CreateMemberInput,
+  createMemberPhotoUploadSchema,
   createMemberSchema,
   renewMembershipSchema,
   setMemberLifetimeSchema,
@@ -634,6 +636,9 @@ export async function fetchMemberById(id: string): Promise<ActionResult<MemberDe
         ...member,
         shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
         status: getMemberStatus(member.expiry, member.is_lifetime),
+        photo_url: member.photo_key
+          ? await getPresignedDownloadUrl('members', member.photo_key)
+          : null,
         familyMembersList: member.family_members ?? [],
       },
     };
@@ -682,6 +687,9 @@ export async function fetchMemberProfileByIdentifier(
           ...member,
           shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
           status: getMemberStatus(member.expiry, member.is_lifetime),
+          photo_url: member.photo_key
+            ? await getPresignedDownloadUrl('members', member.photo_key)
+            : null,
           familyMembersList: member.family_members ?? [],
         },
       },
@@ -1058,5 +1066,54 @@ export async function deleteMember(memberId: string): Promise<ActionResult<{ id:
   } catch (error) {
     console.error('Error deleting member:', error);
     return { success: false, error: 'Unable to delete member. Please try again.' };
+  }
+}
+
+export async function requestMemberPhotoUpload(
+  input: unknown,
+): Promise<ActionResult<{ photoKey: string; uploadUrl: string }>> {
+  try {
+    const validationResult = createMemberPhotoUploadSchema.safeParse(input);
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message ?? 'Invalid attachment details.',
+      };
+    }
+
+    const { photoMaxBytes } = getMemberPhotoLimits();
+    if (validationResult.data.fileSize > photoMaxBytes) {
+      const maxSizeLabel =
+        photoMaxBytes >= 1024 * 1024
+          ? `${(photoMaxBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
+          : `${Math.ceil(photoMaxBytes / 1024)} KB`;
+      return {
+        success: false,
+        error: `Photo must be ${maxSizeLabel} or smaller.`,
+      };
+    }
+
+    const photoKey = buildMemberPhotoKey(validationResult.data.fileName);
+    const uploadUrl = await getPresignedUploadUrl(
+      'members',
+      photoKey,
+      validationResult.data.fileType,
+    );
+
+    return {
+      success: true,
+      data: {
+        photoKey,
+        uploadUrl,
+      },
+    };
+  } catch (error) {
+    console.error('Error creating member photo upload URL:', error);
+    return {
+      success: false,
+      error: 'Unable to prepare photo upload. Please try again.',
+    };
   }
 }

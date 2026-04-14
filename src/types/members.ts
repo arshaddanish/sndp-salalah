@@ -1,4 +1,4 @@
-﻿import type { TransactionFundAccount, TransactionPaymentMode } from '@/types/transactions';
+import type { TransactionFundAccount, TransactionPaymentMode } from '@/types/transactions';
 
 export type { CreateMemberInput, FamilyMemberInput } from '@/lib/validations/members';
 
@@ -11,6 +11,7 @@ export type Member = {
   family_status: string | null;
   email: string | null;
   photo_key: string | null;
+  photo_url?: string | null;
   gsm_no: string | null;
   whatsapp_no: string | null;
   blood_group: string | null;

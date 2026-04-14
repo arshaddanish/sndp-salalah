@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+export const MEMBER_PHOTO_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'] as const;
+export const MEMBER_PHOTO_DEFAULT_MAX_BYTES = 512 * 1024; // 512KB
+
 import {
   optionalDate,
   optionalText,
@@ -88,3 +91,17 @@ export const updateMemberPhotoSchema = z.object({
 });
 
 export type UpdateMemberPhotoInput = z.infer<typeof updateMemberPhotoSchema>;
+
+export const createMemberPhotoUploadSchema = z.object({
+  fileName: z.string().trim().min(1, 'File name is required').max(255, 'File name is too long'),
+  fileSize: z
+    .number()
+    .int()
+    .positive('File size must be greater than 0')
+    .max(Number.MAX_SAFE_INTEGER),
+  fileType: z.enum(MEMBER_PHOTO_ALLOWED_MIME_TYPES, {
+    message: 'Only JPEG or PNG files are allowed.',
+  }),
+});
+
+export type CreateMemberPhotoUploadInput = z.infer<typeof createMemberPhotoUploadSchema>;
