@@ -352,10 +352,16 @@ function buildActivityWindowConditions(
 
   if (startDate) {
     conditions.push(lte(members.active_from, startDate));
+    if (!endDate) {
+      conditions.push(gte(members.expiry, startDate));
+    }
   }
 
   if (endDate) {
     conditions.push(gte(members.expiry, endDate));
+    if (!startDate) {
+      conditions.push(lte(members.active_from, endDate));
+    }
   }
 
   return conditions;
