@@ -33,15 +33,3 @@ export function parseEndOfDayOrNull(value: string | null | undefined): Date | nu
   parsed.setUTCHours(23, 59, 59, 999);
   return parsed;
 }
-
-/**
- * Formats a Date object to a string in YYYY-MM-DD format (ISO date part).
- * Useful for filtering on database DATE columns to avoid timestamp/timezone ambiguity.
- */
-export function toISODateString(date: Date | null | undefined): string | undefined {
-  if (!date || Number.isNaN(date.getTime())) {
-    return undefined;
-  }
-
-  return date.toISOString().split('T')[0];
-}
