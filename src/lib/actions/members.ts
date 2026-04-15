@@ -29,7 +29,12 @@ import {
   transactions,
 } from '@/lib/db/schema';
 import { getMemberPhotoLimits, shouldShowDetailedErrors } from '@/lib/env';
-import { buildMemberPhotoKey, getPresignedDownloadUrl, getPresignedUploadUrl } from '@/lib/s3';
+import {
+  buildMemberPhotoKey,
+  deleteS3Object,
+  getPresignedDownloadUrl,
+  getPresignedUploadUrl,
+} from '@/lib/s3';
 import { parseDateOrNull, parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import { getMemberStatus } from '@/lib/utils/member-status';
 import {
@@ -868,6 +873,7 @@ export async function updateMember(
     await db.transaction(async (tx) => {
       const existing = await tx.query.members.findFirst({
         where: and(eq(members.id, memberId), eq(members.is_archived, false)),
+        columns: { id: true, photo_key: true, civil_id_no: true, expiry: true },
       });
 
       if (!existing) {
@@ -884,6 +890,9 @@ export async function updateMember(
           'DUPLICATE_CIVIL_ID',
         );
       }
+
+      const oldPhotoKey = existing.photo_key;
+      const newPhotoKey = data.photoKey?.trim() || existing.photo_key;
 
       await tx
         .update(members)
@@ -914,7 +923,7 @@ export async function updateMember(
           application_no: data.applicationNo.trim(),
           secretary: data.secretary,
           president: data.president,
-          photo_key: data.photoKey?.trim() || existing.photo_key,
+          photo_key: newPhotoKey,
         })
         .where(eq(members.id, memberId));
 
@@ -929,6 +938,11 @@ export async function updateMember(
             dob: parseDateOrNull(fm.dob),
           })),
         );
+      }
+
+      // Cleanup S3: If photo changed, delete the old one
+      if (oldPhotoKey && oldPhotoKey !== newPhotoKey) {
+        deleteS3Object('members', oldPhotoKey);
       }
     });
 
@@ -962,13 +976,22 @@ export async function updateMemberPhoto(
     // Check if member exists and not archived
     const member = await db.query.members.findFirst({
       where: and(eq(members.id, validatedId), eq(members.is_archived, false)),
+      columns: { id: true, photo_key: true },
     });
 
     if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
+    const oldPhotoKey = member.photo_key;
+
     await db.update(members).set({ photo_key: validatedKey }).where(eq(members.id, validatedId));
+
+    // Cleanup: If there was an old photo and it's different, delete it from S3
+    if (oldPhotoKey && oldPhotoKey !== validatedKey) {
+      // Fire and forget (errors logged inside deleteS3Object)
+      deleteS3Object('members', oldPhotoKey);
+    }
 
     revalidatePath(`/members/${validatedId}`);
     return { success: true, data: { id: validatedId } };
@@ -1049,16 +1072,23 @@ export async function deleteMember(memberId: string): Promise<ActionResult<{ id:
     // Check if member exists
     const member = await db.query.members.findFirst({
       where: eq(members.id, memberId),
+      columns: { id: true, photo_key: true },
     });
 
     if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
+    const photoKey = member.photo_key;
+
     // Pending transactions table integration: re-add linked-transactions guard.
     // For now, cascade delete on family_members FK handles cleanup
-
     await db.delete(members).where(eq(members.id, memberId));
+
+    // Cleanup: Delete photo from S3
+    if (photoKey) {
+      deleteS3Object('members', photoKey);
+    }
 
     revalidatePath('/members');
 

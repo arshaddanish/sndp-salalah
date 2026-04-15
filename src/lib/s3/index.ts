@@ -1,4 +1,9 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 import { env } from '@/lib/env';
@@ -73,6 +78,23 @@ export async function getPresignedUploadUrl(
   });
 
   return await getSignedUrl(s3Client, command, { expiresIn });
+}
+
+export async function deleteS3Object(bucketType: S3BucketType, key: string | null): Promise<void> {
+  if (!key) return;
+
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: getBucketName(bucketType),
+      Key: key,
+    });
+
+    await s3Client.send(command);
+  } catch (error) {
+    // We log but don't throw, as S3 cleanup is a non-critical background-style task
+    // and shouldn't crash the main DB transaction/action flow.
+    console.error(`Failed to delete S3 object (Bucket: ${bucketType}, Key: ${key}):`, error);
+  }
 }
 
 export { s3Client };

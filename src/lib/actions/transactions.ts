@@ -8,6 +8,7 @@ import { transactionCategories, transactions } from '@/lib/db/schema';
 import { getTransactionAttachmentLimits } from '@/lib/env';
 import {
   buildTransactionAttachmentKey,
+  deleteS3Object,
   getPresignedDownloadUrl,
   getPresignedUploadUrl,
 } from '@/lib/s3';
@@ -463,6 +464,7 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
   try {
     const existing = await db.query.transactions.findFirst({
       where: eq(transactions.id, id),
+      columns: { id: true, entry_kind: true, attachment_key: true },
     });
 
     if (!existing) {
@@ -473,7 +475,15 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
       return { success: false, error: 'Only regular transactions can be deleted.' };
     }
 
+    const attachmentKey = existing.attachment_key;
+
     await db.delete(transactions).where(eq(transactions.id, id));
+
+    // Cleanup: Delete attachment from S3
+    if (attachmentKey) {
+      deleteS3Object('transactions', attachmentKey);
+    }
+
     revalidatePath('/transactions');
     return { success: true, data: null };
   } catch (error) {
@@ -526,6 +536,9 @@ export async function updateTransaction(
       return { success: false, error: 'Only regular transactions can be updated.' };
     }
 
+    const oldAttachmentKey = existing.attachment_key;
+    const newAttachmentKey = normalizeAttachmentKey(validationResult.data.attachmentKey);
+
     await db
       .update(transactions)
       .set({
@@ -538,10 +551,15 @@ export async function updateTransaction(
         payee_merchant: validationResult.data.payeeMerchant,
         paid_receipt_by: validationResult.data.paidReceiptBy,
         remarks: validationResult.data.remarks ?? '',
-        attachment_key: normalizeAttachmentKey(validationResult.data.attachmentKey),
+        attachment_key: newAttachmentKey,
         updated_at: new Date(),
       })
       .where(eq(transactions.id, id));
+
+    // Cleanup S3: If attachment changed, delete the old one
+    if (oldAttachmentKey && oldAttachmentKey !== newAttachmentKey) {
+      deleteS3Object('transactions', oldAttachmentKey);
+    }
 
     revalidatePath('/transactions');
     return { success: true, data: null };
