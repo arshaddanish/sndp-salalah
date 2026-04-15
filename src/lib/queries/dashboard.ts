@@ -67,13 +67,13 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
       .select({ count: sql<number>`count(*)` })
       .from(members)
       .where(
-        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.first_joined_at} >= DATE_TRUNC('month', CURRENT_DATE)`,
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND COALESCE(${members.first_joined_at}, ${members.active_from}) >= DATE_TRUNC('month', CURRENT_DATE)`,
       ),
     db
       .select({ count: sql<number>`count(*)` })
       .from(members)
       .where(
-        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.first_joined_at} < DATE_TRUNC('month', CURRENT_DATE)`,
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND COALESCE(${members.first_joined_at}, ${members.active_from}) < DATE_TRUNC('month', CURRENT_DATE)`,
       ),
     db
       .select({ count: sql<number>`count(*)` })
