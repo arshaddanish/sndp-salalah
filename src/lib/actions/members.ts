@@ -960,6 +960,10 @@ export async function updateMember(
   }
 }
 
+/**
+ * Updates a member's photo key in the database and cleans up the old photo from S3.
+ * This is a standalone action used by the photo editor.
+ */
 export async function updateMemberPhoto(
   memberId: string,
   photoKey: string,
@@ -1099,6 +1103,10 @@ export async function deleteMember(memberId: string): Promise<ActionResult<{ id:
   }
 }
 
+/**
+ * Generates a pre-signed URL to upload a member's profile photo.
+ * Returns the photoKey and uploadUrl.
+ */
 export async function requestMemberPhotoUpload(
   input: unknown,
 ): Promise<ActionResult<{ photoKey: string; uploadUrl: string }>> {

@@ -2,6 +2,7 @@
 
 import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 import { db } from '@/lib/db';
 import { transactionCategories, transactions } from '@/lib/db/schema';
@@ -118,6 +119,11 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
   }
 }
 
+/**
+ * Request a pre-signed URL to upload an attachment for a transaction.
+ * Does NOT update the transaction record itself; the caller must provide the
+ * resulting attachmentKey to create/update transaction actions.
+ */
 export async function requestTransactionAttachmentUpload(
   input: unknown,
 ): Promise<ActionResult<{ attachmentKey: string; uploadUrl: string }>> {
@@ -167,10 +173,18 @@ export async function requestTransactionAttachmentUpload(
   }
 }
 
+/**
+ * Generates a pre-signed download URL for a transaction's attachment.
+ */
 export async function getTransactionAttachmentDownload(
   transactionId: string,
 ): Promise<ActionResult<{ downloadUrl: string }>> {
   try {
+    const idValidation = z.string().uuid().safeParse(transactionId);
+    if (!idValidation.success) {
+      return { success: false, error: 'Invalid transaction ID.' };
+    }
+
     const transaction = await db.query.transactions.findFirst({
       where: eq(transactions.id, transactionId),
       columns: {

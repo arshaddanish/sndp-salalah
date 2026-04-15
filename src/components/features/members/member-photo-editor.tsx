@@ -49,6 +49,8 @@ export function MemberPhotoEditor({
         maxSizeBytes < 1024 * 1024 ? `${Math.round(maxSizeBytes / 1024)}KB` : `${maxSizeMB}MB`;
 
       setErrorMessage(`Photo must be ${maxSizeLabel} or smaller.`);
+      setPendingFile(null);
+      setPreviewUrl(null);
       event.target.value = '';
       return;
     }
