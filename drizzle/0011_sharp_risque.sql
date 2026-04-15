@@ -1,0 +1,1 @@
+ALTER TABLE "members" ADD COLUMN "first_joined_at" date;

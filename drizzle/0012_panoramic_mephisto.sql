@@ -1,0 +1,1 @@
+ALTER TABLE "members" DROP COLUMN "first_joined_at";

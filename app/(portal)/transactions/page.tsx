@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { CreateTransactionButton } from '@/components/features/transactions/create-transaction-button';
 import { SetOpeningBalanceButton } from '@/components/features/transactions/set-opening-balance-button';
 import { TransactionsTable } from '@/components/features/transactions/transactions-table';
-import { fetchTransactionCategoryOptions } from '@/lib/actions/transaction-categories';
+import {
+  fetchTransactionCategoryFilterOptions,
+  fetchTransactionCategoryOptions,
+} from '@/lib/actions/transaction-categories';
 import { fetchOpeningBalances, fetchTransactions } from '@/lib/actions/transactions';
 import { calculatePaginationState } from '@/lib/pagination-utils';
 import { normalizePagination } from '@/lib/query-pagination';
@@ -80,20 +83,28 @@ export default async function TransactionsPage({
   const filters = getTransactionsFilterState(queryParams);
   const transactionQuery = buildTransactionsQuery(filters);
 
-  const [transactionsResult, openingBalancesResult, transactionCategoryOptionsResult] =
-    await Promise.all([
-      fetchTransactions(page, pageSize, transactionQuery),
-      fetchOpeningBalances(),
-      fetchTransactionCategoryOptions(),
-    ]);
+  const [
+    transactionsResult,
+    openingBalancesResult,
+    filterCategoryOptionsResult,
+    createCategoryOptionsResult,
+  ] = await Promise.all([
+    fetchTransactions(page, pageSize, transactionQuery),
+    fetchOpeningBalances(),
+    fetchTransactionCategoryFilterOptions(),
+    fetchTransactionCategoryOptions(),
+  ]);
   const paginatedRows = transactionsResult.success ? (transactionsResult.data?.items ?? []) : [];
   const totalCount = transactionsResult.success ? (transactionsResult.data?.totalCount ?? 0) : 0;
-  const categories = transactionCategoryOptionsResult.success
-    ? (transactionCategoryOptionsResult.data ?? [])
+  const filterCategories = filterCategoryOptionsResult.success
+    ? (filterCategoryOptionsResult.data ?? [])
+    : [];
+  const createCategories = createCategoryOptionsResult.success
+    ? (createCategoryOptionsResult.data ?? [])
     : [];
   const categoryOptions = [
     { label: 'All', value: 'all' },
-    ...categories.map((category) => ({
+    ...filterCategories.map((category) => ({
       label: category.name,
       value: category.id,
     })),
@@ -114,9 +125,9 @@ export default async function TransactionsPage({
     });
   }
 
-  if (!transactionCategoryOptionsResult.success && transactionCategoryOptionsResult.error) {
-    console.error('Failed to fetch transaction category options for transactions page', {
-      error: transactionCategoryOptionsResult.error,
+  if (!filterCategoryOptionsResult.success && filterCategoryOptionsResult.error) {
+    console.error('Failed to fetch transaction category filter options for transactions page', {
+      error: filterCategoryOptionsResult.error,
     });
   }
 
@@ -149,7 +160,7 @@ export default async function TransactionsPage({
             />
           </div>
           <div className="order-1 lg:order-3">
-            <CreateTransactionButton categories={categories} />
+            <CreateTransactionButton categories={createCategories} />
           </div>
         </div>
       </div>

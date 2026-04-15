@@ -33,6 +33,9 @@ export function EditTransactionDialog({
   const [isPending, startTransition] = useTransition();
   const [isDirty, setIsDirty] = useState(false);
   const [type, setType] = useState<'income' | 'expense'>(transaction.type);
+  const [attachmentFileName, setAttachmentFileName] = useState<string | null>(
+    transaction.attachmentKey ?? null,
+  );
 
   const filteredCategories = categoryOptions.filter((cat) => cat.value !== 'all');
 
@@ -89,6 +92,7 @@ export function EditTransactionDialog({
         payeeMerchant: formData.get('payeeMerchant') as string,
         paidReceiptBy: formData.get('paidReceiptBy') as string,
         remarks: formData.get('remarks') as string,
+        attachmentKey: attachmentFileName ?? undefined,
       });
 
       if (!result.success) {
@@ -298,6 +302,28 @@ export function EditTransactionDialog({
                 disabled={isPending}
                 onChange={handleChange}
               />
+            </div>
+
+            {/* Reference File */}
+            <div className="space-y-1.5">
+              <label className="text-text-secondary text-sm font-medium" htmlFor="edit-attachment">
+                Reference File
+              </label>
+              <input
+                id="edit-attachment"
+                type="file"
+                accept="image/*,.pdf"
+                disabled={isPending}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setAttachmentFileName(file ? file.name : null);
+                  setIsDirty(true);
+                }}
+                className="border-border text-text-primary focus:border-accent focus:ring-accent/20 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none file:mr-3 file:rounded file:border-0 file:bg-transparent file:text-sm file:font-medium focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              {attachmentFileName && (
+                <p className="text-text-secondary text-xs">Current: {attachmentFileName}</p>
+              )}
             </div>
           </div>
 
