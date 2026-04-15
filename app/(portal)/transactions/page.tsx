@@ -73,16 +73,14 @@ function buildTransactionsQuery(filters: TransactionsFilterState): TransactionsQ
   return query;
 }
 
-export default async function TransactionsPage({
-  searchParams,
-}: Readonly<{
-  searchParams?: Promise<ListTransactionsRequest>;
-}>) {
-  const queryParams = (await searchParams) ?? {};
-  const { page, pageSize } = normalizePagination(queryParams);
-  const filters = getTransactionsFilterState(queryParams);
-  const transactionQuery = buildTransactionsQuery(filters);
+// ✅ Extracted helper — reduces complexity in the page component
+type FetchResults = Awaited<ReturnType<typeof fetchAllTransactionsPageData>>;
 
+async function fetchAllTransactionsPageData(
+  page: number,
+  pageSize: number,
+  transactionQuery: TransactionsQuery,
+) {
   const [
     transactionsResult,
     openingBalancesResult,
@@ -94,6 +92,70 @@ export default async function TransactionsPage({
     fetchTransactionCategoryFilterOptions(),
     fetchTransactionCategoryOptions(),
   ]);
+
+  return {
+    transactionsResult,
+    openingBalancesResult,
+    filterCategoryOptionsResult,
+    createCategoryOptionsResult,
+  };
+}
+
+function logFetchErrors({
+  transactionsResult,
+  filterCategoryOptionsResult,
+  createCategoryOptionsResult,
+  page,
+  pageSize,
+  transactionQuery,
+}: FetchResults & { page: number; pageSize: number; transactionQuery: TransactionsQuery }) {
+  if (!transactionsResult.success && transactionsResult.error) {
+    console.error('Failed to fetch transactions for transactions page', {
+      error: transactionsResult.error,
+      page,
+      pageSize,
+      query: transactionQuery,
+    });
+  }
+  if (!filterCategoryOptionsResult.success && filterCategoryOptionsResult.error) {
+    console.error('Failed to fetch transaction category filter options for transactions page', {
+      error: filterCategoryOptionsResult.error,
+    });
+  }
+  if (!createCategoryOptionsResult.success && createCategoryOptionsResult.error) {
+    console.error('Failed to fetch transaction category create options for transactions page', {
+      error: createCategoryOptionsResult.error,
+    });
+  }
+}
+
+export default async function TransactionsPage({
+  searchParams,
+}: Readonly<{
+  searchParams?: Promise<ListTransactionsRequest>;
+}>) {
+  const queryParams = (await searchParams) ?? {};
+  const { page, pageSize } = normalizePagination(queryParams);
+  const filters = getTransactionsFilterState(queryParams);
+  const transactionQuery = buildTransactionsQuery(filters);
+
+  const {
+    transactionsResult,
+    openingBalancesResult,
+    filterCategoryOptionsResult,
+    createCategoryOptionsResult,
+  } = await fetchAllTransactionsPageData(page, pageSize, transactionQuery);
+
+  logFetchErrors({
+    transactionsResult,
+    openingBalancesResult,
+    filterCategoryOptionsResult,
+    createCategoryOptionsResult,
+    page,
+    pageSize,
+    transactionQuery,
+  });
+
   const paginatedRows = transactionsResult.success ? (transactionsResult.data?.items ?? []) : [];
   const totalCount = transactionsResult.success ? (transactionsResult.data?.totalCount ?? 0) : 0;
   const filterCategories = filterCategoryOptionsResult.success
@@ -104,10 +166,7 @@ export default async function TransactionsPage({
     : [];
   const categoryOptions = [
     { label: 'All', value: 'all' },
-    ...filterCategories.map((category) => ({
-      label: category.name,
-      value: category.id,
-    })),
+    ...filterCategories.map((category) => ({ label: category.name, value: category.id })),
   ];
   const existingCashOpeningBalance = openingBalancesResult.success
     ? (openingBalancesResult.data?.cash ?? null)
@@ -115,26 +174,11 @@ export default async function TransactionsPage({
   const existingBankOpeningBalance = openingBalancesResult.success
     ? (openingBalancesResult.data?.bank ?? null)
     : null;
-
-  if (!transactionsResult.success && transactionsResult.error) {
-    console.error('Failed to fetch transactions for transactions page', {
-      error: transactionsResult.error,
-      page,
-      pageSize,
-      query: transactionQuery,
-    });
-  }
-
-  if (!filterCategoryOptionsResult.success && filterCategoryOptionsResult.error) {
-    console.error('Failed to fetch transaction category filter options for transactions page', {
-      error: filterCategoryOptionsResult.error,
-    });
-  }
-
-  const { totalRows, pageCount, pageIndex } = calculatePaginationState(page, pageSize, totalCount);
   const errorMessage = transactionsResult.success
     ? null
     : (transactionsResult.error ?? 'Unable to load transactions. Please try again.');
+
+  const { totalRows, pageCount, pageIndex } = calculatePaginationState(page, pageSize, totalCount);
 
   return (
     <div className="space-y-6">
@@ -160,7 +204,11 @@ export default async function TransactionsPage({
             />
           </div>
           <div className="order-1 lg:order-3">
-            <CreateTransactionButton categories={createCategories} />
+            {!createCategoryOptionsResult.success ? (
+              <p className="text-danger text-sm">Unable to load categories.</p>
+            ) : (
+              <CreateTransactionButton categories={createCategories} />
+            )}
           </div>
         </div>
       </div>
