@@ -109,7 +109,15 @@ export function EditTransactionDialog({
     <Dialog
       open={isOpen}
       onOpenChange={(value) => {
-        if (!isPending) onOpenChange(value);
+        if (!isPending) {
+          if (!value) {
+            setAttachmentFileName(transaction.attachmentKey ?? null);
+            setIsDirty(false);
+            setErrorMessage(null);
+            setType(transaction.type);
+          }
+          onOpenChange(value);
+        }
       }}
     >
       <DialogContent className="max-h-[90vh] w-[calc(100%-1.5rem)] gap-3 overflow-y-auto sm:max-w-2xl">

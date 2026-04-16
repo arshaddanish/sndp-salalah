@@ -167,6 +167,9 @@ export default async function TransactionsPage({
   const filterCategories = filterCategoryOptionsResult.success
     ? (filterCategoryOptionsResult.data ?? [])
     : [];
+  const filterCategoryError = filterCategoryOptionsResult.success
+    ? null
+    : (filterCategoryOptionsResult.error ?? 'Unable to load transaction categories.');
   const createCategories = createCategoryOptionsResult.success
     ? (createCategoryOptionsResult.data ?? [])
     : [];
@@ -220,7 +223,7 @@ export default async function TransactionsPage({
       </div>
 
       {errorMessage ? <p className="text-danger text-sm">{errorMessage}</p> : null}
-
+      {filterCategoryError ? <p className="text-danger text-sm">{filterCategoryError}</p> : null}
       <TransactionsTable
         rows={paginatedRows}
         totalRows={totalRows}

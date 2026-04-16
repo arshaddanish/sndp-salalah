@@ -183,7 +183,6 @@ export function TransactionDetailDrawer({
 
         {isEditOpen && (
           <EditTransactionDialog
-            key={transaction.id}
             isOpen={isEditOpen}
             onOpenChange={setIsEditOpen}
             transaction={transaction}
