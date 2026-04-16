@@ -80,6 +80,7 @@ export const updateTransactionSchema = z.object({
   payeeMerchant: transactionPartySchema.optional().default(''),
   paidReceiptBy: transactionPartySchema.optional().default(''),
   remarks: transactionRemarksSchema,
+  attachmentKey: z.string().trim().optional().or(z.literal('')),
 });
 
 export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;

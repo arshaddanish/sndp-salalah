@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { CreateTransactionButton } from '@/components/features/transactions/create-transaction-button';
 import { SetOpeningBalanceButton } from '@/components/features/transactions/set-opening-balance-button';
 import { TransactionsTable } from '@/components/features/transactions/transactions-table';
-import { fetchTransactionCategoryOptions } from '@/lib/actions/transaction-categories';
+import {
+  fetchTransactionCategoryFilterOptions,
+  fetchTransactionCategoryOptions,
+} from '@/lib/actions/transaction-categories';
 import { fetchOpeningBalances, fetchTransactions } from '@/lib/actions/transactions';
 import { calculatePaginationState } from '@/lib/pagination-utils';
 import { normalizePagination } from '@/lib/query-pagination';
@@ -70,6 +73,68 @@ function buildTransactionsQuery(filters: TransactionsFilterState): TransactionsQ
   return query;
 }
 
+// ✅ Extracted helper — reduces complexity in the page component
+type FetchResults = Awaited<ReturnType<typeof fetchAllTransactionsPageData>>;
+
+async function fetchAllTransactionsPageData(
+  page: number,
+  pageSize: number,
+  transactionQuery: TransactionsQuery,
+) {
+  const [
+    transactionsResult,
+    openingBalancesResult,
+    filterCategoryOptionsResult,
+    createCategoryOptionsResult,
+  ] = await Promise.all([
+    fetchTransactions(page, pageSize, transactionQuery),
+    fetchOpeningBalances(),
+    fetchTransactionCategoryFilterOptions(),
+    fetchTransactionCategoryOptions(),
+  ]);
+
+  return {
+    transactionsResult,
+    openingBalancesResult,
+    filterCategoryOptionsResult,
+    createCategoryOptionsResult,
+  };
+}
+
+function logFetchErrors({
+  transactionsResult,
+  openingBalancesResult,
+  filterCategoryOptionsResult,
+  createCategoryOptionsResult,
+  page,
+  pageSize,
+  transactionQuery,
+}: FetchResults & { page: number; pageSize: number; transactionQuery: TransactionsQuery }) {
+  if (!transactionsResult.success && transactionsResult.error) {
+    console.error('Failed to fetch transactions for transactions page', {
+      error: transactionsResult.error,
+      page,
+      pageSize,
+      query: transactionQuery,
+    });
+  }
+  if (!openingBalancesResult.success && openingBalancesResult.error) {
+    console.error('Failed to fetch opening balances for transactions page', {
+      error: openingBalancesResult.error,
+    });
+  }
+  if (!filterCategoryOptionsResult.success && filterCategoryOptionsResult.error) {
+    console.error('Failed to fetch transaction category filter options for transactions page', {
+      error: filterCategoryOptionsResult.error,
+    });
+  }
+  if (!createCategoryOptionsResult.success && createCategoryOptionsResult.error) {
+    console.error('Failed to fetch transaction category create options for transactions page', {
+      error: createCategoryOptionsResult.error,
+    });
+  }
+}
+
 export default async function TransactionsPage({
   searchParams,
 }: Readonly<{
@@ -80,23 +145,37 @@ export default async function TransactionsPage({
   const filters = getTransactionsFilterState(queryParams);
   const transactionQuery = buildTransactionsQuery(filters);
 
-  const [transactionsResult, openingBalancesResult, transactionCategoryOptionsResult] =
-    await Promise.all([
-      fetchTransactions(page, pageSize, transactionQuery),
-      fetchOpeningBalances(),
-      fetchTransactionCategoryOptions(),
-    ]);
+  const {
+    transactionsResult,
+    openingBalancesResult,
+    filterCategoryOptionsResult,
+    createCategoryOptionsResult,
+  } = await fetchAllTransactionsPageData(page, pageSize, transactionQuery);
+
+  logFetchErrors({
+    transactionsResult,
+    openingBalancesResult,
+    filterCategoryOptionsResult,
+    createCategoryOptionsResult,
+    page,
+    pageSize,
+    transactionQuery,
+  });
+
   const paginatedRows = transactionsResult.success ? (transactionsResult.data?.items ?? []) : [];
   const totalCount = transactionsResult.success ? (transactionsResult.data?.totalCount ?? 0) : 0;
-  const categories = transactionCategoryOptionsResult.success
-    ? (transactionCategoryOptionsResult.data ?? [])
+  const filterCategories = filterCategoryOptionsResult.success
+    ? (filterCategoryOptionsResult.data ?? [])
+    : [];
+  const filterCategoryError = filterCategoryOptionsResult.success
+    ? null
+    : (filterCategoryOptionsResult.error ?? 'Unable to load transaction categories.');
+  const createCategories = createCategoryOptionsResult.success
+    ? (createCategoryOptionsResult.data ?? [])
     : [];
   const categoryOptions = [
     { label: 'All', value: 'all' },
-    ...categories.map((category) => ({
-      label: category.name,
-      value: category.id,
-    })),
+    ...filterCategories.map((category) => ({ label: category.name, value: category.id })),
   ];
   const existingCashOpeningBalance = openingBalancesResult.success
     ? (openingBalancesResult.data?.cash ?? null)
@@ -104,26 +183,11 @@ export default async function TransactionsPage({
   const existingBankOpeningBalance = openingBalancesResult.success
     ? (openingBalancesResult.data?.bank ?? null)
     : null;
-
-  if (!transactionsResult.success && transactionsResult.error) {
-    console.error('Failed to fetch transactions for transactions page', {
-      error: transactionsResult.error,
-      page,
-      pageSize,
-      query: transactionQuery,
-    });
-  }
-
-  if (!transactionCategoryOptionsResult.success && transactionCategoryOptionsResult.error) {
-    console.error('Failed to fetch transaction category options for transactions page', {
-      error: transactionCategoryOptionsResult.error,
-    });
-  }
-
-  const { totalRows, pageCount, pageIndex } = calculatePaginationState(page, pageSize, totalCount);
   const errorMessage = transactionsResult.success
     ? null
     : (transactionsResult.error ?? 'Unable to load transactions. Please try again.');
+
+  const { totalRows, pageCount, pageIndex } = calculatePaginationState(page, pageSize, totalCount);
 
   return (
     <div className="space-y-6">
@@ -149,13 +213,17 @@ export default async function TransactionsPage({
             />
           </div>
           <div className="order-1 lg:order-3">
-            <CreateTransactionButton categories={categories} />
+            {!createCategoryOptionsResult.success ? (
+              <p className="text-danger text-sm">Unable to load categories.</p>
+            ) : (
+              <CreateTransactionButton categories={createCategories} />
+            )}
           </div>
         </div>
       </div>
 
       {errorMessage ? <p className="text-danger text-sm">{errorMessage}</p> : null}
-
+      {filterCategoryError ? <p className="text-danger text-sm">{filterCategoryError}</p> : null}
       <TransactionsTable
         rows={paginatedRows}
         totalRows={totalRows}

@@ -4,7 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
-import { transactionCategories } from '@/lib/db/schema';
+import { transactionCategories, transactions } from '@/lib/db/schema';
 import {
   createCategorySchema,
   deleteCategorySchema,
@@ -40,8 +40,19 @@ export async function fetchTransactionCategories(
 
     const [items, countResult] = await Promise.all([
       db
-        .select()
+        .select({
+          id: transactionCategories.id,
+          name: transactionCategories.name,
+          description: transactionCategories.description,
+          type: transactionCategories.type,
+          is_system: transactionCategories.is_system,
+          created_at: transactionCategories.created_at,
+          updated_at: transactionCategories.updated_at,
+          transactionCount: sql<number>`cast(count(${transactions.id}) as int)`,
+        })
         .from(transactionCategories)
+        .leftJoin(transactions, eq(transactions.category_id, transactionCategories.id))
+        .groupBy(transactionCategories.id)
         .orderBy(transactionCategories.created_at)
         .limit(pageSize)
         .offset(offset),
@@ -52,7 +63,7 @@ export async function fetchTransactionCategories(
 
     const itemsWithUsageCount: TransactionCategoryWithUsageCount[] = items.map((item) => ({
       ...item,
-      transactionCount: 0,
+      transactionCount: item.transactionCount ?? 0,
     }));
 
     return {
@@ -90,6 +101,31 @@ export async function fetchTransactionCategoryOptions(): Promise<
     };
   } catch (error) {
     console.error('Error fetching transaction category options:', error);
+    return {
+      success: false,
+      error: 'Unable to load transaction categories.',
+    };
+  }
+}
+
+export async function fetchTransactionCategoryFilterOptions(): Promise<
+  ActionResult<TransactionCategoryOption[]>
+> {
+  try {
+    const items = await db
+      .select({
+        id: transactionCategories.id,
+        name: transactionCategories.name,
+        type: transactionCategories.type,
+      })
+      .from(transactionCategories);
+
+    return {
+      success: true,
+      data: items,
+    };
+  } catch (error) {
+    console.error('Error fetching transaction category filter options:', error);
     return {
       success: false,
       error: 'Unable to load transaction categories.',
