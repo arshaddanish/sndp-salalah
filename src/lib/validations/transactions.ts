@@ -48,11 +48,20 @@ export const createTransactionSchema = z.object({
 
 export const createTransactionAttachmentUploadSchema = z.object({
   fileName: z.string().trim().min(1, 'File name is required').max(255, 'File name is too long'),
+export const createTransactionAttachmentUploadSchema = z.object({
+  fileName: z.string().trim().min(1, 'File name is required').max(255, 'File name is too long'),
   fileSize: z
     .number()
     .int()
     .positive('File size must be greater than 0')
-    .max(Number.MAX_SAFE_INTEGER),
+    .max(
+      TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES,
+      'File size must be 1MB or less',
+    ),
+  fileType: z.enum(TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES, {
+    message: 'Only PDF, JPEG, or PNG files are allowed.',
+  }),
+});
   fileType: z.enum(TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES, {
     message: 'Only PDF, JPEG, or PNG files are allowed.',
   }),
