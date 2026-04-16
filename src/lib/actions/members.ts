@@ -994,7 +994,7 @@ export async function updateMemberPhoto(
     // Cleanup: If there was an old photo and it's different, delete it from S3
     if (oldPhotoKey && oldPhotoKey !== validatedKey) {
       // Fire and forget (errors logged inside deleteS3Object)
-      deleteS3Object('members', oldPhotoKey);
+      await deleteS3Object('members', oldPhotoKey);
     }
 
     revalidatePath(`/members/${validatedId}`);
@@ -1091,7 +1091,7 @@ export async function deleteMember(memberId: string): Promise<ActionResult<{ id:
 
     // Cleanup: Delete photo from S3
     if (photoKey) {
-      deleteS3Object('members', photoKey);
+      await deleteS3Object('members', photoKey);
     }
 
     revalidatePath('/members');

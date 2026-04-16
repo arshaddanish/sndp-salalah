@@ -572,7 +572,7 @@ export async function updateTransaction(
 
     // Cleanup S3: If attachment changed, delete the old one
     if (oldAttachmentKey && oldAttachmentKey !== newAttachmentKey) {
-      deleteS3Object('transactions', oldAttachmentKey);
+      await deleteS3Object('transactions', oldAttachmentKey);
     }
 
     revalidatePath('/transactions');
