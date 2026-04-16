@@ -103,6 +103,7 @@ async function fetchAllTransactionsPageData(
 
 function logFetchErrors({
   transactionsResult,
+  openingBalancesResult,
   filterCategoryOptionsResult,
   createCategoryOptionsResult,
   page,
@@ -115,6 +116,11 @@ function logFetchErrors({
       page,
       pageSize,
       query: transactionQuery,
+    });
+  }
+  if (!openingBalancesResult.success && openingBalancesResult.error) {
+    console.error('Failed to fetch opening balances for transactions page', {
+      error: openingBalancesResult.error,
     });
   }
   if (!filterCategoryOptionsResult.success && filterCategoryOptionsResult.error) {
