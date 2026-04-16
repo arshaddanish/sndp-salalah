@@ -565,7 +565,7 @@ export async function updateTransaction(
         payee_merchant: validationResult.data.payeeMerchant,
         paid_receipt_by: validationResult.data.paidReceiptBy,
         remarks: validationResult.data.remarks ?? '',
-        attachment_key: newAttachmentKey,
+        attachment_key: validationResult.data.attachmentKey,
         updated_at: new Date(),
       })
       .where(eq(transactions.id, id));

@@ -62,12 +62,18 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
     periodResult?.periodLabel ??
     new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
 
-  const [newThisMonthResult, expiredThisMonthResult] = await Promise.all([
+  const [newThisMonthResult, renewedThisMonthResult, expiredThisMonthResult] = await Promise.all([
     db
       .select({ count: sql<number>`count(*)` })
       .from(members)
       .where(
-        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.active_from} < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`,
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND COALESCE(${members.first_joined_at}, ${members.active_from}) >= DATE_TRUNC('month', CURRENT_DATE)`,
+      ),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND COALESCE(${members.first_joined_at}, ${members.active_from}) < DATE_TRUNC('month', CURRENT_DATE)`,
       ),
     db
       .select({ count: sql<number>`count(*)` })
@@ -79,10 +85,8 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
 
   return {
     period: periodLabel,
-    // activationsThisMonth: members whose active_from falls in current month
-    // TODO: rename to activationsThisMonth once first_joined_at column is added to distinguish new vs renewal
     newThisMonth: Number(newThisMonthResult[0]?.count ?? 0),
-    renewedThisMonth: 0,
+    renewedThisMonth: Number(renewedThisMonthResult[0]?.count ?? 0),
     expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
   };
 }

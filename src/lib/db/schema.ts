@@ -89,6 +89,7 @@ export const members = pgTable(
     archived_at: timestamp('archived_at', { mode: 'date' }),
     is_lifetime: boolean('is_lifetime').notNull().default(false),
     active_from: date('active_from', { mode: 'date' }),
+    first_joined_at: date('first_joined_at', { mode: 'date' }),
     expiry: date('expiry', { mode: 'date' }),
     created_at: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { mode: 'date' })
