@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { getMemberPhotoLimits } from '@/lib/env';
 import type { MemberDetail } from '@/types/members';
 
 import { MemberPhotoEditor } from './member-photo-editor';
@@ -32,14 +33,16 @@ function formatExpiry(expiry: Date | null, isLifetime: boolean): string {
 
 export function MemberProfileHeader({ member }: Readonly<MemberProfileHeaderProps>) {
   const statusLabel = STATUS_LABELS[member.status] ?? member.status;
+  const { photoMaxBytes } = getMemberPhotoLimits();
 
   return (
     <div className="border-border bg-surface flex flex-col gap-6 rounded-xl border p-6 sm:flex-row sm:items-start">
       {/* Photo — inline-editable via camera badge */}
       <MemberPhotoEditor
         memberId={member.id}
-        currentPhotoKey={member.photo_key}
+        currentPhotoUrl={member.photo_url ?? null}
         memberName={member.name}
+        maxSizeBytes={photoMaxBytes}
       />
 
       {/* Member Summary */}

@@ -28,11 +28,18 @@ import {
   transactionCategories,
   transactions,
 } from '@/lib/db/schema';
-import { shouldShowDetailedErrors } from '@/lib/env';
+import { getMemberPhotoLimits, shouldShowDetailedErrors } from '@/lib/env';
+import {
+  buildMemberPhotoKey,
+  deleteS3Object,
+  getPresignedDownloadUrl,
+  getPresignedUploadUrl,
+} from '@/lib/s3';
 import { parseDateOrNull, parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import { getMemberStatus } from '@/lib/utils/member-status';
 import {
   type CreateMemberInput,
+  createMemberPhotoUploadSchema,
   createMemberSchema,
   renewMembershipSchema,
   setMemberLifetimeSchema,
@@ -634,6 +641,9 @@ export async function fetchMemberById(id: string): Promise<ActionResult<MemberDe
         ...member,
         shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
         status: getMemberStatus(member.expiry, member.is_lifetime),
+        photo_url: member.photo_key
+          ? await getPresignedDownloadUrl('members', member.photo_key)
+          : null,
         familyMembersList: member.family_members ?? [],
       },
     };
@@ -682,6 +692,9 @@ export async function fetchMemberProfileByIdentifier(
           ...member,
           shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
           status: getMemberStatus(member.expiry, member.is_lifetime),
+          photo_url: member.photo_key
+            ? await getPresignedDownloadUrl('members', member.photo_key)
+            : null,
           familyMembersList: member.family_members ?? [],
         },
       },
@@ -857,9 +870,12 @@ export async function updateMember(
     const normalizedCivilId = data.civilIdNo.trim();
     const normalizedOfficeShakhaId = data.officeShakhaId.trim();
 
+    let oldPhotoKeyToDelete: string | null = null;
+
     await db.transaction(async (tx) => {
       const existing = await tx.query.members.findFirst({
         where: and(eq(members.id, memberId), eq(members.is_archived, false)),
+        columns: { id: true, photo_key: true, civil_id_no: true, expiry: true },
       });
 
       if (!existing) {
@@ -876,6 +892,9 @@ export async function updateMember(
           'DUPLICATE_CIVIL_ID',
         );
       }
+
+      const oldPhotoKey = existing.photo_key;
+      const newPhotoKey = data.photoKey?.trim() || existing.photo_key;
 
       await tx
         .update(members)
@@ -906,7 +925,7 @@ export async function updateMember(
           application_no: data.applicationNo.trim(),
           secretary: data.secretary,
           president: data.president,
-          photo_key: data.photoKey?.trim() || existing.photo_key,
+          photo_key: newPhotoKey,
         })
         .where(eq(members.id, memberId));
 
@@ -922,7 +941,15 @@ export async function updateMember(
           })),
         );
       }
+
+      if (oldPhotoKey && oldPhotoKey !== newPhotoKey) {
+        oldPhotoKeyToDelete = oldPhotoKey;
+      }
     });
+
+    if (oldPhotoKeyToDelete) {
+      await deleteS3Object('members', oldPhotoKeyToDelete);
+    }
 
     revalidatePath(`/members/${memberId}`);
     revalidatePath('/members');
@@ -938,6 +965,10 @@ export async function updateMember(
   }
 }
 
+/**
+ * Updates a member's photo key in the database and cleans up the old photo from S3.
+ * This is a standalone action used by the photo editor.
+ */
 export async function updateMemberPhoto(
   memberId: string,
   photoKey: string,
@@ -954,13 +985,22 @@ export async function updateMemberPhoto(
     // Check if member exists and not archived
     const member = await db.query.members.findFirst({
       where: and(eq(members.id, validatedId), eq(members.is_archived, false)),
+      columns: { id: true, photo_key: true },
     });
 
     if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
+    const oldPhotoKey = member.photo_key;
+
     await db.update(members).set({ photo_key: validatedKey }).where(eq(members.id, validatedId));
+
+    // Cleanup: If there was an old photo and it's different, delete it from S3
+    if (oldPhotoKey && oldPhotoKey !== validatedKey) {
+      // Fire and forget (errors logged inside deleteS3Object)
+      await deleteS3Object('members', oldPhotoKey);
+    }
 
     revalidatePath(`/members/${validatedId}`);
     return { success: true, data: { id: validatedId } };
@@ -1041,16 +1081,23 @@ export async function deleteMember(memberId: string): Promise<ActionResult<{ id:
     // Check if member exists
     const member = await db.query.members.findFirst({
       where: eq(members.id, memberId),
+      columns: { id: true, photo_key: true },
     });
 
     if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
+    const photoKey = member.photo_key;
+
     // Pending transactions table integration: re-add linked-transactions guard.
     // For now, cascade delete on family_members FK handles cleanup
-
     await db.delete(members).where(eq(members.id, memberId));
+
+    // Cleanup: Delete photo from S3
+    if (photoKey) {
+      await deleteS3Object('members', photoKey);
+    }
 
     revalidatePath('/members');
 
@@ -1058,5 +1105,58 @@ export async function deleteMember(memberId: string): Promise<ActionResult<{ id:
   } catch (error) {
     console.error('Error deleting member:', error);
     return { success: false, error: 'Unable to delete member. Please try again.' };
+  }
+}
+
+/**
+ * Generates a pre-signed URL to upload a member's profile photo.
+ * Returns the photoKey and uploadUrl.
+ */
+export async function requestMemberPhotoUpload(
+  input: unknown,
+): Promise<ActionResult<{ photoKey: string; uploadUrl: string }>> {
+  try {
+    const validationResult = createMemberPhotoUploadSchema.safeParse(input);
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message ?? 'Invalid attachment details.',
+      };
+    }
+
+    const { photoMaxBytes } = getMemberPhotoLimits();
+    if (validationResult.data.fileSize > photoMaxBytes) {
+      const maxSizeLabel =
+        photoMaxBytes >= 1024 * 1024
+          ? `${(photoMaxBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
+          : `${Math.ceil(photoMaxBytes / 1024)} KB`;
+      return {
+        success: false,
+        error: `Photo must be ${maxSizeLabel} or smaller.`,
+      };
+    }
+
+    const photoKey = buildMemberPhotoKey(validationResult.data.fileName);
+    const uploadUrl = await getPresignedUploadUrl(
+      'members',
+      photoKey,
+      validationResult.data.fileType,
+    );
+
+    return {
+      success: true,
+      data: {
+        photoKey,
+        uploadUrl,
+      },
+    };
+  } catch (error) {
+    console.error('Error creating member photo upload URL:', error);
+    return {
+      success: false,
+      error: 'Unable to prepare photo upload. Please try again.',
+    };
   }
 }

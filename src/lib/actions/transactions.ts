@@ -2,12 +2,22 @@
 
 import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 import { db } from '@/lib/db';
 import { transactionCategories, transactions } from '@/lib/db/schema';
+import { getTransactionAttachmentLimits } from '@/lib/env';
+import {
+  buildTransactionAttachmentKey,
+  deleteS3Object,
+  getPresignedDownloadUrl,
+  getPresignedUploadUrl,
+  getS3ObjectSize,
+} from '@/lib/s3';
 import { parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import {
   createOpeningBalanceSchema,
+  createTransactionAttachmentUploadSchema,
   createTransactionSchema,
   type UpdateTransactionInput,
   updateTransactionSchema,
@@ -24,6 +34,37 @@ const OPENING_BALANCE_TRANSACTION_CODES = {
 
 /** Shared subset of db and PgTransaction that supports Drizzle's select API */
 type TxOrDb = Pick<typeof db, 'select'>;
+
+function normalizeAttachmentKey(attachmentKey: string | undefined): string | null {
+  const trimmed = attachmentKey?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+function formatAttachmentMaxSizeLabel(maxBytes: number): string {
+  return maxBytes >= 1024 * 1024
+    ? `${(maxBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
+    : `${Math.ceil(maxBytes / 1024)} KB`;
+}
+
+async function validateAttachmentKeySize(attachmentKey: string | null): Promise<string | null> {
+  if (!attachmentKey) {
+    return null;
+  }
+
+  const { attachmentMaxBytes } = getTransactionAttachmentLimits();
+  const uploadedSize = await getS3ObjectSize('transactions', attachmentKey);
+  const maxSizeLabel = formatAttachmentMaxSizeLabel(attachmentMaxBytes);
+
+  if (uploadedSize === null) {
+    return `Uploaded attachment could not be verified. Please re-upload (${maxSizeLabel} max).`;
+  }
+
+  if (uploadedSize > attachmentMaxBytes) {
+    return `Attachment must be ${maxSizeLabel} or smaller.`;
+  }
+
+  return null;
+}
 
 export async function getNextTransactionCode(tx: TxOrDb = db): Promise<number> {
   const result = await tx
@@ -62,6 +103,11 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
     }
 
     const amount = Number(validationResult.data.amount).toFixed(3);
+    const attachmentKey = normalizeAttachmentKey(validationResult.data.attachmentKey);
+    const attachmentValidationError = await validateAttachmentKeySize(attachmentKey);
+    if (attachmentValidationError) {
+      return { success: false, error: attachmentValidationError };
+    }
 
     const created = await db.transaction(async (tx) => {
       const nextTransactionCode = await getNextTransactionCode(tx);
@@ -73,17 +119,13 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
           entry_kind: 'regular',
           category_id: category.id,
           type: validationResult.data.type,
-          payment_mode: validationResult.data.paymentMode as
-            | 'cash'
-            | 'bank'
-            | 'online_transaction'
-            | 'cheque',
+          payment_mode: validationResult.data.paymentMode,
           fund_account: validationResult.data.fundAccount,
           payee_merchant: validationResult.data.payeeMerchant,
           paid_receipt_by: validationResult.data.paidReceiptBy,
           amount,
           remarks: validationResult.data.remarks ?? '',
-          attachment_key: validationResult.data.attachmentKey,
+          attachment_key: attachmentKey,
         })
         .returning();
       if (!row) throw new Error('Failed to create transaction.');
@@ -105,6 +147,106 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
     return {
       success: false,
       error: 'Unable to create transaction. Please try again.',
+    };
+  }
+}
+
+/**
+ * Request a pre-signed URL to upload an attachment for a transaction.
+ * Does NOT update the transaction record itself; the caller must provide the
+ * resulting attachmentKey to create/update transaction actions.
+ */
+export async function requestTransactionAttachmentUpload(
+  input: unknown,
+): Promise<ActionResult<{ attachmentKey: string; uploadUrl: string }>> {
+  try {
+    const validationResult = createTransactionAttachmentUploadSchema.safeParse(input);
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message ?? 'Invalid attachment details.',
+      };
+    }
+
+    const { attachmentMaxBytes } = getTransactionAttachmentLimits();
+    if (validationResult.data.fileSize > attachmentMaxBytes) {
+      const maxSizeLabel = formatAttachmentMaxSizeLabel(attachmentMaxBytes);
+      return {
+        success: false,
+        error: `Attachment must be ${maxSizeLabel} or smaller.`,
+      };
+    }
+
+    const attachmentKey = buildTransactionAttachmentKey(validationResult.data.fileName);
+    const uploadUrl = await getPresignedUploadUrl(
+      'transactions',
+      attachmentKey,
+      validationResult.data.fileType,
+    );
+
+    return {
+      success: true,
+      data: {
+        attachmentKey,
+        uploadUrl,
+      },
+    };
+  } catch (error) {
+    console.error('Error creating transaction attachment upload URL:', error);
+    return {
+      success: false,
+      error: 'Unable to prepare attachment upload. Please try again.',
+    };
+  }
+}
+
+/**
+ * Generates a pre-signed download URL for a transaction's attachment.
+ */
+export async function getTransactionAttachmentDownload(
+  transactionId: string,
+): Promise<ActionResult<{ downloadUrl: string }>> {
+  try {
+    const idValidation = z.string().uuid().safeParse(transactionId);
+    if (!idValidation.success) {
+      return { success: false, error: 'Invalid transaction ID.' };
+    }
+
+    const transaction = await db.query.transactions.findFirst({
+      where: eq(transactions.id, idValidation.data),
+      columns: {
+        id: true,
+        attachment_key: true,
+      },
+    });
+
+    if (!transaction) {
+      return { success: false, error: 'Transaction not found.' };
+    }
+
+    if (!transaction.attachment_key) {
+      return { success: false, error: 'No attachment found for this transaction.' };
+    }
+
+    const downloadUrl = await getPresignedDownloadUrl('transactions', transaction.attachment_key);
+
+    if (!downloadUrl) {
+      return { success: false, error: 'Unable to open attachment. Please try again.' };
+    }
+
+    return {
+      success: true,
+      data: {
+        downloadUrl,
+      },
+    };
+  } catch (error) {
+    console.error('Error creating transaction attachment download URL:', error);
+    return {
+      success: false,
+      error: 'Unable to open attachment. Please try again.',
     };
   }
 }
@@ -363,8 +505,14 @@ export async function fetchTransactions(
 
 export async function deleteTransaction(id: string): Promise<ActionResult<null>> {
   try {
+    const idValidation = z.string().uuid().safeParse(id);
+    if (!idValidation.success) {
+      return { success: false, error: 'Invalid transaction ID.' };
+    }
+
     const existing = await db.query.transactions.findFirst({
-      where: eq(transactions.id, id),
+      where: eq(transactions.id, idValidation.data),
+      columns: { id: true, entry_kind: true, attachment_key: true },
     });
 
     if (!existing) {
@@ -375,7 +523,15 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
       return { success: false, error: 'Only regular transactions can be deleted.' };
     }
 
-    await db.delete(transactions).where(eq(transactions.id, id));
+    const attachmentKey = existing.attachment_key;
+
+    await db.delete(transactions).where(eq(transactions.id, idValidation.data));
+
+    // Cleanup: Delete attachment from S3
+    if (attachmentKey) {
+      await deleteS3Object('transactions', attachmentKey);
+    }
+
     revalidatePath('/transactions');
     return { success: true, data: null };
   } catch (error) {
@@ -428,6 +584,13 @@ export async function updateTransaction(
       return { success: false, error: 'Only regular transactions can be updated.' };
     }
 
+    const oldAttachmentKey = existing.attachment_key;
+    const newAttachmentKey = normalizeAttachmentKey(validationResult.data.attachmentKey);
+    const attachmentValidationError = await validateAttachmentKeySize(newAttachmentKey);
+    if (attachmentValidationError) {
+      return { success: false, error: attachmentValidationError };
+    }
+
     await db
       .update(transactions)
       .set({
@@ -435,11 +598,7 @@ export async function updateTransaction(
         amount: Number(validationResult.data.amount).toFixed(3),
         transaction_date: new Date(validationResult.data.transactionDate),
         category_id: validationResult.data.categoryId,
-        payment_mode: validationResult.data.paymentMode as
-          | 'cash'
-          | 'bank'
-          | 'online_transaction'
-          | 'cheque',
+        payment_mode: validationResult.data.paymentMode,
         fund_account: validationResult.data.fundAccount,
         payee_merchant: validationResult.data.payeeMerchant,
         paid_receipt_by: validationResult.data.paidReceiptBy,
@@ -448,6 +607,11 @@ export async function updateTransaction(
         updated_at: new Date(),
       })
       .where(eq(transactions.id, id));
+
+    // Cleanup S3: If attachment changed, delete the old one
+    if (oldAttachmentKey && oldAttachmentKey !== newAttachmentKey) {
+      await deleteS3Object('transactions', oldAttachmentKey);
+    }
 
     revalidatePath('/transactions');
     return { success: true, data: null };

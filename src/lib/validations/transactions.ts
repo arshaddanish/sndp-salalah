@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
 export const TRANSACTION_REMARKS_MAX_LENGTH = 500;
+export const TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+] as const;
+export const TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES = 1 * 1024 * 1024;
 const OMR_AMOUNT_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 const transactionPartySchema = z.string().trim().max(200, 'Must be 200 characters or less');
 
@@ -38,6 +44,18 @@ export const createTransactionSchema = z.object({
   paidReceiptBy: transactionPartySchema.optional().default(''),
   remarks: transactionRemarksSchema,
   attachmentKey: z.string().trim().optional().or(z.literal('')),
+});
+
+export const createTransactionAttachmentUploadSchema = z.object({
+  fileName: z.string().trim().min(1, 'File name is required').max(255, 'File name is too long'),
+  fileSize: z
+    .number()
+    .int()
+    .positive('File size must be greater than 0')
+    .max(TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES, 'Attachment must be 1 MB or smaller.'),
+  fileType: z.enum(TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES, {
+    message: 'Only PDF, JPEG, or PNG files are allowed.',
+  }),
 });
 
 export const createOpeningBalanceSchema = z.object({
@@ -86,3 +104,6 @@ export const updateTransactionSchema = z.object({
 export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 export type CreateOpeningBalanceInput = z.infer<typeof createOpeningBalanceSchema>;
+export type CreateTransactionAttachmentUploadInput = z.infer<
+  typeof createTransactionAttachmentUploadSchema
+>;
