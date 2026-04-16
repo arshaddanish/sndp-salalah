@@ -12,6 +12,7 @@ import {
   deleteS3Object,
   getPresignedDownloadUrl,
   getPresignedUploadUrl,
+  getS3ObjectSize,
 } from '@/lib/s3';
 import { parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import {
@@ -37,6 +38,32 @@ type TxOrDb = Pick<typeof db, 'select'>;
 function normalizeAttachmentKey(attachmentKey: string | undefined): string | null {
   const trimmed = attachmentKey?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+function formatAttachmentMaxSizeLabel(maxBytes: number): string {
+  return maxBytes >= 1024 * 1024
+    ? `${(maxBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
+    : `${Math.ceil(maxBytes / 1024)} KB`;
+}
+
+async function validateAttachmentKeySize(attachmentKey: string | null): Promise<string | null> {
+  if (!attachmentKey) {
+    return null;
+  }
+
+  const { attachmentMaxBytes } = getTransactionAttachmentLimits();
+  const uploadedSize = await getS3ObjectSize('transactions', attachmentKey);
+  const maxSizeLabel = formatAttachmentMaxSizeLabel(attachmentMaxBytes);
+
+  if (uploadedSize === null) {
+    return `Uploaded attachment could not be verified. Please re-upload (${maxSizeLabel} max).`;
+  }
+
+  if (uploadedSize > attachmentMaxBytes) {
+    return `Attachment must be ${maxSizeLabel} or smaller.`;
+  }
+
+  return null;
 }
 
 export async function getNextTransactionCode(tx: TxOrDb = db): Promise<number> {
@@ -76,6 +103,11 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
     }
 
     const amount = Number(validationResult.data.amount).toFixed(3);
+    const attachmentKey = normalizeAttachmentKey(validationResult.data.attachmentKey);
+    const attachmentValidationError = await validateAttachmentKeySize(attachmentKey);
+    if (attachmentValidationError) {
+      return { success: false, error: attachmentValidationError };
+    }
 
     const created = await db.transaction(async (tx) => {
       const nextTransactionCode = await getNextTransactionCode(tx);
@@ -93,7 +125,7 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
           paid_receipt_by: validationResult.data.paidReceiptBy,
           amount,
           remarks: validationResult.data.remarks ?? '',
-          attachment_key: normalizeAttachmentKey(validationResult.data.attachmentKey),
+          attachment_key: attachmentKey,
         })
         .returning();
       if (!row) throw new Error('Failed to create transaction.');
@@ -140,10 +172,7 @@ export async function requestTransactionAttachmentUpload(
 
     const { attachmentMaxBytes } = getTransactionAttachmentLimits();
     if (validationResult.data.fileSize > attachmentMaxBytes) {
-      const maxSizeLabel =
-        attachmentMaxBytes >= 1024 * 1024
-          ? `${(attachmentMaxBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
-          : `${Math.ceil(attachmentMaxBytes / 1024)} KB`;
+      const maxSizeLabel = formatAttachmentMaxSizeLabel(attachmentMaxBytes);
       return {
         success: false,
         error: `Attachment must be ${maxSizeLabel} or smaller.`,
@@ -186,7 +215,7 @@ export async function getTransactionAttachmentDownload(
     }
 
     const transaction = await db.query.transactions.findFirst({
-      where: eq(transactions.id, transactionId),
+      where: eq(transactions.id, idValidation.data),
       columns: {
         id: true,
         attachment_key: true,
@@ -476,8 +505,13 @@ export async function fetchTransactions(
 
 export async function deleteTransaction(id: string): Promise<ActionResult<null>> {
   try {
+    const idValidation = z.string().uuid().safeParse(id);
+    if (!idValidation.success) {
+      return { success: false, error: 'Invalid transaction ID.' };
+    }
+
     const existing = await db.query.transactions.findFirst({
-      where: eq(transactions.id, id),
+      where: eq(transactions.id, idValidation.data),
       columns: { id: true, entry_kind: true, attachment_key: true },
     });
 
@@ -491,11 +525,11 @@ export async function deleteTransaction(id: string): Promise<ActionResult<null>>
 
     const attachmentKey = existing.attachment_key;
 
-    await db.delete(transactions).where(eq(transactions.id, id));
+    await db.delete(transactions).where(eq(transactions.id, idValidation.data));
 
     // Cleanup: Delete attachment from S3
     if (attachmentKey) {
-      deleteS3Object('transactions', attachmentKey);
+      await deleteS3Object('transactions', attachmentKey);
     }
 
     revalidatePath('/transactions');
@@ -552,6 +586,10 @@ export async function updateTransaction(
 
     const oldAttachmentKey = existing.attachment_key;
     const newAttachmentKey = normalizeAttachmentKey(validationResult.data.attachmentKey);
+    const attachmentValidationError = await validateAttachmentKeySize(newAttachmentKey);
+    if (attachmentValidationError) {
+      return { success: false, error: attachmentValidationError };
+    }
 
     await db
       .update(transactions)

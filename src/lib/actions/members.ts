@@ -870,6 +870,8 @@ export async function updateMember(
     const normalizedCivilId = data.civilIdNo.trim();
     const normalizedOfficeShakhaId = data.officeShakhaId.trim();
 
+    let oldPhotoKeyToDelete: string | null = null;
+
     await db.transaction(async (tx) => {
       const existing = await tx.query.members.findFirst({
         where: and(eq(members.id, memberId), eq(members.is_archived, false)),
@@ -940,11 +942,14 @@ export async function updateMember(
         );
       }
 
-      // Cleanup S3: If photo changed, delete the old one
       if (oldPhotoKey && oldPhotoKey !== newPhotoKey) {
-        deleteS3Object('members', oldPhotoKey);
+        oldPhotoKeyToDelete = oldPhotoKey;
       }
     });
+
+    if (oldPhotoKeyToDelete) {
+      await deleteS3Object('members', oldPhotoKeyToDelete);
+    }
 
     revalidatePath(`/members/${memberId}`);
     revalidatePath('/members');

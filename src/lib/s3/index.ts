@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -94,6 +95,26 @@ export async function deleteS3Object(bucketType: S3BucketType, key: string | nul
     // We log but don't throw, as S3 cleanup is a non-critical background-style task
     // and shouldn't crash the main DB transaction/action flow.
     console.error(`Failed to delete S3 object (Bucket: ${bucketType}, Key: ${key}):`, error);
+  }
+}
+
+export async function getS3ObjectSize(
+  bucketType: S3BucketType,
+  key: string | null,
+): Promise<number | null> {
+  if (!key) return null;
+
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: getBucketName(bucketType),
+      Key: key,
+    });
+
+    const response = await s3Client.send(command);
+    return response.ContentLength ?? null;
+  } catch (error) {
+    console.error(`Failed to read S3 object size (Bucket: ${bucketType}, Key: ${key}):`, error);
+    return null;
   }
 }
 

@@ -52,7 +52,7 @@ export const createTransactionAttachmentUploadSchema = z.object({
     .number()
     .int()
     .positive('File size must be greater than 0')
-    .max(Number.MAX_SAFE_INTEGER),
+    .max(TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES, 'Attachment must be 1 MB or smaller.'),
   fileType: z.enum(TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES, {
     message: 'Only PDF, JPEG, or PNG files are allowed.',
   }),
