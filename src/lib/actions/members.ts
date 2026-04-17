@@ -501,6 +501,7 @@ export async function createMember(
             civil_id_no: normalizedCivilId,
             name: parsedData.name.trim(),
             dob: new Date(parsedData.dob),
+            first_joined_at: new Date(),
             family_status: parsedData.familyStatus,
             email: parsedData.email,
             photo_key: parsedData.photoKey,
