@@ -19,14 +19,27 @@ import {
 } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
+import { getNextTransactionCode } from '@/lib/actions/transactions';
 import { db } from '@/lib/db';
-import { family_members, members, shakhas } from '@/lib/db/schema';
-import { shouldShowDetailedErrors } from '@/lib/env';
-import { MOCK_TRANSACTIONS } from '@/lib/mock-data/transactions';
+import {
+  family_members,
+  members,
+  shakhas,
+  transactionCategories,
+  transactions,
+} from '@/lib/db/schema';
+import { getMemberPhotoLimits, shouldShowDetailedErrors } from '@/lib/env';
+import {
+  buildMemberPhotoKey,
+  deleteS3Object,
+  getPresignedDownloadUrl,
+  getPresignedUploadUrl,
+} from '@/lib/s3';
 import { parseDateOrNull, parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import { getMemberStatus } from '@/lib/utils/member-status';
 import {
   type CreateMemberInput,
+  createMemberPhotoUploadSchema,
   createMemberSchema,
   renewMembershipSchema,
   setMemberLifetimeSchema,
@@ -36,7 +49,6 @@ import {
 import type { ActionResult } from '@/types/actions';
 import type { Member, MemberDetail, MemberTransaction } from '@/types/members';
 import type { PaginationResponse } from '@/types/pagination';
-import type { TransactionPaymentMode } from '@/types/transactions';
 
 /**
  * Filter options for members endpoint
@@ -327,11 +339,39 @@ function buildActivityWindowConditions(
   const startDate = parseStartOfDayOrNull(activeWindowStart);
   const endDate = parseEndOfDayOrNull(activeWindowEnd);
 
-  if (!startDate || !endDate) {
+  // Requirement: Participate only when at least one bound is set
+  if (!startDate && !endDate) {
     return [];
   }
 
-  return [lte(members.active_from, startDate), gte(members.expiry, endDate)];
+  // Activity Window Eligibility Rule:
+  // Only non-lifetime members with non-null activity period fields participate in date matching.
+  const conditions: MembersWhereCondition[] = [
+    eq(members.is_lifetime, false),
+    not(isNull(members.active_from)),
+    not(isNull(members.expiry)),
+  ];
+
+  // Activity Window Matching Rule:
+  // Member matches only when active for the FULL defined window.
+  // [Member.ActiveFrom, Member.Expiry] covers [Filter.Start, Filter.End]
+  // if Member.ActiveFrom <= Filter.Start AND Member.Expiry >= Filter.End
+
+  if (startDate) {
+    conditions.push(lte(members.active_from, startDate));
+    if (!endDate) {
+      conditions.push(gte(members.expiry, startDate));
+    }
+  }
+
+  if (endDate) {
+    conditions.push(gte(members.expiry, endDate));
+    if (!startDate) {
+      conditions.push(lte(members.active_from, endDate));
+    }
+  }
+
+  return conditions;
 }
 
 function buildMembersWhereClause(filters: MembersFilterOptions): SQL<unknown> | undefined {
@@ -602,6 +642,9 @@ export async function fetchMemberById(id: string): Promise<ActionResult<MemberDe
         ...member,
         shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
         status: getMemberStatus(member.expiry, member.is_lifetime),
+        photo_url: member.photo_key
+          ? await getPresignedDownloadUrl('members', member.photo_key)
+          : null,
         familyMembersList: member.family_members ?? [],
       },
     };
@@ -650,6 +693,9 @@ export async function fetchMemberProfileByIdentifier(
           ...member,
           shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
           status: getMemberStatus(member.expiry, member.is_lifetime),
+          photo_url: member.photo_key
+            ? await getPresignedDownloadUrl('members', member.photo_key)
+            : null,
           familyMembersList: member.family_members ?? [],
         },
       },
@@ -664,25 +710,24 @@ export async function fetchMemberTransactions(
   memberId: string,
 ): Promise<ActionResult<MemberTransaction[]>> {
   try {
-    // Pending transactions table integration: replace this with a DB query.
-    const memberTransactions = MOCK_TRANSACTIONS.filter(
-      (txn) => txn.memberId === memberId && txn.entryKind === 'regular',
-    )
-      .sort((a, b) => b.transactionDate.getTime() - a.transactionDate.getTime())
-      .map((txn) => ({
-        id: txn.id,
-        transactionCode: txn.transactionCode,
-        transactionDate: txn.transactionDate,
-        amount: txn.amount,
-        paymentMode: txn.paymentMode as TransactionPaymentMode,
-        fundAccount: txn.fundAccount,
-        remarks: txn.remarks,
-        createdAt: txn.createdAt,
-      }));
+    const rows = await db
+      .select({
+        id: transactions.id,
+        transactionCode: transactions.transaction_code,
+        transactionDate: transactions.transaction_date,
+        amount: transactions.amount,
+        paymentMode: transactions.payment_mode,
+        fundAccount: transactions.fund_account,
+        remarks: transactions.remarks,
+        createdAt: transactions.created_at,
+      })
+      .from(transactions)
+      .where(eq(transactions.member_id, memberId))
+      .orderBy(desc(transactions.transaction_date), desc(transactions.created_at));
 
     return {
       success: true,
-      data: memberTransactions,
+      data: rows as MemberTransaction[],
     };
   } catch (error) {
     console.error('Error fetching member transactions:', error);
@@ -718,67 +763,93 @@ export async function renewMembership(
       };
     }
 
-    // Pending transactions table integration: replace this with a DB insert.
-    const maxCode = MOCK_TRANSACTIONS.reduce(
-      (max, txn) => Math.max(max, txn.transactionCode),
-      1000,
-    );
-    const newTransactionId = `txn-renew-${Date.now()}`;
-    const attachmentKey = data.attachmentKey?.trim();
-
-    MOCK_TRANSACTIONS.push({
-      id: newTransactionId,
-      transactionCode: maxCode + 1,
-      transactionDate: new Date(),
-      entryKind: 'regular',
-      categoryId: 'cat-1',
-      categoryName: 'Membership Fee',
-      type: 'income',
-      paymentMode: data.paymentMode,
-      fundAccount: data.fundAccount,
-      memberId: data.memberId,
-      amount: data.amount.toFixed(3),
-      cashBalance: '0.000',
-      bankBalance: '0.000',
-      remarks: data.remarks ?? '',
-      ...(attachmentKey ? { attachmentKey } : {}),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    // Find 'Membership Fee' category
+    const category = await db.query.transactionCategories.findFirst({
+      where: and(
+        eq(transactionCategories.name, 'Membership Fee'),
+        eq(transactionCategories.is_system, true),
+      ),
     });
 
-    // Update member expiry in DB
-    const normalizedToday = new Date();
-    normalizedToday.setHours(0, 0, 0, 0);
-
-    const existingExpiry = member.expiry ? new Date(member.expiry) : null;
-    if (existingExpiry) {
-      existingExpiry.setHours(0, 0, 0, 0);
+    if (!category) {
+      return {
+        success: false,
+        error: 'System configuration error: Membership Fee category not found.',
+      };
     }
 
-    let nextActiveFrom = new Date(normalizedToday);
-    if (existingExpiry !== null) {
-      const dayAfterExistingExpiry = new Date(existingExpiry);
-      dayAfterExistingExpiry.setDate(dayAfterExistingExpiry.getDate() + 1);
-      nextActiveFrom =
-        dayAfterExistingExpiry.getTime() > normalizedToday.getTime()
-          ? dayAfterExistingExpiry
-          : new Date(normalizedToday);
-    }
+    // Update records in a single transaction
+    const result = await db.transaction(async (tx) => {
+      const nextCode = await getNextTransactionCode(tx);
 
-    await db
-      .update(members)
-      .set({
-        active_from: nextActiveFrom,
-        expiry: new Date(data.newExpiry),
-        is_lifetime: false,
-      })
-      .where(eq(members.id, data.memberId));
+      // 1. Create the payment transaction
+      const [newTxn] = await tx
+        .insert(transactions)
+        .values({
+          transaction_code: nextCode,
+          transaction_date: new Date(),
+          entry_kind: 'regular',
+          category_id: category.id,
+          type: 'income',
+          payment_mode: data.paymentMode,
+          fund_account: data.fundAccount,
+          amount: data.amount.toFixed(3),
+          payee_merchant: member.name,
+          paid_receipt_by: 'System Renewal',
+          member_id: data.memberId,
+          remarks: data.remarks ?? '',
+          attachment_key: data.attachmentKey?.trim(),
+        })
+        .returning({ id: transactions.id });
+
+      if (!newTxn) {
+        throw new Error('Failed to create renewal transaction');
+      }
+
+      // 2. Update member expiry
+      const normalizedToday = new Date();
+      normalizedToday.setHours(0, 0, 0, 0);
+
+      const existingExpiry = member.expiry ? new Date(member.expiry) : null;
+      if (existingExpiry) {
+        existingExpiry.setHours(0, 0, 0, 0);
+      }
+
+      // Only advance active_from when the member is already expired (or never had an expiry).
+      // For early renewals the existing active_from must be preserved to keep the
+      // continuous membership record intact.
+      const isExpired =
+        existingExpiry === null || existingExpiry.getTime() < normalizedToday.getTime();
+
+      let nextActiveFrom = new Date(normalizedToday);
+      if (isExpired && existingExpiry !== null) {
+        const dayAfterExistingExpiry = new Date(existingExpiry);
+        dayAfterExistingExpiry.setDate(dayAfterExistingExpiry.getDate() + 1);
+        nextActiveFrom =
+          dayAfterExistingExpiry.getTime() > normalizedToday.getTime()
+            ? dayAfterExistingExpiry
+            : new Date(normalizedToday);
+      }
+
+      await tx
+        .update(members)
+        .set({
+          ...(isExpired ? { active_from: nextActiveFrom } : {}),
+          expiry: new Date(data.newExpiry),
+          is_lifetime: false,
+          updated_at: new Date(),
+        })
+        .where(eq(members.id, data.memberId));
+
+      return newTxn;
+    });
 
     revalidatePath(`/members/${data.memberId}`);
     revalidatePath('/transactions');
     revalidatePath('/members');
+    revalidatePath('/reports');
 
-    return { success: true, data: { transactionId: newTransactionId } };
+    return { success: true, data: { transactionId: result.id } };
   } catch (error) {
     console.error('Error renewing membership:', error);
     return { success: false, error: 'Unable to process renewal. Please try again.' };
@@ -800,9 +871,12 @@ export async function updateMember(
     const normalizedCivilId = data.civilIdNo.trim();
     const normalizedOfficeShakhaId = data.officeShakhaId.trim();
 
+    let oldPhotoKeyToDelete: string | null = null;
+
     await db.transaction(async (tx) => {
       const existing = await tx.query.members.findFirst({
         where: and(eq(members.id, memberId), eq(members.is_archived, false)),
+        columns: { id: true, photo_key: true, civil_id_no: true, expiry: true },
       });
 
       if (!existing) {
@@ -819,6 +893,9 @@ export async function updateMember(
           'DUPLICATE_CIVIL_ID',
         );
       }
+
+      const oldPhotoKey = existing.photo_key;
+      const newPhotoKey = data.photoKey?.trim() || existing.photo_key;
 
       await tx
         .update(members)
@@ -849,7 +926,7 @@ export async function updateMember(
           application_no: data.applicationNo.trim(),
           secretary: data.secretary,
           president: data.president,
-          photo_key: data.photoKey?.trim() || existing.photo_key,
+          photo_key: newPhotoKey,
         })
         .where(eq(members.id, memberId));
 
@@ -865,7 +942,15 @@ export async function updateMember(
           })),
         );
       }
+
+      if (oldPhotoKey && oldPhotoKey !== newPhotoKey) {
+        oldPhotoKeyToDelete = oldPhotoKey;
+      }
     });
+
+    if (oldPhotoKeyToDelete) {
+      await deleteS3Object('members', oldPhotoKeyToDelete);
+    }
 
     revalidatePath(`/members/${memberId}`);
     revalidatePath('/members');
@@ -881,6 +966,10 @@ export async function updateMember(
   }
 }
 
+/**
+ * Updates a member's photo key in the database and cleans up the old photo from S3.
+ * This is a standalone action used by the photo editor.
+ */
 export async function updateMemberPhoto(
   memberId: string,
   photoKey: string,
@@ -897,13 +986,22 @@ export async function updateMemberPhoto(
     // Check if member exists and not archived
     const member = await db.query.members.findFirst({
       where: and(eq(members.id, validatedId), eq(members.is_archived, false)),
+      columns: { id: true, photo_key: true },
     });
 
     if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
+    const oldPhotoKey = member.photo_key;
+
     await db.update(members).set({ photo_key: validatedKey }).where(eq(members.id, validatedId));
+
+    // Cleanup: If there was an old photo and it's different, delete it from S3
+    if (oldPhotoKey && oldPhotoKey !== validatedKey) {
+      // Fire and forget (errors logged inside deleteS3Object)
+      await deleteS3Object('members', oldPhotoKey);
+    }
 
     revalidatePath(`/members/${validatedId}`);
     return { success: true, data: { id: validatedId } };
@@ -984,16 +1082,23 @@ export async function deleteMember(memberId: string): Promise<ActionResult<{ id:
     // Check if member exists
     const member = await db.query.members.findFirst({
       where: eq(members.id, memberId),
+      columns: { id: true, photo_key: true },
     });
 
     if (!member) {
       return { success: false, error: 'Member not found.' };
     }
 
+    const photoKey = member.photo_key;
+
     // Pending transactions table integration: re-add linked-transactions guard.
     // For now, cascade delete on family_members FK handles cleanup
-
     await db.delete(members).where(eq(members.id, memberId));
+
+    // Cleanup: Delete photo from S3
+    if (photoKey) {
+      await deleteS3Object('members', photoKey);
+    }
 
     revalidatePath('/members');
 
@@ -1001,5 +1106,58 @@ export async function deleteMember(memberId: string): Promise<ActionResult<{ id:
   } catch (error) {
     console.error('Error deleting member:', error);
     return { success: false, error: 'Unable to delete member. Please try again.' };
+  }
+}
+
+/**
+ * Generates a pre-signed URL to upload a member's profile photo.
+ * Returns the photoKey and uploadUrl.
+ */
+export async function requestMemberPhotoUpload(
+  input: unknown,
+): Promise<ActionResult<{ photoKey: string; uploadUrl: string }>> {
+  try {
+    const validationResult = createMemberPhotoUploadSchema.safeParse(input);
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message ?? 'Invalid attachment details.',
+      };
+    }
+
+    const { photoMaxBytes } = getMemberPhotoLimits();
+    if (validationResult.data.fileSize > photoMaxBytes) {
+      const maxSizeLabel =
+        photoMaxBytes >= 1024 * 1024
+          ? `${(photoMaxBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
+          : `${Math.ceil(photoMaxBytes / 1024)} KB`;
+      return {
+        success: false,
+        error: `Photo must be ${maxSizeLabel} or smaller.`,
+      };
+    }
+
+    const photoKey = buildMemberPhotoKey(validationResult.data.fileName);
+    const uploadUrl = await getPresignedUploadUrl(
+      'members',
+      photoKey,
+      validationResult.data.fileType,
+    );
+
+    return {
+      success: true,
+      data: {
+        photoKey,
+        uploadUrl,
+      },
+    };
+  } catch (error) {
+    console.error('Error creating member photo upload URL:', error);
+    return {
+      success: false,
+      error: 'Unable to prepare photo upload. Please try again.',
+    };
   }
 }

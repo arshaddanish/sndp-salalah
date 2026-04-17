@@ -1,11 +1,7 @@
 'use client';
 
-import {
-  type ColumnDef,
-  getCoreRowModel,
-  type PaginationState,
-  useReactTable,
-} from '@tanstack/react-table';
+import type { ColumnDef, PaginationState } from '@tanstack/react-table';
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Edit2, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -14,8 +10,8 @@ import { DataTableBase } from '@/components/ui/data-table-base';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
-import { type ShakhaWithMemberCount } from '@/lib/mock-data/shakhas';
 import type { PaginatedTableProps } from '@/types/pagination';
+import type { ShakhaWithMemberCount } from '@/types/shakhas';
 
 import { DeleteShakhaDialog } from './delete-shakha-dialog';
 import { EditShakhaDialog } from './edit-shakha-dialog';

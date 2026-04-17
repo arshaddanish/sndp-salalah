@@ -5,19 +5,21 @@ import Image from 'next/image';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { updateMemberPhoto } from '@/lib/actions/members';
-import { uploadMemberPhoto } from '@/lib/s3/member-photo-upload';
+import { requestMemberPhotoUpload, updateMemberPhoto } from '@/lib/actions/members';
+import { MEMBER_PHOTO_DEFAULT_MAX_BYTES } from '@/lib/validations/members';
 
 type MemberPhotoEditorProps = {
   memberId: string;
-  currentPhotoKey: string | null;
+  currentPhotoUrl: string | null;
   memberName: string;
+  maxSizeBytes?: number;
 };
 
 export function MemberPhotoEditor({
   memberId,
-  currentPhotoKey,
+  currentPhotoUrl,
   memberName,
+  maxSizeBytes = MEMBER_PHOTO_DEFAULT_MAX_BYTES,
 }: Readonly<MemberPhotoEditorProps>) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -40,6 +42,19 @@ export function MemberPhotoEditor({
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
     if (!file) return;
+
+    if (file.size > maxSizeBytes) {
+      const maxSizeMB = (maxSizeBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '');
+      const maxSizeLabel =
+        maxSizeBytes < 1024 * 1024 ? `${Math.round(maxSizeBytes / 1024)}KB` : `${maxSizeMB}MB`;
+
+      setErrorMessage(`Photo must be ${maxSizeLabel} or smaller.`);
+      setPendingFile(null);
+      setPreviewUrl(null);
+      event.target.value = '';
+      return;
+    }
+
     setErrorMessage(null);
     setPendingFile(file);
     setPreviewUrl(URL.createObjectURL(file));
@@ -57,8 +72,31 @@ export function MemberPhotoEditor({
     if (!pendingFile) return;
     setErrorMessage(null);
     startTransition(async () => {
-      const uploadResult = await uploadMemberPhoto(pendingFile);
-      const result = await updateMemberPhoto(memberId, uploadResult.photoKey);
+      const uploadConfig = await requestMemberPhotoUpload({
+        fileName: pendingFile.name,
+        fileType: pendingFile.type,
+        fileSize: pendingFile.size,
+      });
+
+      if (!uploadConfig.success || !uploadConfig.data) {
+        setErrorMessage(uploadConfig.error ?? 'Unable to prepare photo upload.');
+        return;
+      }
+
+      const uploadResponse = await fetch(uploadConfig.data.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': pendingFile.type,
+        },
+        body: pendingFile,
+      });
+
+      if (!uploadResponse.ok) {
+        setErrorMessage('Unable to upload photo. Please try again.');
+        return;
+      }
+
+      const result = await updateMemberPhoto(memberId, uploadConfig.data.photoKey);
       if (!result.success) {
         setErrorMessage(result.error ?? 'Unable to update photo. Please try again.');
         return;
@@ -69,22 +107,22 @@ export function MemberPhotoEditor({
     });
   };
 
-  const displaySrc = previewUrl ?? currentPhotoKey;
+  const displaySrc = previewUrl ?? currentPhotoUrl;
   const hasPendingChange = Boolean(pendingFile) && !isPending;
 
   return (
     <div className="flex flex-col items-start gap-3">
       {/* Photo container */}
-      <div className="relative h-36 w-36 shrink-0">
-        <div className="bg-surface-hover border-border relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-xl border">
+      <div className="relative h-48 w-48 shrink-0">
+        <div className="bg-surface-hover border-border relative flex h-48 w-48 items-center justify-center overflow-hidden rounded-xl border">
           {displaySrc ? (
             <Image
               src={displaySrc}
               alt={memberName}
               fill
               unoptimized
-              sizes="144px"
-              className="object-cover"
+              sizes="192px"
+              className="object-contain"
             />
           ) : (
             <User className="text-text-muted h-14 w-14" />

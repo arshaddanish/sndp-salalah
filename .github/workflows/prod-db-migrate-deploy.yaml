@@ -20,23 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect migration changes
-        id: changes
-        run: |
-          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-            echo "First push on branch; running migrations."
-            echo "needs_migration=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
-          echo "$CHANGED"
-          if echo "$CHANGED" | grep -E '^(drizzle/|src/lib/db/schema\.ts)'; then
-            echo "needs_migration=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_migration=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
@@ -50,7 +33,6 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run production migrations
-        if: steps.changes.outputs.needs_migration == 'true'
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: pnpm db:migrate

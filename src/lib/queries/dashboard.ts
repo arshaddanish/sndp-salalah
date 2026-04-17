@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { members } from '@/lib/db/schema';
@@ -17,6 +18,9 @@ function currentPeriodLabel(): string {
   }).format(new Date());
 }
 
+  MemberActivityMetrics,
+  MemberStatusData,
+} from '@/types/dashboard';
 export async function getDashboardMemberKpis(): Promise<{
   totalMembers: number;
   nearExpiry: number;
@@ -36,6 +40,22 @@ export async function getDashboardMemberKpis(): Promise<{
   return {
     totalMembers: Number(counts?.totalMembers ?? 0),
     nearExpiry: Number(counts?.nearExpiry ?? 0),
+  const [totalMembersResult, nearExpiryResult] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(eq(members.is_archived, false)),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.expiry} >= CURRENT_DATE AND ${members.expiry} <= CURRENT_DATE + INTERVAL '30 days'`,
+      ),
+  ]);
+
+  return {
+    totalMembers: Number(totalMembersResult[0]?.count ?? 0),
+    nearExpiry: Number(nearExpiryResult[0]?.count ?? 0),
   };
 }
 
@@ -47,6 +67,11 @@ export async function getDashboardMemberStatus(): Promise<MemberStatusData> {
       expired: sql<number>`count(*) FILTER (WHERE ${members.expiry} < CURRENT_DATE AND ${members.is_archived} = false AND ${members.is_lifetime} = false)`,
       lifetime: sql<number>`count(*) FILTER (WHERE ${members.is_lifetime} = true AND ${members.is_archived} = false)`,
       pending: sql<number>`count(*) FILTER (WHERE ${members.expiry} IS NULL AND ${members.is_lifetime} = false AND ${members.is_archived} = false)`,
+      active: sql<number>`count(*) filter (where expiry > CURRENT_DATE + INTERVAL '30 days' and is_archived = false and is_lifetime = false)`,
+      nearExpiry: sql<number>`count(*) filter (where expiry >= CURRENT_DATE and expiry <= CURRENT_DATE + INTERVAL '30 days' and is_archived = false and is_lifetime = false)`,
+      expired: sql<number>`count(*) filter (where expiry < CURRENT_DATE and is_archived = false and is_lifetime = false)`,
+      lifetime: sql<number>`count(*) filter (where is_lifetime = true and is_archived = false)`,
+      pending: sql<number>`count(*) filter (where expiry is null and is_lifetime = false and is_archived = false)`,
     })
     .from(members);
 
@@ -96,6 +121,45 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
   };
 }
 
+  const [periodResult] = await db
+    .select({
+      periodLabel: sql<string>`to_char(DATE_TRUNC('month', CURRENT_DATE), 'FMMonth YYYY')`,
+    })
+    .from(members)
+    .limit(1);
+
+  const periodLabel =
+    periodResult?.periodLabel ??
+    new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
+
+  const [newThisMonthResult, renewedThisMonthResult, expiredThisMonthResult] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND COALESCE(${members.first_joined_at}, ${members.active_from}) >= DATE_TRUNC('month', CURRENT_DATE)`,
+      ),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE) AND COALESCE(${members.first_joined_at}, ${members.active_from}) < DATE_TRUNC('month', CURRENT_DATE)`,
+      ),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(
+        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.expiry} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.expiry} < CURRENT_DATE`,
+      ),
+  ]);
+
+  return {
+    period: periodLabel,
+    newThisMonth: Number(newThisMonthResult[0]?.count ?? 0),
+    renewedThisMonth: Number(renewedThisMonthResult[0]?.count ?? 0),
+    expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
+  };
+}
 export async function getDashboardFinancialKpis(): Promise<{
   cashInHand: number;
   cashInBank: number;
@@ -142,6 +206,27 @@ export async function getDashboardFinancialActivity(balances: {
       AND transaction_date >= DATE_TRUNC('month', CURRENT_DATE)
       AND transaction_date <  DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
   `);
+  const [periodResult, monthResult] = await Promise.all([
+    db
+      .select({
+        periodLabel: sql<string>`to_char(DATE_TRUNC('month', CURRENT_DATE), 'FMMonth YYYY')`,
+      })
+      .from(members)
+      .limit(1),
+    db.execute(sql`
+      SELECT
+        SUM(CASE WHEN type = 'income' THEN amount::numeric ELSE 0 END) AS income,
+        SUM(CASE WHEN type = 'expense' THEN amount::numeric ELSE 0 END) AS expense
+      FROM transactions
+      WHERE entry_kind = 'regular'
+        AND transaction_date >= DATE_TRUNC('month', CURRENT_DATE)
+        AND transaction_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+    `),
+  ]);
+
+  const periodLabel =
+    periodResult[0]?.periodLabel ??
+    new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
 
   const monthRow = monthResult.rows[0] as { income: string; expense: string } | undefined;
   const incomeThisMonth = Number(monthRow?.income ?? 0);
@@ -210,3 +295,4 @@ export async function getDashboardFinancialTrend(): Promise<FinancialTrendData> 
 
   return { monthlyData, averageMonthlyIncome, averageMonthlyExpense, savingsRate };
 }
+
