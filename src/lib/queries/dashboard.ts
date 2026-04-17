@@ -62,44 +62,37 @@ export async function getDashboardMemberStatus(): Promise<MemberStatusData> {
 export async function getDashboardMemberActivity(): Promise<MemberActivityMetrics> {
   const periodLabel = currentPeriodLabel();
 
-  const [newThisMonthResult, renewedThisMonthResult, expiredThisMonthResult] = await Promise.all([
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(
-        sql`${members.is_archived} = false
+  const [activity] = await db
+    .select({
+      newThisMonth: sql<number>`count(*) FILTER (
+        WHERE ${members.is_archived} = false
           AND ${members.is_lifetime} = false
           AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE)
-          AND COALESCE(${members.first_joined_at}, ${members.active_from}) >= DATE_TRUNC('month', CURRENT_DATE)`,
-      ),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(
-        sql`${members.is_archived} = false
+          AND ${members.first_joined_at} >= DATE_TRUNC('month', CURRENT_DATE)
+      )`,
+      renewedThisMonth: sql<number>`count(*) FILTER (
+        WHERE ${members.is_archived} = false
           AND ${members.is_lifetime} = false
           AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE)
-          AND COALESCE(${members.first_joined_at}, ${members.active_from}) < DATE_TRUNC('month', CURRENT_DATE)`,
-      ),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(
-        sql`${members.is_archived} = false
+          AND ${members.first_joined_at} < DATE_TRUNC('month', CURRENT_DATE)
+      )`,
+      expiredThisMonth: sql<number>`count(*) FILTER (
+        WHERE ${members.is_archived} = false
           AND ${members.is_lifetime} = false
           AND ${members.expiry} >= DATE_TRUNC('month', CURRENT_DATE)
-          AND ${members.expiry} < CURRENT_DATE`,
-      ),
-  ]);
+          AND ${members.expiry} < CURRENT_DATE
+      )`,
+    })
+    .from(members);
 
   return {
     period: periodLabel,
-    newThisMonth: Number(newThisMonthResult[0]?.count ?? 0),
-    // Derived from members.first_joined_at: a row is counted as a renewal when
-    // active_from falls in the current month but first_joined_at precedes it
-    // (i.e. the member existed before this month's membership period started).
-    renewedThisMonth: Number(renewedThisMonthResult[0]?.count ?? 0),
-    expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
+    newThisMonth: Number(activity?.newThisMonth ?? 0),
+    // A row is counted as a renewal when active_from falls in the current month
+    // but first_joined_at precedes it (i.e. the member existed before this
+    // month's membership period started).
+    renewedThisMonth: Number(activity?.renewedThisMonth ?? 0),
+    expiredThisMonth: Number(activity?.expiredThisMonth ?? 0),
   };
 }
 

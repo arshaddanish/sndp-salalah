@@ -77,7 +77,9 @@ export const members = pgTable(
     submitted_by: text('submitted_by'),
     shakha_india: text('shakha_india'),
     checked_by: text('checked_by'),
-    first_joined_at: date('first_joined_at', { mode: 'date' }).notNull(),
+    first_joined_at: date('first_joined_at', { mode: 'date' })
+      .notNull()
+      .default(sql`CURRENT_DATE`),
     approved_by: text('approved_by'),
     president: text('president'),
     secretary: text('secretary'),
