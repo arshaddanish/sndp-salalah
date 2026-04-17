@@ -34,6 +34,7 @@ export default async function DashboardPage() {
       getDashboardFinancialTrend(),
     ],
   );
+
   const kpiStats: KpiData = {
     totalMembers: kpis.totalMembers,
     nearExpiry: kpis.nearExpiry,

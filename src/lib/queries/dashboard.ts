@@ -9,6 +9,14 @@ import type {
   MemberStatusData,
 } from '@/types/dashboard';
 
+/** Returns the current month and year as a human-readable label, e.g. "April 2026". */
+function currentPeriodLabel(): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date());
+}
+
 export async function getDashboardMemberKpis(): Promise<{
   totalMembers: number;
   nearExpiry: number;
@@ -30,14 +38,15 @@ export async function getDashboardMemberKpis(): Promise<{
     nearExpiry: Number(counts?.nearExpiry ?? 0),
   };
 }
+
 export async function getDashboardMemberStatus(): Promise<MemberStatusData> {
   const [statusResult] = await db
     .select({
-      active: sql<number>`count(*) filter (where expiry > CURRENT_DATE + INTERVAL '30 days' and is_archived = false and is_lifetime = false)`,
-      nearExpiry: sql<number>`count(*) filter (where expiry >= CURRENT_DATE and expiry <= CURRENT_DATE + INTERVAL '30 days' and is_archived = false and is_lifetime = false)`,
-      expired: sql<number>`count(*) filter (where expiry < CURRENT_DATE and is_archived = false and is_lifetime = false)`,
-      lifetime: sql<number>`count(*) filter (where is_lifetime = true and is_archived = false)`,
-      pending: sql<number>`count(*) filter (where expiry is null and is_lifetime = false and is_archived = false)`,
+      active: sql<number>`count(*) FILTER (WHERE ${members.expiry} > CURRENT_DATE + INTERVAL '30 days' AND ${members.is_archived} = false AND ${members.is_lifetime} = false)`,
+      nearExpiry: sql<number>`count(*) FILTER (WHERE ${members.expiry} >= CURRENT_DATE AND ${members.expiry} <= CURRENT_DATE + INTERVAL '30 days' AND ${members.is_archived} = false AND ${members.is_lifetime} = false)`,
+      expired: sql<number>`count(*) FILTER (WHERE ${members.expiry} < CURRENT_DATE AND ${members.is_archived} = false AND ${members.is_lifetime} = false)`,
+      lifetime: sql<number>`count(*) FILTER (WHERE ${members.is_lifetime} = true AND ${members.is_archived} = false)`,
+      pending: sql<number>`count(*) FILTER (WHERE ${members.expiry} IS NULL AND ${members.is_lifetime} = false AND ${members.is_archived} = false)`,
     })
     .from(members);
 
@@ -51,34 +60,50 @@ export async function getDashboardMemberStatus(): Promise<MemberStatusData> {
 }
 
 export async function getDashboardMemberActivity(): Promise<MemberActivityMetrics> {
-  // Compute period label in JS — no DB round-trip needed
-  const periodLabel = new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date());
+  const periodLabel = currentPeriodLabel();
 
-  const [newThisMonthResult, expiredThisMonthResult] = await Promise.all([
+  const [newThisMonthResult, renewedThisMonthResult, expiredThisMonthResult] = await Promise.all([
     db
       .select({ count: sql<number>`count(*)` })
       .from(members)
       .where(
-        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE)`,
+        sql`${members.is_archived} = false
+          AND ${members.is_lifetime} = false
+          AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE)
+          AND COALESCE(${members.first_joined_at}, ${members.active_from}) >= DATE_TRUNC('month', CURRENT_DATE)`,
       ),
     db
       .select({ count: sql<number>`count(*)` })
       .from(members)
       .where(
-        sql`${members.is_archived} = false AND ${members.is_lifetime} = false AND ${members.expiry} >= DATE_TRUNC('month', CURRENT_DATE) AND ${members.expiry} < CURRENT_DATE`,
+        sql`${members.is_archived} = false
+          AND ${members.is_lifetime} = false
+          AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE)
+          AND COALESCE(${members.first_joined_at}, ${members.active_from}) < DATE_TRUNC('month', CURRENT_DATE)`,
+      ),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(
+        sql`${members.is_archived} = false
+          AND ${members.is_lifetime} = false
+          AND ${members.expiry} >= DATE_TRUNC('month', CURRENT_DATE)
+          AND ${members.expiry} < CURRENT_DATE`,
       ),
   ]);
 
   return {
     period: periodLabel,
     newThisMonth: Number(newThisMonthResult[0]?.count ?? 0),
-    renewedThisMonth: 0,
+    // TODO: Populate renewedThisMonth once a renewal signal exists
+    // (e.g. members.first_joined_at / last_renewed_at, or a renewal category
+    // on transactions once transactions.member_id is added). Hardcoding 0
+    // avoids showing a misleading derived value in the UI.
+    renewedThisMonth: Number(renewedThisMonthResult[0]?.count ?? 0),
     expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
   };
 }
+
 export async function getDashboardFinancialKpis(): Promise<{
   cashInHand: number;
   cashInBank: number;
@@ -114,11 +139,7 @@ export async function getDashboardFinancialActivity(balances: {
   cashInHand: number;
   cashInBank: number;
 }): Promise<FinancialActivityMetrics> {
-  // Compute period label in JS — no DB round-trip needed
-  const periodLabel = new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date());
+  const periodLabel = currentPeriodLabel();
 
   const monthResult = await db.execute(sql`
     SELECT
@@ -133,7 +154,6 @@ export async function getDashboardFinancialActivity(balances: {
   const monthRow = monthResult.rows[0] as { income: string; expense: string } | undefined;
   const incomeThisMonth = Number(monthRow?.income ?? 0);
   const expensesThisMonth = Number(monthRow?.expense ?? 0);
-
   const closingBalance = balances.cashInHand + balances.cashInBank;
   const openingBalance = closingBalance - incomeThisMonth + expensesThisMonth;
 
@@ -148,20 +168,31 @@ export async function getDashboardFinancialActivity(balances: {
 
 export async function getDashboardFinancialTrend(): Promise<FinancialTrendData> {
   const result = await db.execute(sql`
+    WITH months AS (
+      SELECT generate_series(
+        DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months',
+        DATE_TRUNC('month', CURRENT_DATE),
+        INTERVAL '1 month'
+      ) AS month_start
+    ),
+    txn_agg AS (
+      SELECT
+        DATE_TRUNC('month', transaction_date) AS month_start,
+        SUM(CASE WHEN type = 'income'  THEN amount::numeric ELSE 0 END) AS income,
+        SUM(CASE WHEN type = 'expense' THEN amount::numeric ELSE 0 END) AS expense
+      FROM transactions
+      WHERE entry_kind = 'regular'
+        AND transaction_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months'
+        AND transaction_date <  DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+      GROUP BY DATE_TRUNC('month', transaction_date)
+    )
     SELECT
-      to_char(gs.month, 'Mon YY') AS month,
-      COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount::numeric ELSE 0 END), 0) AS income,
-      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount::numeric ELSE 0 END), 0) AS expense
-    FROM generate_series(
-      DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months',
-      DATE_TRUNC('month', CURRENT_DATE),
-      INTERVAL '1 month'
-    ) AS gs(month)
-    LEFT JOIN transactions t
-      ON DATE_TRUNC('month', t.transaction_date) = gs.month
-      AND t.entry_kind = 'regular'
-    GROUP BY gs.month
-    ORDER BY gs.month
+      to_char(m.month_start, 'Mon YY') AS month,
+      COALESCE(t.income,  0)           AS income,
+      COALESCE(t.expense, 0)           AS expense
+    FROM months m
+    LEFT JOIN txn_agg t ON t.month_start = m.month_start
+    ORDER BY m.month_start
   `);
 
   const monthlyData = (result.rows as { month: string; income: string; expense: string }[]).map(
@@ -179,10 +210,5 @@ export async function getDashboardFinancialTrend(): Promise<FinancialTrendData> 
   const savingsRate =
     totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
 
-  return {
-    monthlyData,
-    averageMonthlyIncome,
-    averageMonthlyExpense,
-    savingsRate,
-  };
+  return { monthlyData, averageMonthlyIncome, averageMonthlyExpense, savingsRate };
 }
