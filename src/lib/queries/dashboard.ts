@@ -95,10 +95,9 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
   return {
     period: periodLabel,
     newThisMonth: Number(newThisMonthResult[0]?.count ?? 0),
-    // TODO: Populate renewedThisMonth once a renewal signal exists
-    // (e.g. members.first_joined_at / last_renewed_at, or a renewal category
-    // on transactions once transactions.member_id is added). Hardcoding 0
-    // avoids showing a misleading derived value in the UI.
+    // Derived from members.first_joined_at: a row is counted as a renewal when
+    // active_from falls in the current month but first_joined_at precedes it
+    // (i.e. the member existed before this month's membership period started).
     renewedThisMonth: Number(renewedThisMonthResult[0]?.count ?? 0),
     expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
   };
@@ -207,8 +206,14 @@ export async function getDashboardFinancialTrend(): Promise<FinancialTrendData> 
   const totalExpense = monthlyData.reduce((sum, r) => sum + r.expense, 0);
   const averageMonthlyIncome = totalIncome / 12;
   const averageMonthlyExpense = totalExpense / 12;
-  const savingsRate =
-    totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
+  let savingsRate: number | null;
+  if (totalIncome > 0) {
+    savingsRate = Math.round(((totalIncome - totalExpense) / totalIncome) * 100);
+  } else if (totalExpense > 0) {
+    savingsRate = null; // net-loss period — UI should show "N/A"
+  } else {
+    savingsRate = 0; // no income and no expense — genuinely neutral
+  }
 
   return { monthlyData, averageMonthlyIncome, averageMonthlyExpense, savingsRate };
 }
