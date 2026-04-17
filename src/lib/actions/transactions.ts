@@ -209,7 +209,7 @@ export async function getTransactionAttachmentDownload(
   transactionId: string,
 ): Promise<ActionResult<{ downloadUrl: string }>> {
   try {
-    const idValidation = z.string().uuid().safeParse(transactionId);
+    const idValidation = z.string().min(1).safeParse(transactionId);
     if (!idValidation.success) {
       return { success: false, error: 'Invalid transaction ID.' };
     }
@@ -505,7 +505,7 @@ export async function fetchTransactions(
 
 export async function deleteTransaction(id: string): Promise<ActionResult<null>> {
   try {
-    const idValidation = z.string().uuid().safeParse(id);
+    const idValidation = z.string().min(1).safeParse(id);
     if (!idValidation.success) {
       return { success: false, error: 'Invalid transaction ID.' };
     }

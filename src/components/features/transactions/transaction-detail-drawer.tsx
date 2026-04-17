@@ -1,7 +1,7 @@
 'use client';
 
 import { format } from 'date-fns';
-import { Edit2, Trash2 } from 'lucide-react';
+import { Edit2, ExternalLink, FileText, Loader2, Trash2 } from 'lucide-react';
 import { type Dispatch, type SetStateAction, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { getTransactionAttachmentDownload } from '@/lib/actions/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
 
 import { DeleteTransactionDialog } from './delete-transaction-dialog';
@@ -53,6 +54,8 @@ export function TransactionDetailDrawer({
 }: Readonly<TransactionDetailDrawerProps>) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   if (!transaction) {
     return null;
@@ -66,6 +69,29 @@ export function TransactionDetailDrawer({
     3,
   );
   const signedAmount = `${isIncome ? '+' : '-'} ${amount} OMR`;
+  const fileName = transaction.attachmentKey
+    ? transaction.attachmentKey.split('-').pop() || 'Attachment'
+    : 'Attachment';
+
+  const handleDownload = async () => {
+    if (isDownloading) return;
+    setDownloadError(null);
+    setIsDownloading(true);
+
+    try {
+      const result = await getTransactionAttachmentDownload(transaction.id);
+      if (result.success && result.data?.downloadUrl) {
+        window.open(result.data.downloadUrl, '_blank');
+      } else {
+        setDownloadError(result.error ?? 'Unable to open attachment.');
+      }
+    } catch (error) {
+      console.error('Error opening attachment:', error);
+      setDownloadError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <Sheet
@@ -137,7 +163,23 @@ export function TransactionDetailDrawer({
             {transaction.attachmentKey ? (
               <div className="col-span-2">
                 <DetailField label="Attachment">
-                  <span className="text-accent text-sm break-all">{transaction.attachmentKey}</span>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      disabled={isDownloading}
+                      className="text-accent hover:text-accent-hover flex w-fit items-center gap-2 rounded-md py-1 text-sm font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isDownloading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
+                      )}
+                      <span className="max-w-[200px] truncate">View: {fileName}</span>
+                      <ExternalLink className="h-3.5 w-3.5 flex-shrink-0 opacity-70" />
+                    </button>
+                    {downloadError && <p className="text-danger text-xs">{downloadError}</p>}
+                  </div>
                 </DetailField>
               </div>
             ) : null}
