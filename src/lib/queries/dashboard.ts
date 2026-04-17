@@ -8,6 +8,7 @@ import type {
   MemberActivityMetrics,
   MemberStatusData,
 } from '@/types/dashboard';
+
 export async function getDashboardMemberKpis(): Promise<{
   totalMembers: number;
   nearExpiry: number;
@@ -91,6 +92,7 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
     expiredThisMonth: Number(expiredThisMonthResult[0]?.count ?? 0),
   };
 }
+
 export async function getDashboardFinancialKpis(): Promise<{
   cashInHand: number;
   cashInBank: number;
@@ -163,6 +165,7 @@ export async function getDashboardFinancialActivity(balances: {
     closingBalance,
   };
 }
+
 export async function getDashboardFinancialTrend(): Promise<FinancialTrendData> {
   const result = await db.execute(sql`
     SELECT
