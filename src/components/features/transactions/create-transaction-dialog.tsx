@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { createTransaction, requestTransactionAttachmentUpload } from '@/lib/actions/transactions';
 import {
   createTransactionSchema,
+  CreateTransactionInput,
   TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES,
   TRANSACTION_REMARKS_MAX_LENGTH,
 } from '@/lib/validations/transactions';
@@ -487,7 +488,7 @@ export function CreateTransactionDialog({
 
   const submitValidatedTransaction = async (
     currentAction: SaveAction,
-    payload: Parameters<typeof createTransaction>[0],
+    payload: CreateTransactionInput,
   ) => {
     setPendingAction(currentAction);
 

@@ -19,8 +19,13 @@ import {
   createOpeningBalanceSchema,
   createTransactionAttachmentUploadSchema,
   createTransactionSchema,
-  type UpdateTransactionInput,
   updateTransactionSchema,
+} from '@/lib/validations/transactions';
+import type {
+  CreateOpeningBalanceInput,
+  CreateTransactionAttachmentUploadInput,
+  CreateTransactionInput,
+  UpdateTransactionInput,
 } from '@/lib/validations/transactions';
 import type { ActionResult } from '@/types/actions';
 import type { TransactionsQuery } from '@/types/filters/transactions';
@@ -75,7 +80,9 @@ export async function getNextTransactionCode(tx: TxOrDb = db): Promise<number> {
   return (result[0]?.max ?? 1000) + 1;
 }
 
-export async function createTransaction(input: unknown): Promise<ActionResult<{ id: string }>> {
+export async function createTransaction(
+  input: CreateTransactionInput,
+): Promise<ActionResult<{ id: string }>> {
   try {
     const validationResult = createTransactionSchema.safeParse(input);
 
@@ -157,7 +164,7 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
  * resulting attachmentKey to create/update transaction actions.
  */
 export async function requestTransactionAttachmentUpload(
-  input: unknown,
+  input: CreateTransactionAttachmentUploadInput,
 ): Promise<ActionResult<{ attachmentKey: string; uploadUrl: string }>> {
   try {
     const validationResult = createTransactionAttachmentUploadSchema.safeParse(input);
@@ -251,7 +258,9 @@ export async function getTransactionAttachmentDownload(
   }
 }
 
-export async function createOpeningBalance(input: unknown): Promise<ActionResult<{ id: string }>> {
+export async function createOpeningBalance(
+  input: CreateOpeningBalanceInput,
+): Promise<ActionResult<{ id: string }>> {
   try {
     const validationResult = createOpeningBalanceSchema.safeParse(input);
 
