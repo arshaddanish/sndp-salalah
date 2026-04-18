@@ -12,7 +12,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { requestTransactionAttachmentUpload, updateTransaction } from '@/lib/actions/transactions';
-import { TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES } from '@/lib/validations/transactions';
+import {
+  TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES,
+  TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES,
+} from '@/lib/validations/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
 
 interface EditTransactionDialogProps {
@@ -83,7 +86,8 @@ export function EditTransactionDialog({
       if (attachmentFile) {
         const uploadConfig = await requestTransactionAttachmentUpload({
           fileName: attachmentFile.name,
-          fileType: attachmentFile.type,
+          fileType:
+            attachmentFile.type as (typeof TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES)[number],
           fileSize: attachmentFile.size,
         });
 

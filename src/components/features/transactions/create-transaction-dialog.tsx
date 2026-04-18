@@ -25,6 +25,7 @@ import { createTransaction, requestTransactionAttachmentUpload } from '@/lib/act
 import {
   type CreateTransactionInput,
   createTransactionSchema,
+  TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES,
   TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES,
   TRANSACTION_REMARKS_MAX_LENGTH,
 } from '@/lib/validations/transactions';
@@ -499,7 +500,8 @@ export function CreateTransactionDialog({
       if (attachmentFile) {
         const uploadConfig = await requestTransactionAttachmentUpload({
           fileName: attachmentFile.name,
-          fileType: attachmentFile.type,
+          fileType:
+            attachmentFile.type as (typeof TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES)[number],
           fileSize: attachmentFile.size,
         });
 
