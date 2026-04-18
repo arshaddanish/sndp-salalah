@@ -46,5 +46,5 @@ export interface FinancialTrendData {
   monthlyData: FinancialDataPoint[];
   averageMonthlyIncome: number;
   averageMonthlyExpense: number;
-  savingsRate: number;
+  savingsRate: number | null;
 }
