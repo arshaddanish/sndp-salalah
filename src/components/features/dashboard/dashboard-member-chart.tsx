@@ -142,7 +142,7 @@ export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData
             <div className={`${textClass} text-sm font-semibold`}>{data[key].toLocaleString()}</div>
             <div className="text-text-muted text-xs">
               {total > 0 ? Math.round((data[key] / total) * 100) : 0}%
-            </div>{' '}
+            </div>
           </div>
         ))}
       </div>
