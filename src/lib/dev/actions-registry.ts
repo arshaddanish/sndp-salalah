@@ -1,6 +1,9 @@
 import { createShakha, deleteShakha, fetchShakhas, updateShakha } from '@/lib/actions/shakhas';
 import { createTransaction, fetchTransactions } from '@/lib/actions/transactions';
-import { createTransactionSchema } from '@/lib/validations/transactions';
+import {
+  type CreateTransactionInput,
+  createTransactionSchema,
+} from '@/lib/validations/transactions';
 export type JsonRecord = Record<string, unknown>;
 // eslint-disable-next-line no-unused-vars
 export type ActionValidator = (payload: JsonRecord) => string | null;
@@ -131,7 +134,7 @@ export const ACTION_CATEGORIES: ActionCategory[] = [
             ? null
             : (result.error.issues[0]?.message ?? 'Invalid transaction input.');
         },
-        onRun: (payload) => createTransaction(payload),
+        onRun: (payload) => createTransaction(payload as CreateTransactionInput),
       },
       {
         id: 'fetch-transactions',
