@@ -81,7 +81,9 @@ export function DashboardFinancialChart({ data }: Readonly<{ data: FinancialTren
         </div>
         <div>
           <div className="text-text-secondary mb-1 text-xs font-medium">Savings Rate</div>
-          <div className="text-accent text-sm font-semibold">{data.savingsRate}%</div>
+          <div className="text-accent text-sm font-semibold">
+            {data.savingsRate === null ? 'N/A' : `${data.savingsRate}%`}
+          </div>
         </div>
       </div>
     </Card>
