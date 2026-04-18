@@ -23,8 +23,8 @@ import { FormFieldError, getFieldAriaProps } from '@/components/ui/form-field-er
 import { Input } from '@/components/ui/input';
 import { createTransaction, requestTransactionAttachmentUpload } from '@/lib/actions/transactions';
 import {
+  type CreateTransactionInput,
   createTransactionSchema,
-  CreateTransactionInput,
   TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES,
   TRANSACTION_REMARKS_MAX_LENGTH,
 } from '@/lib/validations/transactions';
