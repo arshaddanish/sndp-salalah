@@ -90,7 +90,8 @@ export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData
             <Tooltip
               formatter={(value) => {
                 const n = Number(value);
-                return [`${n} member${n !== 1 ? 's' : ''}`, 'Count'];
+                const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+                return [`${n} member${n !== 1 ? 's' : ''} (${pct}%)`, 'Count'];
               }}
               contentStyle={{
                 backgroundColor: 'var(--color-surface)',
@@ -139,6 +140,9 @@ export function DashboardMemberChart({ data }: Readonly<{ data: MemberStatusData
               </span>
             </div>
             <div className={`${textClass} text-sm font-semibold`}>{data[key].toLocaleString()}</div>
+            <div className="text-text-muted text-xs">
+              {total > 0 ? Math.round((data[key] / total) * 100) : 0}%
+            </div>{' '}
           </div>
         ))}
       </div>
