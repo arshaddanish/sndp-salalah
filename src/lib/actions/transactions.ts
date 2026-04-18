@@ -15,11 +15,16 @@ import {
   getS3ObjectSize,
 } from '@/lib/s3';
 import { parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
+import type {
+  CreateOpeningBalanceInput,
+  CreateTransactionAttachmentUploadInput,
+  CreateTransactionInput,
+  UpdateTransactionInput,
+} from '@/lib/validations/transactions';
 import {
   createOpeningBalanceSchema,
   createTransactionAttachmentUploadSchema,
   createTransactionSchema,
-  type UpdateTransactionInput,
   updateTransactionSchema,
 } from '@/lib/validations/transactions';
 import type { ActionResult } from '@/types/actions';
@@ -75,7 +80,9 @@ export async function getNextTransactionCode(tx: TxOrDb = db): Promise<number> {
   return (result[0]?.max ?? 1000) + 1;
 }
 
-export async function createTransaction(input: unknown): Promise<ActionResult<{ id: string }>> {
+export async function createTransaction(
+  input: CreateTransactionInput,
+): Promise<ActionResult<{ id: string }>> {
   try {
     const validationResult = createTransactionSchema.safeParse(input);
 
@@ -157,7 +164,7 @@ export async function createTransaction(input: unknown): Promise<ActionResult<{ 
  * resulting attachmentKey to create/update transaction actions.
  */
 export async function requestTransactionAttachmentUpload(
-  input: unknown,
+  input: CreateTransactionAttachmentUploadInput,
 ): Promise<ActionResult<{ attachmentKey: string; uploadUrl: string }>> {
   try {
     const validationResult = createTransactionAttachmentUploadSchema.safeParse(input);
@@ -203,13 +210,40 @@ export async function requestTransactionAttachmentUpload(
 }
 
 /**
+ * Deletes a transaction attachment from S3.
+ * Used for cleanup when a transaction creation/update fails after an upload.
+ */
+export async function deleteTransactionAttachment(
+  attachmentKey: string,
+): Promise<ActionResult<null>> {
+  try {
+    if (!attachmentKey) {
+      return { success: false, error: 'Attachment key is required.' };
+    }
+
+    await deleteS3Object('transactions', attachmentKey);
+
+    return {
+      success: true,
+      data: null,
+    };
+  } catch (error) {
+    console.error('Error deleting transaction attachment:', error);
+    return {
+      success: false,
+      error: 'Unable to delete attachment.',
+    };
+  }
+}
+
+/**
  * Generates a pre-signed download URL for a transaction's attachment.
  */
 export async function getTransactionAttachmentDownload(
   transactionId: string,
 ): Promise<ActionResult<{ downloadUrl: string }>> {
   try {
-    const idValidation = z.string().uuid().safeParse(transactionId);
+    const idValidation = z.string().min(1).safeParse(transactionId);
     if (!idValidation.success) {
       return { success: false, error: 'Invalid transaction ID.' };
     }
@@ -251,7 +285,9 @@ export async function getTransactionAttachmentDownload(
   }
 }
 
-export async function createOpeningBalance(input: unknown): Promise<ActionResult<{ id: string }>> {
+export async function createOpeningBalance(
+  input: CreateOpeningBalanceInput,
+): Promise<ActionResult<{ id: string }>> {
   try {
     const validationResult = createOpeningBalanceSchema.safeParse(input);
 
@@ -505,7 +541,7 @@ export async function fetchTransactions(
 
 export async function deleteTransaction(id: string): Promise<ActionResult<null>> {
   try {
-    const idValidation = z.string().uuid().safeParse(id);
+    const idValidation = z.string().min(1).safeParse(id);
     if (!idValidation.success) {
       return { success: false, error: 'Invalid transaction ID.' };
     }

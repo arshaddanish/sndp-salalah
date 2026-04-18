@@ -11,7 +11,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { updateTransaction } from '@/lib/actions/transactions';
+import {
+  deleteTransactionAttachment,
+  requestTransactionAttachmentUpload,
+  updateTransaction,
+} from '@/lib/actions/transactions';
+import {
+  TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES,
+  TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES,
+} from '@/lib/validations/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
 
 interface EditTransactionDialogProps {
@@ -33,9 +41,7 @@ export function EditTransactionDialog({
   const [isPending, startTransition] = useTransition();
   const [isDirty, setIsDirty] = useState(false);
   const [type, setType] = useState<'income' | 'expense'>(transaction.type);
-  const [attachmentFileName, setAttachmentFileName] = useState<string | null>(
-    transaction.attachmentKey ?? null,
-  );
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
 
   const filteredCategories = categoryOptions.filter((cat) => cat.value !== 'all');
 
@@ -61,7 +67,8 @@ export function EditTransactionDialog({
         currentFundAccount !== transaction.fundAccount ||
         currentPayee !== (transaction.payeeMerchant ?? '') ||
         currentPaidBy !== (transaction.paidReceiptBy ?? '') ||
-        type !== transaction.type,
+        type !== transaction.type ||
+        attachmentFile !== null,
     );
   };
 
@@ -77,29 +84,73 @@ export function EditTransactionDialog({
     const formData = new FormData(event.currentTarget);
 
     startTransition(async () => {
-      const result = await updateTransaction(transaction.id, {
-        type,
-        amount: formData.get('amount') as string,
-        transactionDate: formData.get('transactionDate') as string,
-        categoryId: formData.get('categoryId') as string,
-        // Explicitly cast these two fields to their expected literal types:
-        paymentMode: formData.get('paymentMode') as
-          | 'cash'
-          | 'bank'
-          | 'online_transaction'
-          | 'cheque',
-        fundAccount: formData.get('fundAccount') as 'cash' | 'bank',
-        payeeMerchant: formData.get('payeeMerchant') as string,
-        paidReceiptBy: formData.get('paidReceiptBy') as string,
-        remarks: formData.get('remarks') as string,
-        attachmentKey: attachmentFileName ?? undefined,
-      });
+      let attachmentKey = transaction.attachmentKey ?? undefined;
 
-      if (!result.success) {
-        setErrorMessage(result.error ?? 'Unable to update transaction.');
-        return;
+      // Handle S3 Upload if a new file is selected
+      if (attachmentFile) {
+        const uploadConfig = await requestTransactionAttachmentUpload({
+          fileName: attachmentFile.name,
+          fileType:
+            attachmentFile.type as (typeof TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES)[number],
+          fileSize: attachmentFile.size,
+        });
+
+        if (!uploadConfig.success || !uploadConfig.data) {
+          setErrorMessage(uploadConfig.error ?? 'Unable to prepare attachment upload.');
+          return;
+        }
+
+        const uploadResponse = await fetch(uploadConfig.data.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': attachmentFile.type,
+          },
+          body: attachmentFile,
+        });
+
+        if (!uploadResponse.ok) {
+          setErrorMessage('Unable to upload attachment. Please try again.');
+          return;
+        }
+
+        attachmentKey = uploadConfig.data.attachmentKey;
       }
-      onSuccess();
+
+      try {
+        const result = await updateTransaction(transaction.id, {
+          type,
+          amount: formData.get('amount') as string,
+          transactionDate: formData.get('transactionDate') as string,
+          categoryId: formData.get('categoryId') as string,
+          paymentMode: formData.get('paymentMode') as
+            | 'cash'
+            | 'bank'
+            | 'online_transaction'
+            | 'cheque',
+          fundAccount: formData.get('fundAccount') as 'cash' | 'bank',
+          payeeMerchant: formData.get('payeeMerchant') as string,
+          paidReceiptBy: formData.get('paidReceiptBy') as string,
+          remarks: formData.get('remarks') as string,
+          attachmentKey,
+        });
+
+        if (!result.success) {
+          setErrorMessage(result.error ?? 'Unable to update transaction.');
+          // Cleanup if a new attachment was uploaded but DB update failed
+          if (attachmentFile && attachmentKey && attachmentKey !== transaction.attachmentKey) {
+            void deleteTransactionAttachment(attachmentKey);
+          }
+          return;
+        }
+        onSuccess();
+      } catch (err) {
+        console.error('Error updating transaction:', err);
+        setErrorMessage('Unable to update transaction. Please try again.');
+        // Cleanup if a new attachment was uploaded but DB update failed
+        if (attachmentFile && attachmentKey && attachmentKey !== transaction.attachmentKey) {
+          void deleteTransactionAttachment(attachmentKey);
+        }
+      }
     });
   };
 
@@ -111,7 +162,7 @@ export function EditTransactionDialog({
       onOpenChange={(value) => {
         if (!isPending) {
           if (!value) {
-            setAttachmentFileName(transaction.attachmentKey ?? null);
+            setAttachmentFile(null);
             setIsDirty(false);
             setErrorMessage(null);
             setType(transaction.type);
@@ -323,14 +374,40 @@ export function EditTransactionDialog({
                 accept="image/*,.pdf"
                 disabled={isPending}
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  setAttachmentFileName(file ? file.name : null);
+                  const file = e.target.files?.[0] ?? null;
+
+                  if (file) {
+                    if (file.size > TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES) {
+                      const maxSizeMB = (TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES / (1024 * 1024))
+                        .toFixed(1)
+                        .replace(/\.0$/, '');
+                      const maxSizeLabel =
+                        TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES < 1024 * 1024
+                          ? `${Math.round(TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES / 1024)}KB`
+                          : `${maxSizeMB}MB`;
+
+                      setErrorMessage(`Attachment must be ${maxSizeLabel} or smaller.`);
+                      e.target.value = '';
+                      setAttachmentFile(null);
+                      return;
+                    }
+                  }
+
+                  setErrorMessage(null);
+                  setAttachmentFile(file);
                   setIsDirty(true);
                 }}
                 className="border-border text-text-primary focus:border-accent focus:ring-accent/20 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none file:mr-3 file:rounded file:border-0 file:bg-transparent file:text-sm file:font-medium focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
-              {attachmentFileName && (
-                <p className="text-text-secondary text-xs">Current: {attachmentFileName}</p>
+              {attachmentFile && (
+                <p className="text-success text-xs">
+                  New file selected: {attachmentFile.name}
+                </p>
+              )}
+              {!attachmentFile && transaction.attachmentKey && (
+                <p className="text-text-secondary text-xs">
+                  Current: {transaction.attachmentKey.split('-').slice(2).join('-') || 'Attachment'}
+                </p>
               )}
             </div>
           </div>
