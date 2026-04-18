@@ -10,11 +10,12 @@ import { DashboardMemberChart } from '@/components/features/dashboard/dashboard-
 import {
   getDashboardFinancialActivity,
   getDashboardFinancialKpis,
+  getDashboardFinancialTrend,
   getDashboardMemberActivity,
   getDashboardMemberKpis,
   getDashboardMemberStatus,
 } from '@/lib/queries/dashboard';
-import type { FinancialTrendData, KpiData } from '@/types/dashboard';
+import type { KpiData } from '@/types/dashboard';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -24,12 +25,15 @@ export const metadata: Metadata = {
 export default async function DashboardPage() {
   const financialKpis = await getDashboardFinancialKpis();
 
-  const [kpis, memberStatus, memberActivity, financialActivity] = await Promise.all([
-    getDashboardMemberKpis(),
-    getDashboardMemberStatus(),
-    getDashboardMemberActivity(),
-    getDashboardFinancialActivity(financialKpis),
-  ]);
+  const [kpis, memberStatus, memberActivity, financialActivity, financialTrend] = await Promise.all(
+    [
+      getDashboardMemberKpis(),
+      getDashboardMemberStatus(),
+      getDashboardMemberActivity(),
+      getDashboardFinancialActivity(financialKpis),
+      getDashboardFinancialTrend(),
+    ],
+  );
 
   const kpiStats: KpiData = {
     totalMembers: kpis.totalMembers,
@@ -38,26 +42,6 @@ export default async function DashboardPage() {
     cashInBank: financialKpis.cashInBank,
     ytdIncome: financialKpis.ytdIncome,
     ytdExpense: financialKpis.ytdExpense,
-  };
-
-  const financialTrend: FinancialTrendData = {
-    monthlyData: [
-      { month: 'Apr 25', income: 475, expense: 190 },
-      { month: 'May 25', income: 540, expense: 200 },
-      { month: 'Jun 25', income: 620, expense: 240 },
-      { month: 'Jul 25', income: 590, expense: 210 },
-      { month: 'Aug 25', income: 650, expense: 250 },
-      { month: 'Sep 25', income: 510, expense: 185 },
-      { month: 'Oct 25', income: 580, expense: 215 },
-      { month: 'Nov 25', income: 700, expense: 280 },
-      { month: 'Dec 25', income: 750, expense: 310 },
-      { month: 'Jan 26', income: 450, expense: 180 },
-      { month: 'Feb 26', income: 520, expense: 195 },
-      { month: 'Mar 26', income: 480, expense: 170 },
-    ],
-    averageMonthlyIncome: 570,
-    averageMonthlyExpense: 213,
-    savingsRate: 63,
   };
 
   return (
