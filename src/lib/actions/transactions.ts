@@ -210,6 +210,33 @@ export async function requestTransactionAttachmentUpload(
 }
 
 /**
+ * Deletes a transaction attachment from S3.
+ * Used for cleanup when a transaction creation/update fails after an upload.
+ */
+export async function deleteTransactionAttachment(
+  attachmentKey: string,
+): Promise<ActionResult<null>> {
+  try {
+    if (!attachmentKey) {
+      return { success: false, error: 'Attachment key is required.' };
+    }
+
+    await deleteS3Object('transactions', attachmentKey);
+
+    return {
+      success: true,
+      data: null,
+    };
+  } catch (error) {
+    console.error('Error deleting transaction attachment:', error);
+    return {
+      success: false,
+      error: 'Unable to delete attachment.',
+    };
+  }
+}
+
+/**
  * Generates a pre-signed download URL for a transaction's attachment.
  */
 export async function getTransactionAttachmentDownload(

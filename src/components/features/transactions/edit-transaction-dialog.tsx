@@ -11,7 +11,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { requestTransactionAttachmentUpload, updateTransaction } from '@/lib/actions/transactions';
+import {
+  deleteTransactionAttachment,
+  requestTransactionAttachmentUpload,
+  updateTransaction,
+} from '@/lib/actions/transactions';
 import {
   TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES,
   TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES,
@@ -112,28 +116,41 @@ export function EditTransactionDialog({
         attachmentKey = uploadConfig.data.attachmentKey;
       }
 
-      const result = await updateTransaction(transaction.id, {
-        type,
-        amount: formData.get('amount') as string,
-        transactionDate: formData.get('transactionDate') as string,
-        categoryId: formData.get('categoryId') as string,
-        paymentMode: formData.get('paymentMode') as
-          | 'cash'
-          | 'bank'
-          | 'online_transaction'
-          | 'cheque',
-        fundAccount: formData.get('fundAccount') as 'cash' | 'bank',
-        payeeMerchant: formData.get('payeeMerchant') as string,
-        paidReceiptBy: formData.get('paidReceiptBy') as string,
-        remarks: formData.get('remarks') as string,
-        attachmentKey,
-      });
+      try {
+        const result = await updateTransaction(transaction.id, {
+          type,
+          amount: formData.get('amount') as string,
+          transactionDate: formData.get('transactionDate') as string,
+          categoryId: formData.get('categoryId') as string,
+          paymentMode: formData.get('paymentMode') as
+            | 'cash'
+            | 'bank'
+            | 'online_transaction'
+            | 'cheque',
+          fundAccount: formData.get('fundAccount') as 'cash' | 'bank',
+          payeeMerchant: formData.get('payeeMerchant') as string,
+          paidReceiptBy: formData.get('paidReceiptBy') as string,
+          remarks: formData.get('remarks') as string,
+          attachmentKey,
+        });
 
-      if (!result.success) {
-        setErrorMessage(result.error ?? 'Unable to update transaction.');
-        return;
+        if (!result.success) {
+          setErrorMessage(result.error ?? 'Unable to update transaction.');
+          // Cleanup if a new attachment was uploaded but DB update failed
+          if (attachmentFile && attachmentKey && attachmentKey !== transaction.attachmentKey) {
+            void deleteTransactionAttachment(attachmentKey);
+          }
+          return;
+        }
+        onSuccess();
+      } catch (err) {
+        console.error('Error updating transaction:', err);
+        setErrorMessage('Unable to update transaction. Please try again.');
+        // Cleanup if a new attachment was uploaded but DB update failed
+        if (attachmentFile && attachmentKey && attachmentKey !== transaction.attachmentKey) {
+          void deleteTransactionAttachment(attachmentKey);
+        }
       }
-      onSuccess();
     });
   };
 

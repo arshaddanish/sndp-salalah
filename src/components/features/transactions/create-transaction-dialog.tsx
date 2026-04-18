@@ -21,7 +21,11 @@ import {
 } from '@/components/ui/dialog';
 import { FormFieldError, getFieldAriaProps } from '@/components/ui/form-field-error';
 import { Input } from '@/components/ui/input';
-import { createTransaction, requestTransactionAttachmentUpload } from '@/lib/actions/transactions';
+import {
+  createTransaction,
+  deleteTransactionAttachment,
+  requestTransactionAttachmentUpload,
+} from '@/lib/actions/transactions';
 import {
   type CreateTransactionInput,
   createTransactionSchema,
@@ -493,9 +497,9 @@ export function CreateTransactionDialog({
   ) => {
     setPendingAction(currentAction);
 
-    try {
-      let finalPayload = { ...payload };
+    let finalPayload = { ...payload };
 
+    try {
       // Handle S3 Upload if a file is selected
       if (attachmentFile) {
         const uploadConfig = await requestTransactionAttachmentUpload({
@@ -532,6 +536,10 @@ export function CreateTransactionDialog({
       const result = await createTransaction(finalPayload);
       if (!result.success) {
         setErrorMessage(result.error ?? 'Unable to create transaction. Please try again.');
+        // Cleanup orphaned S3 upload if creation failed
+        if (finalPayload.attachmentKey) {
+          void deleteTransactionAttachment(finalPayload.attachmentKey);
+        }
         return;
       }
 
@@ -544,6 +552,11 @@ export function CreateTransactionDialog({
     } catch (err) {
       console.error('Error creating transaction:', err);
       setErrorMessage('Unable to create transaction. Please try again.');
+
+      // Cleanup if upload happened but subsequent steps failed
+      if (finalPayload.attachmentKey) {
+        void deleteTransactionAttachment(finalPayload.attachmentKey);
+      }
     } finally {
       setPendingAction(null);
     }
