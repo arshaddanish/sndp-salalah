@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/session';
+
 import { Sidebar } from '@/components/ui/sidebar';
+import { getSession } from '@/lib/session';
 
 export default async function PortalLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await getSession();
