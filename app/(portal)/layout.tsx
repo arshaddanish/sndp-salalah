@@ -1,6 +1,14 @@
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/session';
 import { Sidebar } from '@/components/ui/sidebar';
 
-export default function PortalLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function PortalLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const session = await getSession();
+
+  if (!session) {
+    redirect('/login');
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
