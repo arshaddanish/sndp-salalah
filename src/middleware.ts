@@ -1,7 +1,8 @@
+import { getSessionCookie } from 'better-auth/cookies';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  const sessionCookie = request.cookies.get('better-auth.session_token');
+  const sessionCookie = getSessionCookie(request);
 
   // Simple check for existence of session cookie for middleware speed
   if (!sessionCookie) {
