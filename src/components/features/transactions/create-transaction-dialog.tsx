@@ -21,9 +21,16 @@ import {
 } from '@/components/ui/dialog';
 import { FormFieldError, getFieldAriaProps } from '@/components/ui/form-field-error';
 import { Input } from '@/components/ui/input';
-import { createTransaction } from '@/lib/actions/transactions';
 import {
+  createTransaction,
+  deleteTransactionAttachment,
+  requestTransactionAttachmentUpload,
+} from '@/lib/actions/transactions';
+import {
+  type CreateTransactionInput,
   createTransactionSchema,
+  TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES,
+  TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES,
   TRANSACTION_REMARKS_MAX_LENGTH,
 } from '@/lib/validations/transactions';
 import { mapZodIssues } from '@/lib/zod-issues';
@@ -431,7 +438,7 @@ export function CreateTransactionDialog({
   const [type, setType] = useState<TransactionType>('income');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [attachmentFileName, setAttachmentFileName] = useState<string | null>(null);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [pendingAction, setPendingAction] = useState<SaveAction | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const saveActionRef = useRef<SaveAction>('save');
@@ -453,8 +460,27 @@ export function CreateTransactionDialog({
   };
 
   const handleAttachmentChange = (event: AttachmentInputChangeEvent) => {
-    const file = event.target.files?.[0];
-    setAttachmentFileName(file ? file.name : null);
+    const file = event.target.files?.[0] ?? null;
+
+    if (file) {
+      if (file.size > TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES) {
+        const maxSizeMB = (TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES / (1024 * 1024))
+          .toFixed(1)
+          .replace(/\.0$/, '');
+        const maxSizeLabel =
+          TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES < 1024 * 1024
+            ? `${Math.round(TRANSACTION_ATTACHMENT_DEFAULT_MAX_BYTES / 1024)}KB`
+            : `${maxSizeMB}MB`;
+
+        setErrorMessage(`Attachment must be ${maxSizeLabel} or smaller.`);
+        event.target.value = '';
+        setAttachmentFile(null);
+        return;
+      }
+    }
+
+    setErrorMessage(null);
+    setAttachmentFile(file);
   };
 
   const resetForAdditionalEntry = () => {
@@ -462,19 +488,58 @@ export function CreateTransactionDialog({
     setType('income');
     setFieldErrors({});
     setErrorMessage(null);
-    setAttachmentFileName(null);
+    setAttachmentFile(null);
   };
 
   const submitValidatedTransaction = async (
     currentAction: SaveAction,
-    payload: Parameters<typeof createTransaction>[0],
+    payload: CreateTransactionInput,
   ) => {
     setPendingAction(currentAction);
 
+    let finalPayload = { ...payload };
+
     try {
-      const result = await createTransaction(payload);
+      // Handle S3 Upload if a file is selected
+      if (attachmentFile) {
+        const uploadConfig = await requestTransactionAttachmentUpload({
+          fileName: attachmentFile.name,
+          fileType:
+            attachmentFile.type as (typeof TRANSACTION_ATTACHMENT_ALLOWED_MIME_TYPES)[number],
+          fileSize: attachmentFile.size,
+        });
+
+        if (!uploadConfig.success || !uploadConfig.data) {
+          setErrorMessage(uploadConfig.error ?? 'Unable to prepare attachment upload.');
+          return;
+        }
+
+        const uploadResponse = await fetch(uploadConfig.data.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': attachmentFile.type,
+          },
+          body: attachmentFile,
+        });
+
+        if (!uploadResponse.ok) {
+          setErrorMessage('Unable to upload attachment. Please try again.');
+          return;
+        }
+
+        finalPayload = {
+          ...finalPayload,
+          attachmentKey: uploadConfig.data.attachmentKey,
+        };
+      }
+
+      const result = await createTransaction(finalPayload);
       if (!result.success) {
         setErrorMessage(result.error ?? 'Unable to create transaction. Please try again.');
+        // Cleanup orphaned S3 upload if creation failed
+        if (finalPayload.attachmentKey) {
+          void deleteTransactionAttachment(finalPayload.attachmentKey);
+        }
         return;
       }
 
@@ -487,6 +552,11 @@ export function CreateTransactionDialog({
     } catch (err) {
       console.error('Error creating transaction:', err);
       setErrorMessage('Unable to create transaction. Please try again.');
+
+      // Cleanup if upload happened but subsequent steps failed
+      if (finalPayload.attachmentKey) {
+        void deleteTransactionAttachment(finalPayload.attachmentKey);
+      }
     } finally {
       setPendingAction(null);
     }
@@ -503,7 +573,7 @@ export function CreateTransactionDialog({
     const payload = buildCreateTransactionPayload({
       type,
       formData,
-      attachmentFileName,
+      attachmentFileName: attachmentFile?.name ?? null,
     });
 
     const validationResult = createTransactionSchema.safeParse(payload);
