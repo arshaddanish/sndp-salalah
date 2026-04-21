@@ -35,10 +35,10 @@ const serverEnv = isServer
   : ({} as z.infer<typeof serverSchema>);
 
 const clientEnv = clientSchema.parse({
-  NODE_ENV: process.env.NODE_ENV,
-  BETTER_AUTH_URL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
-  TRANSACTION_ATTACHMENT_MAX_BYTES: process.env.TRANSACTION_ATTACHMENT_MAX_BYTES,
-  MEMBER_PHOTO_MAX_BYTES: process.env.MEMBER_PHOTO_MAX_BYTES,
+  NODE_ENV: process.env['NODE_ENV'],
+  BETTER_AUTH_URL: process.env['NEXT_PUBLIC_BETTER_AUTH_URL'],
+  TRANSACTION_ATTACHMENT_MAX_BYTES: process.env['TRANSACTION_ATTACHMENT_MAX_BYTES'],
+  MEMBER_PHOTO_MAX_BYTES: process.env['MEMBER_PHOTO_MAX_BYTES'],
 });
 
 export const env = {
