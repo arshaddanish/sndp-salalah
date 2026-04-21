@@ -1161,3 +1161,59 @@ export async function requestMemberPhotoUpload(
     };
   }
 }
+export async function fetchMembersForExport(
+  filters?: MembersFilterOptions,
+): Promise<ActionResult<Member[]>> {
+  try {
+    const whereClause = buildMembersWhereClause(filters ?? {});
+
+    const items = await db
+      .select({
+        id: members.id,
+        member_code: members.member_code,
+        civil_id_no: members.civil_id_no,
+        name: members.name,
+        dob: members.dob,
+        family_status: members.family_status,
+        email: members.email,
+        photo_key: members.photo_key,
+        gsm_no: members.gsm_no,
+        whatsapp_no: members.whatsapp_no,
+        blood_group: members.blood_group,
+        profession: members.profession,
+        shakha_id: members.shakha_id,
+        shakhaName: shakhas.name,
+        residential_area: members.residential_area,
+        passport_no: members.passport_no,
+        address_india: members.address_india,
+        tel_no_india: members.tel_no_india,
+        is_family_in_oman: members.is_family_in_oman,
+        application_no: members.application_no,
+        received_on: members.received_on,
+        submitted_by: members.submitted_by,
+        shakha_india: members.shakha_india,
+        checked_by: members.checked_by,
+        approved_by: members.approved_by,
+        president: members.president,
+        secretary: members.secretary,
+        union_name: members.union_name,
+        district: members.district,
+        is_archived: members.is_archived,
+        archived_at: members.archived_at,
+        is_lifetime: members.is_lifetime,
+        active_from: members.active_from,
+        expiry: members.expiry,
+        created_at: members.created_at,
+        updated_at: members.updated_at,
+      })
+      .from(members)
+      .leftJoin(shakhas, eq(shakhas.id, members.shakha_id))
+      .where(whereClause)
+      .orderBy(desc(members.created_at));
+
+    return { success: true, data: items };
+  } catch (error) {
+    console.error('Error fetching members for export:', error);
+    return { success: false, error: 'Unable to export members. Please try again.' };
+  }
+}
