@@ -23,10 +23,13 @@ export function ExportMembersButton({ filters }: Readonly<{ filters: Filters }>)
     try {
       const result = await fetchMembersForExport(filters);
       if (result.success && result.data) {
-        exportMembersToExcel(result.data);
+        await exportMembersToExcel(result.data);
       } else {
-        alert('Export failed. Please try again.');
+        alert(result.error ?? 'Export failed. Please try again.');
       }
+    } catch (error) {
+      console.error('Error exporting members:', error);
+      alert('Export failed. Please try again.');
     } finally {
       setIsExporting(false);
     }

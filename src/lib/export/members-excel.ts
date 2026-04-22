@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 import { getMemberStatus } from '@/lib/utils/member-status';
 import type { Member } from '@/types/members';
@@ -14,43 +14,86 @@ function formatStatus(member: Member): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-export function exportMembersToExcel(members: Member[]): void {
-  const rows = members.map((m) => ({
-    'Member ID': m.member_code,
-    'Civil ID': m.civil_id_no,
-    Name: m.name,
-    DOB: formatDate(m.dob),
-    Email: m.email ?? '',
-    'GSM No': m.gsm_no ?? '',
-    'WhatsApp No': m.whatsapp_no ?? '',
-    'Blood Group': m.blood_group ?? '',
-    'Marital Status': m.family_status ?? '',
-    Profession: m.profession ?? '',
-    'Residential Area': m.residential_area ?? '',
-    'Passport No': m.passport_no ?? '',
-    'Address India': m.address_india ?? '',
-    'Tel No India': m.tel_no_india ?? '',
-    'Family in Oman': m.is_family_in_oman ? 'Yes' : 'No',
-    'Application No': m.application_no ?? '',
-    'Received On': formatDate(m.received_on),
-    'Submitted By': m.submitted_by ?? '',
-    'Shakha India': m.shakha_india ?? '',
-    'Checked By': m.checked_by ?? '',
-    'Approved By': m.approved_by ?? '',
-    President: m.president ?? '',
-    Secretary: m.secretary ?? '',
-    'Union Name': m.union_name ?? '',
-    District: m.district ?? '',
-    Shakha: m.shakhaName ?? '',
-    'Active From': formatDate(m.active_from),
-    Expiry: m.is_lifetime ? 'Lifetime' : formatDate(m.expiry),
-    Status: formatStatus(m),
-    'Created At': formatDate(m.created_at),
-  }));
+export async function exportMembersToExcel(members: Member[]): Promise<void> {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Members');
 
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Members');
+  worksheet.columns = [
+    { header: 'Member ID', key: 'member_code' },
+    { header: 'Civil ID', key: 'civil_id_no' },
+    { header: 'Name', key: 'name' },
+    { header: 'DOB', key: 'dob' },
+    { header: 'Email', key: 'email' },
+    { header: 'GSM No', key: 'gsm_no' },
+    { header: 'WhatsApp No', key: 'whatsapp_no' },
+    { header: 'Blood Group', key: 'blood_group' },
+    { header: 'Marital Status', key: 'family_status' },
+    { header: 'Profession', key: 'profession' },
+    { header: 'Residential Area', key: 'residential_area' },
+    { header: 'Passport No', key: 'passport_no' },
+    { header: 'Address India', key: 'address_india' },
+    { header: 'Tel No India', key: 'tel_no_india' },
+    { header: 'Family in Oman', key: 'is_family_in_oman' },
+    { header: 'Application No', key: 'application_no' },
+    { header: 'Received On', key: 'received_on' },
+    { header: 'Submitted By', key: 'submitted_by' },
+    { header: 'Shakha India', key: 'shakha_india' },
+    { header: 'Checked By', key: 'checked_by' },
+    { header: 'Approved By', key: 'approved_by' },
+    { header: 'President', key: 'president' },
+    { header: 'Secretary', key: 'secretary' },
+    { header: 'Union Name', key: 'union_name' },
+    { header: 'District', key: 'district' },
+    { header: 'Shakha', key: 'shakhaName' },
+    { header: 'Active From', key: 'active_from' },
+    { header: 'Expiry', key: 'expiry' },
+    { header: 'Status', key: 'status' },
+    { header: 'Created At', key: 'created_at' },
+  ];
 
-  XLSX.writeFile(workbook, `members-export-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  for (const m of members) {
+    worksheet.addRow({
+      member_code: m.member_code,
+      civil_id_no: m.civil_id_no,
+      name: m.name,
+      dob: formatDate(m.dob),
+      email: m.email ?? '',
+      gsm_no: m.gsm_no ?? '',
+      whatsapp_no: m.whatsapp_no ?? '',
+      blood_group: m.blood_group ?? '',
+      family_status: m.family_status ?? '',
+      profession: m.profession ?? '',
+      residential_area: m.residential_area ?? '',
+      passport_no: m.passport_no ?? '',
+      address_india: m.address_india ?? '',
+      tel_no_india: m.tel_no_india ?? '',
+      is_family_in_oman: m.is_family_in_oman ? 'Yes' : 'No',
+      application_no: m.application_no ?? '',
+      received_on: formatDate(m.received_on),
+      submitted_by: m.submitted_by ?? '',
+      shakha_india: m.shakha_india ?? '',
+      checked_by: m.checked_by ?? '',
+      approved_by: m.approved_by ?? '',
+      president: m.president ?? '',
+      secretary: m.secretary ?? '',
+      union_name: m.union_name ?? '',
+      district: m.district ?? '',
+      shakhaName: m.shakhaName ?? '',
+      active_from: formatDate(m.active_from),
+      expiry: m.is_lifetime ? 'Lifetime' : formatDate(m.expiry),
+      status: formatStatus(m),
+      created_at: formatDate(m.created_at),
+    });
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `members-export-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }

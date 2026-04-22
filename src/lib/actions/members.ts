@@ -18,6 +18,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 import { getNextTransactionCode } from '@/lib/actions/transactions';
 import { db } from '@/lib/db';
@@ -61,7 +62,13 @@ type MembersFilterOptions = {
   activeWindowStart?: string; // Filter by activity window start date
   activeWindowEnd?: string; // Filter by activity window end date
 };
-
+const membersFiltersSchema = z.object({
+  q: z.string().trim().max(100).optional(),
+  status: z.enum(['all', 'lifetime', 'pending', 'expired', 'near-expiry', 'active']).optional(),
+  shakha: z.string().trim().max(128).optional(),
+  activeWindowStart: z.union([z.literal(''), z.string().date()]).optional(),
+  activeWindowEnd: z.union([z.literal(''), z.string().date()]).optional(),
+});
 type MembersWhereCondition = SQL<unknown>;
 
 type ResolvedMemberProfile = {
@@ -1164,9 +1171,16 @@ export async function requestMemberPhotoUpload(
 export async function fetchMembersForExport(
   filters?: MembersFilterOptions,
 ): Promise<ActionResult<Member[]>> {
-  try {
-    const whereClause = buildMembersWhereClause(filters ?? {});
+  const validationResult = membersFiltersSchema.safeParse(filters ?? {});
+  if (!validationResult.success) {
+    return {
+      success: false,
+      error: 'Invalid export filters. Please adjust the filters and try again.',
+    };
+  }
 
+  try {
+    const whereClause = buildMembersWhereClause(validationResult.data as MembersFilterOptions);
     const items = await db
       .select({
         id: members.id,
