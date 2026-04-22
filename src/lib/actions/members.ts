@@ -50,7 +50,7 @@ import {
 import type { ActionResult } from '@/types/actions';
 import type { Member, MemberDetail, MemberTransaction } from '@/types/members';
 import type { PaginationResponse } from '@/types/pagination';
-
+const MAX_EXPORT_ROWS = 10_000;
 /**
  * Filter options for members endpoint
  * Follows enterprise API naming: 'q' for full-text search, specific field names for filters
@@ -62,13 +62,15 @@ type MembersFilterOptions = {
   activeWindowStart?: string; // Filter by activity window start date
   activeWindowEnd?: string; // Filter by activity window end date
 };
-const membersFiltersSchema = z.object({
-  q: z.string().trim().max(100).optional(),
-  status: z.enum(['all', 'lifetime', 'pending', 'expired', 'near-expiry', 'active']).optional(),
-  shakha: z.string().trim().max(128).optional(),
-  activeWindowStart: z.union([z.literal(''), z.string().date()]).optional(),
-  activeWindowEnd: z.union([z.literal(''), z.string().date()]).optional(),
-});
+const membersFiltersSchema = z
+  .object({
+    q: z.string().trim().max(100).optional(),
+    status: z.enum(['all', 'lifetime', 'pending', 'expired', 'near-expiry', 'active']).optional(),
+    shakha: z.string().trim().max(128).optional(),
+    activeWindowStart: z.union([z.literal(''), z.iso.date()]).optional(),
+    activeWindowEnd: z.union([z.literal(''), z.iso.date()]).optional(),
+  })
+  .strict();
 type MembersWhereCondition = SQL<unknown>;
 
 type ResolvedMemberProfile = {
@@ -381,7 +383,9 @@ function buildActivityWindowConditions(
   return conditions;
 }
 
-function buildMembersWhereClause(filters: MembersFilterOptions): SQL<unknown> | undefined {
+function buildMembersWhereClause(
+  filters: MembersFilterOptions | z.infer<typeof membersFiltersSchema>,
+): SQL<unknown> | undefined {
   const {
     q = '',
     status = 'all',
@@ -1180,7 +1184,14 @@ export async function fetchMembersForExport(
   }
 
   try {
-    const whereClause = buildMembersWhereClause(validationResult.data as MembersFilterOptions);
+    const whereClause = buildMembersWhereClause(validationResult.data);
+    const [countResult] = await db.select({ count: count() }).from(members).where(whereClause);
+    if ((countResult?.count ?? 0) > MAX_EXPORT_ROWS) {
+      return {
+        success: false,
+        error: `Export exceeds ${MAX_EXPORT_ROWS.toLocaleString()} rows. Please narrow your filters and try again.`,
+      };
+    }
     const items = await db
       .select({
         id: members.id,
