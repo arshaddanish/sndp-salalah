@@ -18,7 +18,6 @@ import {
   sql,
 } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
 
 import { getNextTransactionCode } from '@/lib/actions/transactions';
 import { db } from '@/lib/db';
@@ -50,7 +49,7 @@ import {
 import type { ActionResult } from '@/types/actions';
 import type { Member, MemberDetail, MemberTransaction } from '@/types/members';
 import type { PaginationResponse } from '@/types/pagination';
-const MAX_EXPORT_ROWS = 10_000;
+
 /**
  * Filter options for members endpoint
  * Follows enterprise API naming: 'q' for full-text search, specific field names for filters
@@ -62,15 +61,7 @@ type MembersFilterOptions = {
   activeWindowStart?: string; // Filter by activity window start date
   activeWindowEnd?: string; // Filter by activity window end date
 };
-const membersFiltersSchema = z
-  .object({
-    q: z.string().trim().max(100).optional(),
-    status: z.enum(['all', 'lifetime', 'pending', 'expired', 'near-expiry', 'active']).optional(),
-    shakha: z.string().trim().max(128).optional(),
-    activeWindowStart: z.union([z.literal(''), z.iso.date()]).optional(),
-    activeWindowEnd: z.union([z.literal(''), z.iso.date()]).optional(),
-  })
-  .strict();
+
 type MembersWhereCondition = SQL<unknown>;
 
 type ResolvedMemberProfile = {
@@ -383,9 +374,7 @@ function buildActivityWindowConditions(
   return conditions;
 }
 
-function buildMembersWhereClause(
-  filters: MembersFilterOptions | z.infer<typeof membersFiltersSchema>,
-): SQL<unknown> | undefined {
+function buildMembersWhereClause(filters: MembersFilterOptions): SQL<unknown> | undefined {
   const {
     q = '',
     status = 'all',
@@ -1170,75 +1159,5 @@ export async function requestMemberPhotoUpload(
       success: false,
       error: 'Unable to prepare photo upload. Please try again.',
     };
-  }
-}
-export async function fetchMembersForExport(
-  filters?: MembersFilterOptions,
-): Promise<ActionResult<Member[]>> {
-  const validationResult = membersFiltersSchema.safeParse(filters ?? {});
-  if (!validationResult.success) {
-    return {
-      success: false,
-      error: 'Invalid export filters. Please adjust the filters and try again.',
-    };
-  }
-
-  try {
-    const whereClause = buildMembersWhereClause(validationResult.data);
-    const [countResult] = await db.select({ count: count() }).from(members).where(whereClause);
-    if ((countResult?.count ?? 0) > MAX_EXPORT_ROWS) {
-      return {
-        success: false,
-        error: `Export exceeds ${MAX_EXPORT_ROWS.toLocaleString()} rows. Please narrow your filters and try again.`,
-      };
-    }
-    const items = await db
-      .select({
-        id: members.id,
-        member_code: members.member_code,
-        civil_id_no: members.civil_id_no,
-        name: members.name,
-        dob: members.dob,
-        family_status: members.family_status,
-        email: members.email,
-        photo_key: members.photo_key,
-        gsm_no: members.gsm_no,
-        whatsapp_no: members.whatsapp_no,
-        blood_group: members.blood_group,
-        profession: members.profession,
-        shakha_id: members.shakha_id,
-        shakhaName: shakhas.name,
-        residential_area: members.residential_area,
-        passport_no: members.passport_no,
-        address_india: members.address_india,
-        tel_no_india: members.tel_no_india,
-        is_family_in_oman: members.is_family_in_oman,
-        application_no: members.application_no,
-        received_on: members.received_on,
-        submitted_by: members.submitted_by,
-        shakha_india: members.shakha_india,
-        checked_by: members.checked_by,
-        approved_by: members.approved_by,
-        president: members.president,
-        secretary: members.secretary,
-        union_name: members.union_name,
-        district: members.district,
-        is_archived: members.is_archived,
-        archived_at: members.archived_at,
-        is_lifetime: members.is_lifetime,
-        active_from: members.active_from,
-        expiry: members.expiry,
-        created_at: members.created_at,
-        updated_at: members.updated_at,
-      })
-      .from(members)
-      .leftJoin(shakhas, eq(shakhas.id, members.shakha_id))
-      .where(whereClause)
-      .orderBy(desc(members.created_at));
-
-    return { success: true, data: items };
-  } catch (error) {
-    console.error('Error fetching members for export:', error);
-    return { success: false, error: 'Unable to export members. Please try again.' };
   }
 }

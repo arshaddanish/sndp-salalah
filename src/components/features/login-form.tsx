@@ -5,34 +5,46 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { authClient } from '@/lib/auth-client';
 
 export function LoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const handleSubmit = async (e: React.SyntheticEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // TODO: Replace this mock authentication with real auth flow:
-    // 1. Validate form inputs (username, password) from the form elements
-    // 2. Call your authentication endpoint/service:
-    //    - NextAuth signIn() method, OR
-    //    - POST to /api/login endpoint, OR
-    //    - Next.js server action for authentication
-    // 3. Handle authentication response:
-    //    - On success: call router.push('/') to redirect to dashboard
-    //    - On failure: set error state (add setError state or similar) and display to user
-    // 4. Always set setIsLoading(false) on completion or error
-    // 5. Only proceed with router.push('/') after successful authentication validation
+    const formData = new FormData(e.currentTarget);
+    const username = formData.get('username') as string;
+    const password = formData.get('password') as string;
 
-    // Mock implementation (remove after implementing real auth)
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    router.push('/');
+    const { data, error: authError } = await authClient.signIn.username({
+      username,
+      password,
+    });
+
+    if (authError) {
+      setError(authError.message || 'Invalid username or password');
+      setIsLoading(false);
+      return;
+    }
+
+    if (data) {
+      router.push('/');
+      router.refresh();
+    }
   };
 
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
+      {error && (
+        <div className="bg-danger/10 text-danger rounded-lg p-3 text-center text-sm font-medium">
+          {error}
+        </div>
+      )}
       <div className="space-y-1.5 text-left">
         <label className="text-text-secondary text-sm font-medium" htmlFor="username">
           Username

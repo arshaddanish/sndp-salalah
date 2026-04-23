@@ -1,10 +1,13 @@
+import { Download } from 'lucide-react';
+
 import { CreateMemberButton } from '@/components/features/members/create-member-button';
-import { ExportMembersButton } from '@/components/features/members/export-members-button';
 import { MembersTable } from '@/components/features/members/members-table';
+import { Button } from '@/components/ui/button';
 import { fetchMembers, fetchShakhaOptions } from '@/lib/actions/members';
 import { calculatePaginationState } from '@/lib/pagination-utils';
 import { normalizePagination } from '@/lib/query-pagination';
 import type { ListMembersRequest } from '@/types/filters/members';
+
 export const metadata = {
   title: 'Members | SNDP Salalah',
   description: 'View and manage the member directory with search, filters, and pagination',
@@ -68,15 +71,10 @@ export default async function MembersPage({
         <h1 className="text-text-primary text-2xl font-bold">Members</h1>
         <div className="flex gap-2">
           <CreateMemberButton />
-          <ExportMembersButton
-            filters={{
-              q: searchQuery,
-              status: statusFilter,
-              shakha: shakhaFilter,
-              activeWindowStart: activeWindowStartDate,
-              activeWindowEnd: activeWindowEndDate,
-            }}
-          />
+          <Button variant="secondary" size="sm" className="h-8">
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
         </div>
       </div>
 

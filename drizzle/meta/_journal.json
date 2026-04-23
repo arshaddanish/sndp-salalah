@@ -85,6 +85,20 @@
       "when": 1776225812620,
       "tag": "0011_public_catseye",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1776518734735,
+      "tag": "0012_mute_firelord",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1776601499130,
+      "tag": "0013_flimsy_warpath",
+      "breakpoints": true
     }
   ]
 }
