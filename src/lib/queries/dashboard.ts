@@ -62,19 +62,14 @@ export async function getDashboardMemberStatus(): Promise<MemberStatusData> {
 export async function getDashboardMemberActivity(): Promise<MemberActivityMetrics> {
   const periodLabel = currentPeriodLabel();
 
-  const [activity] = await db
+  // Query new members and expired memberships from members table
+  const [baseCounts] = await db
     .select({
       newThisMonth: sql<number>`count(*) FILTER (
         WHERE ${members.is_archived} = false
           AND ${members.is_lifetime} = false
           AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE)
           AND ${members.first_joined_at} >= DATE_TRUNC('month', CURRENT_DATE)
-      )`,
-      renewedThisMonth: sql<number>`count(*) FILTER (
-        WHERE ${members.is_archived} = false
-          AND ${members.is_lifetime} = false
-          AND ${members.active_from} >= DATE_TRUNC('month', CURRENT_DATE)
-          AND ${members.first_joined_at} < DATE_TRUNC('month', CURRENT_DATE)
       )`,
       expiredThisMonth: sql<number>`count(*) FILTER (
         WHERE ${members.is_archived} = false
@@ -85,14 +80,33 @@ export async function getDashboardMemberActivity(): Promise<MemberActivityMetric
     })
     .from(members);
 
+  // Query renewals from transactions table.
+  // A renewal is a Membership Fee transaction made by a member who joined before this month.
+  // This approach works correctly for all scenarios: early renewals (within active period)
+  // and late renewals (after expiry). Using transactions as the source of truth ensures
+  // dashboard metrics remain accurate regardless of active_from changes.
+  const renewalResult = await db.execute(sql`
+    SELECT COUNT(DISTINCT m.id)::integer AS renewed_count
+    FROM transactions t
+    JOIN transaction_categories tc ON t.category_id = tc.id
+    JOIN members m ON t.member_id = m.id
+    WHERE tc.name = 'Membership Fee'
+      AND t.transaction_date >= DATE_TRUNC('month', CURRENT_DATE)
+      AND t.transaction_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+      AND t.member_id IS NOT NULL
+      AND m.is_archived = false
+      AND m.is_lifetime = false
+      AND m.first_joined_at < DATE_TRUNC('month', CURRENT_DATE)
+  `);
+
+  const renewalCount =
+    (renewalResult.rows[0] as { renewed_count: number } | undefined)?.renewed_count ?? 0;
+
   return {
     period: periodLabel,
-    newThisMonth: Number(activity?.newThisMonth ?? 0),
-    // A row is counted as a renewal when active_from falls in the current month
-    // but first_joined_at precedes it (i.e. the member existed before this
-    // month's membership period started).
-    renewedThisMonth: Number(activity?.renewedThisMonth ?? 0),
-    expiredThisMonth: Number(activity?.expiredThisMonth ?? 0),
+    newThisMonth: Number(baseCounts?.newThisMonth ?? 0),
+    renewedThisMonth: renewalCount,
+    expiredThisMonth: Number(baseCounts?.expiredThisMonth ?? 0),
   };
 }
 
