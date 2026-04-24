@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import type { MemberCardExportPayload } from '@/components/features/members/member-card-export-button';
 import { MemberPaymentHistory } from '@/components/features/members/member-payment-history';
 import { MemberProfileActions } from '@/components/features/members/member-profile-actions';
 import { MemberProfileHeader } from '@/components/features/members/member-profile-header';
@@ -19,6 +20,42 @@ export const metadata: Metadata = {
 type MemberProfilePageProps = {
   params: Promise<{ id: string }>;
 };
+
+function formatDateLabel(date: Date | null) {
+  if (!date) {
+    return null;
+  }
+
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatCardDate(date: Date | null) {
+  if (!date) {
+    return null;
+  }
+
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function getMemberStatusLabel(status: string) {
+  const statusLabels: Record<string, string> = {
+    pending: 'Pending',
+    active: 'Active',
+    expired: 'Expired',
+    lifetime: 'Lifetime',
+    'near-expiry': 'Near Expiry',
+  };
+
+  return statusLabels[status] ?? status;
+}
 
 export default async function MemberProfilePage({ params }: Readonly<MemberProfilePageProps>) {
   const { id: memberCodeParam } = await params;
@@ -40,6 +77,34 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
   const transactionsError = transactionsResult.success
     ? null
     : (transactionsResult.error ?? 'Unable to load payment history.');
+  const cardExportPayload: MemberCardExportPayload = {
+    memberCode: member.member_code,
+    name: member.name,
+    photoSrc: member.photo_key,
+    statusLabel: getMemberStatusLabel(member.status),
+    officeShakha: member.shakhaName,
+    expiryLabel: member.is_lifetime ? 'Lifetime' : (formatCardDate(member.expiry) ?? 'Pending'),
+    dateOfBirthLabel: formatDateLabel(member.dob),
+    bloodGroup: member.blood_group,
+    phoneLabel: member.whatsapp_no ?? member.gsm_no,
+    familyMemberNames: member.familyMembersList.map((familyMember) => familyMember.name),
+    civilIdNo: member.civil_id_no,
+    passportNo: member.passport_no ?? null,
+    profession: member.profession ?? null,
+    residentialArea: member.residential_area ?? null,
+    addressIndia: member.address_india ?? null,
+    email: member.email ?? null,
+    shakhaIndia: member.shakha_india ?? null,
+    unionName: member.union_name ?? null,
+    district: member.district ?? null,
+    submittedBy: member.submitted_by ?? null,
+    receivedOnLabel: formatDateLabel(member.received_on ?? null),
+    checkedBy: member.checked_by ?? null,
+    approvedBy: member.approved_by ?? null,
+    president: member.president ?? null,
+    secretary: member.secretary ?? null,
+    applicationNo: member.application_no ?? null,
+  };
 
   return (
     <div className="space-y-6">
@@ -63,6 +128,7 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
           expiry={member.expiry?.toISOString() ?? null}
           isLifetime={member.is_lifetime}
           hasTransactions={transactions.length > 0}
+          cardExportPayload={cardExportPayload}
         />
       </div>
 
