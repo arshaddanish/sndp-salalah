@@ -17,7 +17,7 @@ This file contains repository-specific instructions for the Codex agent. These r
 - **Framework:** Next.js App Router (React Server Components by default).
 - **Styling:** TailwindCSS 4 (Utility-first, no external UI libraries unless requested).
 - **Database ORM:** Drizzle ORM (PostgreSQL).
-- **Authentication:** Auth.js v5 (Credentials Provider).
+- **Authentication:** Better Auth (Username/Password).
 - **Validation:** Zod (always validate env vars and form inputs).
   > **Note:** Some of these dependencies are planned and will be installed progressively as features are built out.
 
@@ -42,7 +42,7 @@ This file contains repository-specific instructions for the Codex agent. These r
 - **DB Schema**: `src/lib/db/schema.ts`
 - **DB Connection**: `src/lib/db/index.ts`
 - **Validations**: `src/lib/validations/[feature].ts`
-- **Auth Config**: `src/lib/auth/index.ts`
+- **Auth Config**: `src/lib/auth.ts`
 - **Types**: `src/types/[feature].ts`
 
 ## 6. Error Handling Pattern

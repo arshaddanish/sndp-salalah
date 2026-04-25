@@ -131,16 +131,16 @@ export function MemberCardExportButton({ payload }: Readonly<MemberCardExportBut
       </Button>
 
       {/* Hidden card container for html2canvas to render */}
-      <div className={styles['']} aria-hidden="true">
-        <div ref={frontCardRef} className={styles['']}>
-          <div className={styles['']}>
+      <div className={styles['cardContainer']} aria-hidden="true">
+        <div ref={frontCardRef} className={styles['frontId']}>
+          <div className={styles['title']}>
             <h2>SNDP YOGAM, OMAN</h2>
             <h2>SALALAH UNION</h2>
           </div>
 
-          <div className={styles['']}></div>
+          <div className={styles['bar']}></div>
 
-          <div className={styles['']}>
+          <div className={styles['subTitle']}>
             <p>
               <em>&quot;Educate and Enlighten</em>
             </p>
@@ -149,64 +149,64 @@ export function MemberCardExportButton({ payload }: Readonly<MemberCardExportBut
             </p>
           </div>
 
-          <div className={styles['']}>
+          <div className={styles['photo']}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={photoSrcUrl} crossOrigin="anonymous" alt="User" />
           </div>
 
-          <div className={styles['']}>
-            <p className={styles['']}>{payload.name || ' '}</p>
-            <p className={styles['']}>{payload.officeShakha || ' '}</p>
-            <p className={styles['']}>ID No: {payload.memberCode || ' '}</p>
+          <div className={styles['frontInfo']}>
+            <p className={styles['name']}>{payload.name || ' '}</p>
+            <p className={styles['shakha']}>{payload.officeShakha || ' '}</p>
+            <p className={styles['id']}>ID No: {payload.memberCode || ' '}</p>
           </div>
 
-          <div className={styles['']}>
-            <p className={styles['']}>Valid Upto {payload.expiryLabel || ' '}</p>
+          <div className={styles['footer']}>
+            <p className={styles['expiryDate']}>Valid Upto {payload.expiryLabel || ' '}</p>
           </div>
 
-          <div className={styles['']}>
+          <div className={styles['idLogo']}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/id-card-logo.png" alt="" />
           </div>
-          <div className={styles['']}>
+          <div className={styles['idSide']}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/id-card-side.png" alt="" />
           </div>
-          <div className={styles['']}>
+          <div className={styles['idBottom']}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/id-card-bottom.png" alt="" />
           </div>
         </div>
 
-        <div ref={backCardRef} className={styles['']}>
-          <div className={styles['']}>
-            <h3 className={styles['']}>FAMILY MEMBERS</h3>
+        <div ref={backCardRef} className={styles['backId']}>
+          <div className={styles['familyInfo']}>
+            <h3 className={styles['familyTitle']}>FAMILY MEMBERS</h3>
             {(payload.familyMemberNames || []).map((name, i) => (
-              <p key={i} className={styles['']}>
+              <p key={i} className={styles['familyMemberName']}>
                 {name}
               </p>
             ))}
           </div>
 
-          <div className={styles['']}>
-            <p className={styles['']}>DOB: {payload.dateOfBirthLabel || '—'}</p>
-            <p className={styles['']}>Blood: {payload.bloodGroup || '—'}</p>
-            <p className={styles['']}>Phone: {payload.phoneLabel || '—'}</p>
+          <div className={styles['backDetails']}>
+            <p className={styles['dob']}>DOB: {payload.dateOfBirthLabel || '—'}</p>
+            <p className={styles['blood']}>Blood: {payload.bloodGroup || '—'}</p>
+            <p className={styles['phone']}>Phone: {payload.phoneLabel || '—'}</p>
           </div>
 
-          <div className={styles['']}>
-            <p className={styles['']}>Email: salalahsndp@gmail.com</p>
+          <div className={styles['footer']}>
+            <p className={styles['expiryDate']}>Email: salalahsndp@gmail.com</p>
           </div>
 
-          <div className={styles['']}>
+          <div className={styles['idLogo']}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/id-card-logo.png" alt="" />
           </div>
-          <div className={styles['']}>
+          <div className={styles['idSide']}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/id-card-side.png" alt="" />
           </div>
-          <div className={styles['']}>
+          <div className={styles['idBack']}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/id-card-back.png" alt="" />
           </div>

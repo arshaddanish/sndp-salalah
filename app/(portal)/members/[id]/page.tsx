@@ -80,7 +80,7 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
   const cardExportPayload: MemberCardExportPayload = {
     memberCode: member.member_code,
     name: member.name,
-    photoSrc: member.photo_key,
+    photoSrc: member.photo_url ?? null,
     statusLabel: getMemberStatusLabel(member.status),
     officeShakha: member.shakhaName,
     expiryLabel: member.is_lifetime ? 'Lifetime' : (formatCardDate(member.expiry) ?? 'Pending'),
