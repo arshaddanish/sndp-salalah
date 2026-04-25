@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { DeleteMemberDialog } from './delete-member-dialog';
+import { MemberCardExportButton, type MemberCardExportPayload } from './member-card-export-button';
 import { RenewMembershipDialog } from './renew-membership-dialog';
 import { SetMemberLifetimeDialog } from './set-member-lifetime-dialog';
 
@@ -25,6 +26,7 @@ type MemberProfileActionsProps = {
   expiry: string | null;
   isLifetime: boolean;
   hasTransactions: boolean;
+  cardExportPayload: MemberCardExportPayload;
 };
 
 export function MemberProfileActions({
@@ -34,6 +36,7 @@ export function MemberProfileActions({
   expiry,
   isLifetime,
   hasTransactions,
+  cardExportPayload,
 }: Readonly<MemberProfileActionsProps>) {
   const router = useRouter();
   const [renewOpen, setRenewOpen] = useState(false);
@@ -55,6 +58,8 @@ export function MemberProfileActions({
           <CreditCard className="h-4 w-4" />
           {membershipActionLabel}
         </Button>
+
+        <MemberCardExportButton payload={cardExportPayload} />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -1,0 +1,239 @@
+'use client';
+
+import { Printer } from 'lucide-react';
+import { useRef, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+
+import styles from './member-card-export.module.css';
+
+// ---------------------------------------------------------------------------
+// Payload type — keep all fields so the caller (page.tsx) needs no changes
+// ---------------------------------------------------------------------------
+export type MemberCardExportPayload = {
+  memberCode: number;
+  name: string;
+  photoSrc: string | null; // presigned S3 URL, already resolved by page.tsx
+  statusLabel: string;
+  officeShakha: string;
+  expiryLabel: string;
+  dateOfBirthLabel: string | null;
+  bloodGroup: string | null;
+  phoneLabel: string | null;
+  familyMemberNames: string[];
+  civilIdNo: string | null;
+  passportNo: string | null;
+  profession: string | null;
+  residentialArea: string | null;
+  addressIndia: string | null;
+  email: string | null;
+  shakhaIndia: string | null;
+  unionName: string | null;
+  district: string | null;
+  submittedBy: string | null;
+  receivedOnLabel: string | null;
+  checkedBy: string | null;
+  approvedBy: string | null;
+  president: string | null;
+  secretary: string | null;
+  applicationNo: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+type MemberCardExportButtonProps = {
+  payload: MemberCardExportPayload;
+};
+
+export function MemberCardExportButton({ payload }: Readonly<MemberCardExportButtonProps>) {
+  const [isExporting, setIsExporting] = useState(false);
+  const frontCardRef = useRef<HTMLDivElement>(null);
+  const backCardRef = useRef<HTMLDivElement>(null);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      // Pre-load the member photo to ensure html2canvas captures it correctly.
+      // This prevents race conditions where the canvas is drawn before the img is ready.
+      const loadImage = (src: string) =>
+        new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous'; // Matches the img tag in the JSX
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+
+      if (payload.photoSrc) {
+        try {
+          await loadImage(payload.photoSrc);
+        } catch (e) {
+          console.warn('Failed to pre-load member photo, falling back to placeholder', e);
+        }
+      }
+
+      const frontInput = frontCardRef.current;
+      const backInput = backCardRef.current;
+
+      if (!frontInput || !backInput) {
+        throw new Error('Card elements not found');
+      }
+
+      const frontRect = frontInput.getBoundingClientRect();
+      const backRect = backInput.getBoundingClientRect();
+
+      // scale factor to boost resolution
+      const scale = 5;
+
+      const html2canvasOptions = {
+        useCORS: true,
+        allowTaint: false, // Security: fail predictably if cross-origin issues arise
+        scale,
+        logging: false,
+      };
+
+      const frontCanvas = await html2canvas(frontInput, {
+        ...html2canvasOptions,
+        width: frontRect.width,
+        height: frontRect.height,
+        windowWidth: frontRect.width,
+        windowHeight: frontRect.height,
+      });
+
+      const backCanvas = await html2canvas(backInput, {
+        ...html2canvasOptions,
+        width: backRect.width,
+        height: backRect.height,
+        windowWidth: backRect.width,
+        windowHeight: backRect.height,
+      });
+
+      const pdf = new jsPDF({
+        unit: 'px',
+        format: [frontRect.width, frontRect.height],
+        orientation: 'portrait',
+      });
+
+      // Front Page
+      const frontImgData = frontCanvas.toDataURL('image/png');
+      pdf.addImage(frontImgData, 'PNG', 0, 0, frontRect.width, frontRect.height);
+
+      // Back Page
+      pdf.addPage([backRect.width, backRect.height], 'portrait');
+      const backImgData = backCanvas.toDataURL('image/png');
+      pdf.addImage(backImgData, 'PNG', 0, 0, backRect.width, backRect.height);
+
+      pdf.save(`${payload.memberCode}.pdf`);
+    } catch (error) {
+      console.error('Failed to generate PDF', error);
+      alert('An error occurred while generating the ID card PDF. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const photoSrcUrl = payload.photoSrc || '/id-card-user-placeholder.png'; // default fallback from legacy
+
+  return (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="h-8 whitespace-nowrap"
+        onClick={handleExport}
+        disabled={isExporting}
+        aria-label="Download member ID card PDF"
+      >
+        <Printer className="mr-2 h-4 w-4" />
+        {isExporting ? 'Generating...' : 'Print Card'}
+      </Button>
+
+      {/* Hidden card container for html2canvas to render */}
+      <div className={styles['cardContainer']} aria-hidden="true">
+        <div ref={frontCardRef} className={styles['frontId']}>
+          <div className={styles['title']}>
+            <h2>SNDP YOGAM, OMAN</h2>
+            <h2>SALALAH UNION</h2>
+          </div>
+
+          <div className={styles['bar']}></div>
+
+          <div className={styles['subTitle']}>
+            <p>
+              <em>&quot;Educate and Enlighten</em>
+            </p>
+            <p>
+              <em>Organize and Strengthen&quot;</em>
+            </p>
+          </div>
+
+          <div className={styles['photo']}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoSrcUrl} crossOrigin="anonymous" alt="User" />
+          </div>
+
+          <div className={styles['frontInfo']}>
+            <p className={styles['name']}>{payload.name || ' '}</p>
+            <p className={styles['shakha']}>{payload.officeShakha || ' '}</p>
+            <p className={styles['id']}>ID No: {payload.memberCode || ' '}</p>
+          </div>
+
+          <div className={styles['footer']}>
+            <p className={styles['expiryDate']}>Valid Upto {payload.expiryLabel || ' '}</p>
+          </div>
+
+          <div className={styles['idLogo']}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/id-card-logo.png" alt="" />
+          </div>
+          <div className={styles['idSide']}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/id-card-side.png" alt="" />
+          </div>
+          <div className={styles['idBottom']}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/id-card-bottom.png" alt="" />
+          </div>
+        </div>
+
+        <div ref={backCardRef} className={styles['backId']}>
+          <div className={styles['familyInfo']}>
+            <h3 className={styles['familyTitle']}>FAMILY MEMBERS</h3>
+            {(payload.familyMemberNames || []).map((name, i) => (
+              <p key={i} className={styles['familyMemberName']}>
+                {name}
+              </p>
+            ))}
+          </div>
+
+          <div className={styles['backDetails']}>
+            <p className={styles['dob']}>DOB: {payload.dateOfBirthLabel || '—'}</p>
+            <p className={styles['blood']}>Blood: {payload.bloodGroup || '—'}</p>
+            <p className={styles['phone']}>Phone: {payload.phoneLabel || '—'}</p>
+          </div>
+
+          <div className={styles['footer']}>
+            <p className={styles['expiryDate']}>Email: salalahsndp@gmail.com</p>
+          </div>
+
+          <div className={styles['idLogo']}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/id-card-logo.png" alt="" />
+          </div>
+          <div className={styles['idSide']}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/id-card-side.png" alt="" />
+          </div>
+          <div className={styles['idBack']}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/id-card-back.png" alt="" />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
