@@ -57,6 +57,25 @@ export function MemberCardExportButton({ payload }: Readonly<MemberCardExportBut
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
+      // Pre-load the member photo to ensure html2canvas captures it correctly.
+      // This prevents race conditions where the canvas is drawn before the img is ready.
+      const loadImage = (src: string) =>
+        new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous'; // Matches the img tag in the JSX
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+
+      if (payload.photoSrc) {
+        try {
+          await loadImage(payload.photoSrc);
+        } catch (e) {
+          console.warn('Failed to pre-load member photo, falling back to placeholder', e);
+        }
+      }
+
       const frontInput = frontCardRef.current;
       const backInput = backCardRef.current;
 
@@ -70,24 +89,27 @@ export function MemberCardExportButton({ payload }: Readonly<MemberCardExportBut
       // scale factor to boost resolution
       const scale = 5;
 
-      const frontCanvas = await html2canvas(frontInput, {
+      const html2canvasOptions = {
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false, // Security: fail predictably if cross-origin issues arise
+        scale,
+        logging: false,
+      };
+
+      const frontCanvas = await html2canvas(frontInput, {
+        ...html2canvasOptions,
         width: frontRect.width,
         height: frontRect.height,
         windowWidth: frontRect.width,
         windowHeight: frontRect.height,
-        scale,
       });
 
       const backCanvas = await html2canvas(backInput, {
-        useCORS: true,
-        allowTaint: true,
+        ...html2canvasOptions,
         width: backRect.width,
         height: backRect.height,
         windowWidth: backRect.width,
         windowHeight: backRect.height,
-        scale,
       });
 
       const pdf = new jsPDF({

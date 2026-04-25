@@ -86,7 +86,7 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
     expiryLabel: member.is_lifetime ? 'Lifetime' : (formatCardDate(member.expiry) ?? 'Pending'),
     dateOfBirthLabel: formatDateLabel(member.dob),
     bloodGroup: member.blood_group,
-    phoneLabel: member.whatsapp_no ?? member.gsm_no,
+    phoneLabel: member.whatsapp_no || member.gsm_no,
     familyMemberNames: member.familyMembersList.map((familyMember) => familyMember.name),
     civilIdNo: member.civil_id_no,
     passportNo: member.passport_no ?? null,
