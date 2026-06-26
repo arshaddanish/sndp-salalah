@@ -4,12 +4,13 @@ We document significant architectural decisions using ADRs. Each record captures
 
 ## Index
 
-| #                                   | Decision                             | Status   |
-| ----------------------------------- | ------------------------------------ | -------- |
-| [001](./001-nextjs-app-router.md)   | Next.js App Router as framework      | Accepted |
-| [002](./002-drizzle-orm.md)         | Drizzle ORM for database access      | Accepted |
-| [003](./003-auth-strategy.md)       | Auth.js v5 with Credentials provider | Accepted |
-| [004](./004-postgresql-database.md) | PostgreSQL for relational data       | Accepted |
+| #                                          | Decision                             | Status   |
+| ------------------------------------------ | ------------------------------------ | -------- |
+| [001](./001-nextjs-app-router.md)          | Next.js App Router as framework      | Accepted |
+| [002](./002-drizzle-orm.md)                | Drizzle ORM for database access      | Accepted |
+| [003](./003-auth-strategy.md)              | Auth.js v5 with Credentials provider | Accepted |
+| [004](./004-postgresql-database.md)        | PostgreSQL for relational data       | Accepted |
+| [005](./005-s3-transaction-attachments.md) | AWS S3 for transaction attachments   | Accepted |
 
 ## Format
 

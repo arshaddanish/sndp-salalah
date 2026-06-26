@@ -35,12 +35,10 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    console.log('Logging out...');
     try {
       await authClient.signOut({
         fetchOptions: {
           onSuccess: () => {
-            console.log('Logout successful, redirecting...');
             setIsLogoutDialogOpen(false);
             router.push('/login');
             router.refresh();

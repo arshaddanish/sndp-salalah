@@ -46,6 +46,20 @@ type MemberCardExportButtonProps = {
   payload: MemberCardExportPayload;
 };
 
+/**
+ * Pre-loads an image to ensure html2canvas captures it correctly.
+ * This prevents race conditions where the canvas is drawn before the img is ready.
+ */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 export function MemberCardExportButton({ payload }: Readonly<MemberCardExportButtonProps>) {
   const [isExporting, setIsExporting] = useState(false);
   const frontCardRef = useRef<HTMLDivElement>(null);
@@ -57,23 +71,11 @@ export function MemberCardExportButton({ payload }: Readonly<MemberCardExportBut
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      // Pre-load the member photo to ensure html2canvas captures it correctly.
-      // This prevents race conditions where the canvas is drawn before the img is ready.
-      const loadImage = (src: string) =>
-        new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous'; // Matches the img tag in the JSX
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = src;
-        });
-
       if (payload.photoSrc) {
-        try {
-          await loadImage(payload.photoSrc);
-        } catch (e) {
+        // Attempt to pre-load photo, but continue if it fails (using placeholder as fallback)
+        await loadImage(payload.photoSrc).catch((e) => {
           console.warn('Failed to pre-load member photo, falling back to placeholder', e);
-        }
+        });
       }
 
       const frontInput = frontCardRef.current;
@@ -85,13 +87,10 @@ export function MemberCardExportButton({ payload }: Readonly<MemberCardExportBut
 
       const frontRect = frontInput.getBoundingClientRect();
       const backRect = backInput.getBoundingClientRect();
-
-      // scale factor to boost resolution
       const scale = 5;
-
       const html2canvasOptions = {
         useCORS: true,
-        allowTaint: false, // Security: fail predictably if cross-origin issues arise
+        allowTaint: false,
         scale,
         logging: false,
       };
@@ -118,11 +117,9 @@ export function MemberCardExportButton({ payload }: Readonly<MemberCardExportBut
         orientation: 'portrait',
       });
 
-      // Front Page
       const frontImgData = frontCanvas.toDataURL('image/png');
       pdf.addImage(frontImgData, 'PNG', 0, 0, frontRect.width, frontRect.height);
 
-      // Back Page
       pdf.addPage([backRect.width, backRect.height], 'portrait');
       const backImgData = backCanvas.toDataURL('image/png');
       pdf.addImage(backImgData, 'PNG', 0, 0, backRect.width, backRect.height);

@@ -22,8 +22,10 @@ export function ExportMembersButton({ filters }: Readonly<{ filters: Filters }>)
     setIsExporting(true);
     try {
       const result = await fetchMembersForExport(filters);
-      if (result.success && result.data) {
+      if (result.success && result.data && result.data.length > 0) {
         await exportMembersToExcel(result.data);
+      } else if (result.success) {
+        alert('No members match the current filters.');
       } else {
         alert(result.error ?? 'Export failed. Please try again.');
       }

@@ -16,7 +16,7 @@ type ActionsHistoryProps = {
   items: ActionRunHistoryItem[];
   categories: ActionCategory[];
   isDark: boolean;
-  // eslint-disable-next-line no-unused-vars
+
   onSelectHistory: (item: ActionRunHistoryItem) => void;
   onClear: () => void;
 };
