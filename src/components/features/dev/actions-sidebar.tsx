@@ -11,11 +11,11 @@ type ActionsSidebarProps = {
   recentActionIds: string[];
   favoriteActionIds: string[];
   isDark: boolean;
-  // eslint-disable-next-line no-unused-vars
+
   onSelectCategory: (categoryId: string) => void;
-  // eslint-disable-next-line no-unused-vars
+
   onSelectAction: (categoryId: string, actionId: string) => void;
-  // eslint-disable-next-line no-unused-vars
+
   onToggleFavorite: (actionId: string) => void;
 };
 

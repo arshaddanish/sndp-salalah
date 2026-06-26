@@ -12,7 +12,7 @@ type ActionRequestEditorProps = {
   isPending: boolean;
   isDark: boolean;
   editorRef: RefObject<HTMLTextAreaElement | null>;
-  // eslint-disable-next-line no-unused-vars
+
   onChange: (nextValue: string) => void;
   onRun: () => void;
   onFormat: () => void;

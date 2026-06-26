@@ -137,6 +137,33 @@ Lifetime → bg-lifetime-bg text-lifetime border border-lifetime/20 (purple pill
   - Secondary: `bg-white border border-border hover:bg-surface-hover text-primary rounded-lg px-4 py-2 text-sm font-medium`
   - Danger: `bg-danger-bg hover:bg-danger/10 text-danger border border-danger/20 rounded-lg px-4 py-2 text-sm font-medium`
 
+### Member Card PDF
+
+- Member card export must preserve a print-first layout. The card canvas itself is not responsive; only the surrounding page actions are.
+- Front and back must export as separate PDF pages.
+- Download filename uses the member code only.
+- The export implementation may use hidden render targets, but the card surface must remain visually stable and isolated from page chrome.
+- Use the approved sample and legacy card as parity references; do not improvise gradients, oversized rounding, or marketing-style presentation.
+
+#### Card Canvas
+
+- Target ratio must match the approved sample card PDF pages.
+- Treat the card as a fixed portrait canvas with explicit width and height values in CSS.
+- Keep padding and spacing print-safe; no content should rely on viewport-relative layout.
+
+#### Front Side Content
+
+- Include the SNDP identity header, member photo, member name, and member code as primary anchors.
+- Use compact information blocks for shakha, DOB, blood group, phone, expiry, and family members.
+- Long family-member lists must truncate gracefully rather than overflow the card.
+- Missing photo uses a neutral fallback silhouette or placeholder block that keeps the layout stable.
+
+#### Back Side Content
+
+- Match the approved sample structure and spacing.
+- Back-side content may use smaller typography than the front, but it must remain readable when printed.
+- Static notices or instructions are allowed only when they are part of the approved sample.
+
 ### Sidebar Navigation
 
 - Width: `w-64` (fixed)
@@ -163,6 +190,8 @@ Lifetime → bg-lifetime-bg text-lifetime border border-lifetime/20 (purple pill
   └──────────┴──────────────────────────────────┘
   ```
 - **Spacing:** `gap-6` between major sections, `gap-4` between related items, `gap-2` for tight groupings
+- **Admin form density:** On desktop, prefer adding responsive columns for large field groups (for example `lg:grid-cols-3`) before introducing `max-w-*` wrappers that reduce scanning capacity.
+- **Action button spacing:** Keep at least `gap-3` between dismissive and primary actions (for example Cancel and Save/Delete) to reduce accidental clicks.
 - **Responsive:** Sidebar collapses to a hamburger on `< md` breakpoints
 
 ---

@@ -5,9 +5,9 @@ import {
   createTransactionSchema,
 } from '@/lib/validations/transactions';
 export type JsonRecord = Record<string, unknown>;
-// eslint-disable-next-line no-unused-vars
+
 export type ActionValidator = (payload: JsonRecord) => string | null;
-// eslint-disable-next-line no-unused-vars
+
 export type ActionRunner = (payload: JsonRecord) => Promise<unknown>;
 
 export type ActionDefinition = {
