@@ -218,6 +218,33 @@ async function runMemberSubmit(
   }
 }
 
+function scrollToFirstError(errorKey: string | undefined): void {
+  if (!errorKey) return;
+
+  let targetKey = errorKey;
+  if (targetKey === 'photoKey') {
+    targetKey = 'photo';
+  }
+
+  const familyMatch = /^familyMembers\.(\d+)\.(.+)$/.exec(targetKey);
+  let element: HTMLElement | null = null;
+
+  if (familyMatch) {
+    const idx = familyMatch[1];
+    const field = familyMatch[2];
+    element = document.getElementById(`family-${field}-${idx}`);
+  } else {
+    element =
+      (document.getElementsByName(targetKey)[0] as HTMLElement) ||
+      document.getElementById(targetKey);
+  }
+
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    element.focus();
+  }
+}
+
 export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormProps>) {
   const isEditMode = Boolean(initialData);
   const router = useRouter();
@@ -298,7 +325,12 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
     const validationSchema = isEditMode ? updateMemberSchema : createMemberSchema;
     const cvr = validationSchema.safeParse(payload);
     if (!cvr.success) {
-      setFieldErrors(mapZodIssues(cvr.error.issues));
+      const errors = mapZodIssues(cvr.error.issues);
+      setFieldErrors(errors);
+      setErrorMessage(
+        'The form has incomplete fields and cannot be saved. Please check the highlighted fields.',
+      );
+      scrollToFirstError(cvr.error.issues[0]?.path.join('.'));
       return;
     }
 
@@ -341,6 +373,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="name"
               defaultValue={initialData?.name ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['name'])}
             />
             <FormFieldError fieldErrors={fieldErrors} fieldKey="name" errorId="name-error" />
           </div>
@@ -354,6 +387,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="profession"
               defaultValue={initialData?.profession ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['profession'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -372,6 +406,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               type="date"
               defaultValue={initialData?.dob ? initialData.dob.toISOString().slice(0, 10) : ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['dob'])}
             />
             <FormFieldError fieldErrors={fieldErrors} fieldKey="dob" errorId="dob-error" />
           </div>
@@ -385,6 +420,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="whatsappNo"
               defaultValue={initialData?.whatsapp_no ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['whatsappNo'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -402,6 +438,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="gsmNo"
               defaultValue={initialData?.gsm_no ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['gsmNo'])}
             />
             <FormFieldError fieldErrors={fieldErrors} fieldKey="gsmNo" errorId="gsmNo-error" />
           </div>
@@ -414,6 +451,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               id="familyStatus"
               name="familyStatus"
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['familyStatus'])}
               className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
               defaultValue={initialData?.family_status ?? ''}
             >
@@ -434,6 +472,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               id="bloodGroup"
               name="bloodGroup"
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['bloodGroup'])}
               className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
               defaultValue={initialData?.blood_group ?? ''}
             >
@@ -455,6 +494,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="residentialArea"
               defaultValue={initialData?.residential_area ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['residentialArea'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -473,6 +513,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               type="email"
               defaultValue={initialData?.email ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['email'])}
             />
             <FormFieldError fieldErrors={fieldErrors} fieldKey="email" errorId="email-error" />
           </div>
@@ -486,6 +527,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="civilIdNo"
               defaultValue={initialData?.civil_id_no ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['civilIdNo'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -503,6 +545,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="passportNo"
               defaultValue={initialData?.passport_no ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['passportNo'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -522,6 +565,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
                 type="file"
                 accept="image/*"
                 disabled={isPending}
+                aria-invalid={Boolean(fieldErrors['photoKey'])}
                 onChange={(event) => {
                   const nextFile = event.target.files?.[0] ?? null;
                   setPhotoFile(nextFile);
@@ -549,6 +593,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="telNoIndia"
               defaultValue={initialData?.tel_no_india ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['telNoIndia'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -568,6 +613,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
             rows={3}
             defaultValue={initialData?.address_india ?? ''}
             disabled={isPending}
+            aria-invalid={Boolean(fieldErrors['addressIndia'])}
             className="border-border bg-surface text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-accent-border w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
           <FormFieldError
@@ -631,6 +677,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
                   id={`family-name-${index}`}
                   value={row.name}
                   disabled={isPending}
+                  aria-invalid={Boolean(fieldErrors[`familyMembers.${index}.name`])}
                   onChange={(event) => updateFamilyRow(index, 'name', event.target.value)}
                 />
                 <FormFieldError
@@ -771,6 +818,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="officeShakhaId"
               defaultValue={initialData?.shakha_id ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['officeShakhaId'])}
               className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
             >
               <option value="">Select shakha</option>
@@ -796,6 +844,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="submittedBy"
               defaultValue={initialData?.submitted_by ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['submittedBy'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -816,6 +865,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
                 initialData?.received_on ? initialData.received_on.toISOString().slice(0, 10) : ''
               }
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['receivedOn'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -833,6 +883,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="approvedBy"
               defaultValue={initialData?.approved_by ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['approvedBy'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -850,6 +901,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="checkedBy"
               defaultValue={initialData?.checked_by ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['checkedBy'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
@@ -867,6 +919,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               name="applicationNo"
               defaultValue={initialData?.application_no ?? ''}
               disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['applicationNo'])}
             />
             <FormFieldError
               fieldErrors={fieldErrors}
