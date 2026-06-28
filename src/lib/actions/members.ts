@@ -778,6 +778,19 @@ export async function renewMembership(
       };
     }
 
+    const existingExpiry = member.expiry ? new Date(member.expiry) : null;
+    if (existingExpiry) {
+      existingExpiry.setHours(0, 0, 0, 0);
+      const normalizedToday = new Date();
+      normalizedToday.setHours(0, 0, 0, 0);
+      if (existingExpiry >= normalizedToday) {
+        return {
+          success: false,
+          error: 'Membership is already renewed for the year.',
+        };
+      }
+    }
+
     // Find 'Membership Fee' category
     const category = await db.query.transactionCategories.findFirst({
       where: and(

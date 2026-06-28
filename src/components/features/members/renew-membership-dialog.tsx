@@ -68,6 +68,15 @@ export function RenewMembershipDialog({
   const [isDirty, setIsDirty] = useState(false);
 
   const defaultExpiry = useMemo(() => getDefaultExpiry(currentExpiry), [currentExpiry]);
+
+  const isAlreadyRenewed = useMemo(() => {
+    if (!currentExpiry) return false;
+    const expiryDate = new Date(currentExpiry);
+    expiryDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return expiryDate >= today;
+  }, [currentExpiry]);
   const dialogTitle = mode === 'register' ? 'Register Membership' : 'Renew Membership';
   const dialogDescription =
     mode === 'register'
@@ -101,6 +110,14 @@ export function RenewMembershipDialog({
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
+
+        {isAlreadyRenewed ? (
+          <div className="border-warning/20 bg-warning-bg rounded-lg border px-4 py-3">
+            <p className="text-warning text-sm font-medium">
+              Membership is already renewed for the year.
+            </p>
+          </div>
+        ) : null}
 
         <form
           onSubmit={(event) => {
@@ -157,8 +174,9 @@ export function RenewMembershipDialog({
               step="0.001"
               min="0.001"
               required
-              disabled={isPending}
-              placeholder="0.000"
+              disabled={isPending || isAlreadyRenewed}
+              placeholder="3.000"
+              defaultValue="3"
             />
             {fieldErrors['amount'] ? (
               <p className="text-danger text-xs">{fieldErrors['amount']}</p>
@@ -177,7 +195,7 @@ export function RenewMembershipDialog({
                 id="renew-paymentMode"
                 name="paymentMode"
                 required
-                disabled={isPending}
+                disabled={isPending || isAlreadyRenewed}
                 className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                 defaultValue=""
               >
@@ -206,7 +224,7 @@ export function RenewMembershipDialog({
                 id="renew-fundAccount"
                 name="fundAccount"
                 required
-                disabled={isPending}
+                disabled={isPending || isAlreadyRenewed}
                 className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                 defaultValue=""
               >
@@ -235,7 +253,7 @@ export function RenewMembershipDialog({
               type="date"
               defaultValue={defaultExpiry}
               required
-              disabled={isPending}
+              disabled={isPending || isAlreadyRenewed}
             />
             {fieldErrors['newExpiry'] ? (
               <p className="text-danger text-xs">{fieldErrors['newExpiry']}</p>
@@ -251,7 +269,7 @@ export function RenewMembershipDialog({
               name="remarks"
               rows={2}
               maxLength={500}
-              disabled={isPending}
+              disabled={isPending || isAlreadyRenewed}
               className="border-border bg-surface text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-accent-border w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
@@ -267,7 +285,7 @@ export function RenewMembershipDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || !isDirty}>
+            <Button type="submit" disabled={isPending || !isDirty || isAlreadyRenewed}>
               {isPending ? 'Saving...' : 'Save Payment'}
             </Button>
           </DialogFooter>
