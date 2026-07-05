@@ -44,6 +44,11 @@ export default async function ReportsPage({
     <ReportsView
       reportData={reportResult.data}
       renewedMembers={renewedMembersResult.success ? (renewedMembersResult.data ?? []) : []}
+      renewedMembersError={
+        renewedMembersResult.success
+          ? null
+          : (renewedMembersResult.error ?? 'Unable to load renewed members.')
+      }
       startDate={startDate}
       endDate={endDate}
     />

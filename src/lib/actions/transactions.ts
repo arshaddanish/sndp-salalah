@@ -474,12 +474,12 @@ export async function fetchTransactions(
         SELECT
           id,
           SUM(CASE
-            WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+            WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') AND (payment_mode IS DISTINCT FROM 'pending') THEN amount::numeric
             WHEN fund_account = 'cash' AND type = 'expense' THEN -amount::numeric
             ELSE 0
           END) OVER (ORDER BY transaction_date, created_at) AS cash_balance,
           SUM(CASE
-            WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+            WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') AND (payment_mode IS DISTINCT FROM 'pending') THEN amount::numeric
             WHEN fund_account = 'bank' AND type = 'expense' THEN -amount::numeric
             ELSE 0
           END) OVER (ORDER BY transaction_date, created_at) AS bank_balance

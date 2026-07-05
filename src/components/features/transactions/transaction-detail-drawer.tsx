@@ -112,7 +112,7 @@ export function TransactionDetailDrawer({
     <Sheet
       open={isOpen}
       onOpenChange={(open) => {
-        if (!isDeleteOpen && !isEditOpen) onOpenChange(open);
+        if (!isDeleteOpen && !isEditOpen && !isMarkingPaid) onOpenChange(open);
       }}
     >
       <SheetContent>
@@ -243,7 +243,7 @@ export function TransactionDetailDrawer({
             <Button
               variant="danger"
               size="sm"
-              disabled={isDeleteOpen || isEditOpen}
+              disabled={isDeleteOpen || isEditOpen || isMarkingPaid}
               onClick={() => setIsDeleteOpen(true)}
             >
               <Trash2 className="h-4 w-4" />
@@ -253,7 +253,7 @@ export function TransactionDetailDrawer({
             <Button
               variant="primary"
               size="sm"
-              disabled={isDeleteOpen || isEditOpen}
+              disabled={isDeleteOpen || isEditOpen || isMarkingPaid}
               onClick={() => setIsEditOpen(true)}
             >
               <Edit2 className="h-4 w-4" />

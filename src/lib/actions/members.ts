@@ -909,10 +909,15 @@ export async function markMembershipPaymentPaid(
       return { success: false, error: 'This transaction is not a pending payment.' };
     }
 
-    await db
+    const updated = await db
       .update(transactions)
       .set({ payment_mode: paymentMode, updated_at: new Date() })
-      .where(eq(transactions.id, transactionId));
+      .where(and(eq(transactions.id, transactionId), eq(transactions.payment_mode, 'pending')))
+      .returning({ id: transactions.id });
+
+    if (updated.length === 0) {
+      return { success: false, error: 'This transaction is no longer pending.' };
+    }
 
     revalidatePath('/transactions');
     if (existing.member_id) {
