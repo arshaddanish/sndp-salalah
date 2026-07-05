@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 
 import { ReportsView } from '@/components/features/reports/reports-view';
-import { fetchRenewedMembers, fetchReportData } from '@/lib/actions/reports';
-
+import {
+  fetchMembershipActivity,
+  fetchRenewedMembers,
+  fetchReportData,
+} from '@/lib/actions/reports';
 export const metadata: Metadata = {
   title: 'Reports | SNDP Salalah',
   description: 'View date-range income and expense reports',
@@ -24,11 +27,11 @@ export default async function ReportsPage({
   const startDate = (queryParams.startDate ?? '').trim();
   const endDate = (queryParams.endDate ?? '').trim();
 
-  const [reportResult, renewedMembersResult] = await Promise.all([
+  const [reportResult, renewedMembersResult, membershipActivityResult] = await Promise.all([
     fetchReportData(startDate, endDate),
     fetchRenewedMembers(startDate, endDate),
+    fetchMembershipActivity(startDate, endDate),
   ]);
-
   if (!reportResult.success || !reportResult.data) {
     return (
       <div className="space-y-4">
@@ -48,6 +51,14 @@ export default async function ReportsPage({
         renewedMembersResult.success
           ? null
           : (renewedMembersResult.error ?? 'Unable to load renewed members.')
+      }
+      membershipActivity={
+        membershipActivityResult.success ? (membershipActivityResult.data ?? null) : null
+      }
+      membershipActivityError={
+        membershipActivityResult.success
+          ? null
+          : (membershipActivityResult.error ?? 'Unable to load membership activity.')
       }
       startDate={startDate}
       endDate={endDate}
