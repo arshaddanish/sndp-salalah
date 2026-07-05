@@ -38,3 +38,13 @@ export interface ReportData {
   expenseBreakdown: CategoryBreakdownItem[];
   monthlyTrend: MonthlyDataPoint[];
 }
+export type RenewedMemberRow = {
+  id: string;
+  memberCode: number;
+  name: string;
+  civilIdNo: string;
+  shakhaName: string | null;
+  firstJoinedAt: string;
+  activeFrom: string;
+  expiry: string | null;
+};

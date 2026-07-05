@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { db } from '@/lib/db';
-import { transactionCategories, transactions } from '@/lib/db/schema';
+import { members, transactionCategories, transactions } from '@/lib/db/schema';
 import { getTransactionAttachmentLimits } from '@/lib/env';
 import {
   buildTransactionAttachmentKey,
@@ -447,6 +447,8 @@ export async function fetchTransactions(
           fundAccount: transactions.fund_account,
           payeeMerchant: transactions.payee_merchant,
           paidReceiptBy: transactions.paid_receipt_by,
+          memberId: transactions.member_id,
+          memberName: members.name,
           amount: transactions.amount,
           remarks: transactions.remarks,
           attachmentKey: transactions.attachment_key,
@@ -455,6 +457,7 @@ export async function fetchTransactions(
         })
         .from(transactions)
         .leftJoin(transactionCategories, eq(transactions.category_id, transactionCategories.id))
+        .leftJoin(members, eq(transactions.member_id, members.id))
         .where(and(...conditions))
         .orderBy(
           desc(transactions.transaction_date),

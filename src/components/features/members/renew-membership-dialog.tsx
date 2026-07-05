@@ -29,6 +29,8 @@ const PAYMENT_MODE_OPTIONS = [
   { label: 'Bank', value: 'bank' },
   { label: 'Online Transaction', value: 'online_transaction' },
   { label: 'Cheque', value: 'cheque' },
+  { label: 'Card', value: 'card' },
+  { label: 'Pending', value: 'pending' },
 ] as const;
 
 const FUND_ACCOUNT_OPTIONS = [
