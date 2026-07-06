@@ -413,7 +413,8 @@ export async function fetchTransactions(
     const conditions = [eq(transactions.entry_kind, 'regular')];
 
     if (searchQuery) {
-      const memberCodeNum = Number.parseInt(searchQuery, 10);
+      const isStrictlyNumeric = /^\d+$/.test(searchQuery);
+      const memberCodeNum = isStrictlyNumeric ? Number.parseInt(searchQuery, 10) : NaN;
       conditions.push(
         or(
           ilike(transactions.remarks, `%${searchQuery}%`),

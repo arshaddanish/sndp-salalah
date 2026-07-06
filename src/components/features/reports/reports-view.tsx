@@ -229,7 +229,7 @@ function RenewalsTable({
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-muted/40 text-text-secondary border-border border-b text-left text-xs tracking-wide uppercase">
-                <th className="px-4 py-2.5 font-medium">ID</th>
+                <th className="px-4 py-2.5 font-medium">Member Code</th>
                 <th className="px-4 py-2.5 font-medium">Name</th>
                 <th className="px-4 py-2.5 font-medium">Shakha</th>
                 <th className="px-4 py-2.5 font-medium">Renewed On</th>

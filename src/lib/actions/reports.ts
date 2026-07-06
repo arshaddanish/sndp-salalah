@@ -175,7 +175,10 @@ export async function fetchRenewedMembers(
     const start = parseStartOfDayOrNull(startDate);
     const end = parseEndOfDayOrNull(endDate);
 
-    const conditions = [sql`${members.active_from} > ${members.first_joined_at}`];
+    const conditions = [
+      sql`${members.active_from} > ${members.first_joined_at}`,
+      eq(members.is_archived, false),
+    ];
 
     if (start) {
       conditions.push(gte(members.active_from, start));
@@ -222,11 +225,17 @@ export async function fetchMembershipActivity(
     const start = parseStartOfDayOrNull(startDate);
     const end = parseEndOfDayOrNull(endDate);
 
-    const renewedConditions = [sql`${members.active_from} > ${members.first_joined_at}`];
+    const renewedConditions = [
+      sql`${members.active_from} > ${members.first_joined_at}`,
+      eq(members.is_archived, false),
+    ];
     if (start) renewedConditions.push(gte(members.active_from, start));
     if (end) renewedConditions.push(lte(members.active_from, end));
 
-    const expiredConditions = [sql`${members.expiry} < CURRENT_DATE`];
+    const expiredConditions = [
+      sql`${members.expiry} < CURRENT_DATE`,
+      eq(members.is_archived, false),
+    ];
     if (start) expiredConditions.push(gte(members.expiry, start));
     if (end) expiredConditions.push(lte(members.expiry, end));
 

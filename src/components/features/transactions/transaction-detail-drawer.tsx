@@ -105,7 +105,9 @@ export function TransactionDetailDrawer({
       });
       if (!result.success) {
         setMarkPaidError(result.error ?? 'Unable to update payment status.');
+        return;
       }
+      onOpenChange(false);
     });
   };
   return (
