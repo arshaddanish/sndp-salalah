@@ -9,10 +9,13 @@ import type { ActionResult } from '@/types/actions';
 import type {
   CategoryBreakdownItem,
   FundAccountMetrics,
+  MembershipActivityDataPoint,
+  MembershipActivitySummary,
   MonthlyDataPoint,
   RenewedMemberRow,
   ReportData,
 } from '@/types/reports';
+
 function sortBreakdownItems(items: CategoryBreakdownItem[]) {
   return items.sort((left, right) => {
     if (right.total !== left.total) {
@@ -163,6 +166,7 @@ export async function fetchReportData(
     };
   }
 }
+
 export async function fetchRenewedMembers(
   startDate?: string,
   endDate?: string,
@@ -171,7 +175,10 @@ export async function fetchRenewedMembers(
     const start = parseStartOfDayOrNull(startDate);
     const end = parseEndOfDayOrNull(endDate);
 
-    const conditions = [sql`${members.active_from} > ${members.first_joined_at}`];
+    const conditions = [
+      sql`${members.active_from} > ${members.first_joined_at}`,
+      eq(members.is_archived, false),
+    ];
 
     if (start) {
       conditions.push(gte(members.active_from, start));
@@ -206,6 +213,93 @@ export async function fetchRenewedMembers(
     return {
       success: false,
       error: 'Unable to load renewed members. Please try again.',
+    };
+  }
+}
+
+export async function fetchMembershipActivity(
+  startDate?: string,
+  endDate?: string,
+): Promise<ActionResult<MembershipActivitySummary>> {
+  try {
+    const start = parseStartOfDayOrNull(startDate);
+    const end = parseEndOfDayOrNull(endDate);
+
+    const renewedConditions = [
+      sql`${members.active_from} > ${members.first_joined_at}`,
+      eq(members.is_archived, false),
+    ];
+    if (start) renewedConditions.push(gte(members.active_from, start));
+    if (end) renewedConditions.push(lte(members.active_from, end));
+
+    const expiredConditions = [
+      sql`${members.expiry} < CURRENT_DATE`,
+      eq(members.is_archived, false),
+    ];
+    if (start) expiredConditions.push(gte(members.expiry, start));
+    if (end) expiredConditions.push(lte(members.expiry, end));
+
+    const [renewedRows, expiredRows] = await Promise.all([
+      db
+        .select({
+          month: sql<string>`to_char(${members.active_from}, 'YYYY-MM')`,
+          monthLabel: sql<string>`to_char(${members.active_from}, 'Mon YY')`,
+          count: sql<number>`count(*)`,
+        })
+        .from(members)
+        .where(and(...renewedConditions))
+        .groupBy(sql`1`, sql`2`)
+        .orderBy(sql`1`),
+      db
+        .select({
+          month: sql<string>`to_char(${members.expiry}, 'YYYY-MM')`,
+          monthLabel: sql<string>`to_char(${members.expiry}, 'Mon YY')`,
+          count: sql<number>`count(*)`,
+        })
+        .from(members)
+        .where(and(...expiredConditions))
+        .groupBy(sql`1`, sql`2`)
+        .orderBy(sql`1`),
+    ]);
+
+    const monthlyMap = new Map<string, MembershipActivityDataPoint>();
+
+    renewedRows.forEach((row) => {
+      const entry = monthlyMap.get(row.month) ?? {
+        month: row.monthLabel,
+        renewedCount: 0,
+        expiredCount: 0,
+      };
+      entry.renewedCount = Number(row.count);
+      monthlyMap.set(row.month, entry);
+    });
+
+    expiredRows.forEach((row) => {
+      const entry = monthlyMap.get(row.month) ?? {
+        month: row.monthLabel,
+        renewedCount: 0,
+        expiredCount: 0,
+      };
+      entry.expiredCount = Number(row.count);
+      monthlyMap.set(row.month, entry);
+    });
+
+    const totalRenewed = renewedRows.reduce((sum, row) => sum + Number(row.count), 0);
+    const totalExpired = expiredRows.reduce((sum, row) => sum + Number(row.count), 0);
+
+    return {
+      success: true,
+      data: {
+        totalRenewed,
+        totalExpired,
+        monthlyBreakdown: Array.from(monthlyMap.values()),
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching membership activity:', error);
+    return {
+      success: false,
+      error: 'Unable to load membership activity. Please try again.',
     };
   }
 }

@@ -16,12 +16,19 @@ import {
 import { Card } from '@/components/ui/card';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { formatCurrency } from '@/lib/utils';
-import type { CategoryBreakdownItem, RenewedMemberRow, ReportData } from '@/types/reports';
+import type {
+  CategoryBreakdownItem,
+  MembershipActivitySummary,
+  RenewedMemberRow,
+  ReportData,
+} from '@/types/reports';
 
 type ReportsViewProps = {
   reportData: ReportData;
   renewedMembers: RenewedMemberRow[];
   renewedMembersError: string | null;
+  membershipActivity: MembershipActivitySummary | null;
+  membershipActivityError: string | null;
   startDate: string;
   endDate: string;
 };
@@ -136,6 +143,73 @@ function FundAccountCard({
   );
 }
 
+function MembershipActivityCard({
+  activity,
+  error,
+}: Readonly<{ activity: MembershipActivitySummary | null; error: string | null }>) {
+  return (
+    <Card className="space-y-4">
+      <div>
+        <h3 className="text-text-primary text-base font-semibold">Membership Activity</h3>
+      </div>
+
+      {error ? (
+        <p className="text-danger text-sm">{error}</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+            <div>
+              <div className="text-text-secondary text-xs uppercase">Renewed</div>
+              <div className="text-success mt-1 text-lg font-semibold tabular-nums">
+                {activity?.totalRenewed ?? 0}
+              </div>
+              <div className="text-text-muted text-xs">Members renewed in range</div>
+            </div>
+            <div>
+              <div className="text-text-secondary text-xs uppercase">Expired</div>
+              <div className="text-danger mt-1 text-lg font-semibold tabular-nums">
+                {activity?.totalExpired ?? 0}
+              </div>
+              <div className="text-text-muted text-xs">Memberships expired in range</div>
+            </div>
+          </div>
+
+          {activity && activity.monthlyBreakdown.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-text-secondary border-border border-b text-left text-xs tracking-wide uppercase">
+                    <th className="px-4 py-2.5 font-medium">Month</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Renewed</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Expired</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activity.monthlyBreakdown.map((row) => (
+                    <tr key={row.month} className="border-border border-b last:border-b-0">
+                      <td className="text-text-primary px-4 py-2.5 font-medium">{row.month}</td>
+                      <td className="text-success px-4 py-2.5 text-right font-semibold tabular-nums">
+                        {row.renewedCount}
+                      </td>
+                      <td className="text-danger px-4 py-2.5 text-right font-semibold tabular-nums">
+                        {row.expiredCount}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-text-muted text-sm">
+              No membership activity for selected date range.
+            </p>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
 function RenewalsTable({
   rows,
   error,
@@ -155,7 +229,7 @@ function RenewalsTable({
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-muted/40 text-text-secondary border-border border-b text-left text-xs tracking-wide uppercase">
-                <th className="px-4 py-2.5 font-medium">ID</th>
+                <th className="px-4 py-2.5 font-medium">Member Code</th>
                 <th className="px-4 py-2.5 font-medium">Name</th>
                 <th className="px-4 py-2.5 font-medium">Shakha</th>
                 <th className="px-4 py-2.5 font-medium">Renewed On</th>
@@ -237,6 +311,8 @@ export function ReportsView({
   reportData,
   renewedMembers,
   renewedMembersError,
+  membershipActivity,
+  membershipActivityError,
   startDate,
   endDate,
 }: Readonly<ReportsViewProps>) {
@@ -399,6 +475,7 @@ export function ReportsView({
             amountClassName="text-danger"
           />
         </div>
+        <MembershipActivityCard activity={membershipActivity} error={membershipActivityError} />
         <RenewalsTable rows={renewedMembers} error={renewedMembersError} />{' '}
       </div>
     </div>

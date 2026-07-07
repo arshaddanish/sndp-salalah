@@ -38,6 +38,7 @@ export interface ReportData {
   expenseBreakdown: CategoryBreakdownItem[];
   monthlyTrend: MonthlyDataPoint[];
 }
+
 export type RenewedMemberRow = {
   id: string;
   memberCode: number;
@@ -48,3 +49,15 @@ export type RenewedMemberRow = {
   activeFrom: string;
   expiry: string | null;
 };
+
+export interface MembershipActivityDataPoint {
+  month: string;
+  renewedCount: number;
+  expiredCount: number;
+}
+
+export interface MembershipActivitySummary {
+  totalRenewed: number;
+  totalExpired: number;
+  monthlyBreakdown: MembershipActivityDataPoint[];
+}

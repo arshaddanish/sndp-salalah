@@ -413,10 +413,13 @@ export async function fetchTransactions(
     const conditions = [eq(transactions.entry_kind, 'regular')];
 
     if (searchQuery) {
+      const isStrictlyNumeric = /^\d+$/.test(searchQuery);
+      const memberCodeNum = isStrictlyNumeric ? Number.parseInt(searchQuery, 10) : NaN;
       conditions.push(
         or(
           ilike(transactions.remarks, `%${searchQuery}%`),
           sql`${transactions.transaction_code}::text ilike ${'%' + searchQuery + '%'}`,
+          ...(Number.isNaN(memberCodeNum) ? [] : [eq(members.member_code, memberCodeNum)]),
         )!,
       );
     }
@@ -469,6 +472,7 @@ export async function fetchTransactions(
       db
         .select({ count: sql<number>`count(*)` })
         .from(transactions)
+        .leftJoin(members, eq(transactions.member_id, members.id))
         .where(and(...conditions)),
       db.execute(sql`
         SELECT
