@@ -72,7 +72,7 @@ export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export const renewMembershipSchema = z.object({
   memberId: requiredText('Member ID'),
   amount: z.number({ error: 'Amount must be a number' }).positive('Amount must be positive'),
-  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque'], {
+  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque', 'pending'], {
     error: 'Payment mode is required',
   }),
   fundAccount: z.enum(['cash', 'bank'], {
@@ -82,7 +82,12 @@ export const renewMembershipSchema = z.object({
   remarks: optionalTextMax('Remarks', 500),
   attachmentKey: optionalText(),
 });
+export const markMembershipPaymentPaidSchema = z.object({
+  transactionId: requiredText('Transaction ID'),
+  paymentMode: z.enum(['cash', 'card'], { error: 'Select Cash or Card' }),
+});
 
+export type MarkMembershipPaymentPaidInput = z.infer<typeof markMembershipPaymentPaidSchema>;
 export type RenewMembershipInput = z.infer<typeof renewMembershipSchema>;
 
 export const updateMemberPhotoSchema = z.object({

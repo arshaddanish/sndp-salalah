@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { ReportsView } from '@/components/features/reports/reports-view';
-import { fetchReportData } from '@/lib/actions/reports';
+import { fetchRenewedMembers, fetchReportData } from '@/lib/actions/reports';
 
 export const metadata: Metadata = {
   title: 'Reports | SNDP Salalah',
@@ -24,7 +24,10 @@ export default async function ReportsPage({
   const startDate = (queryParams.startDate ?? '').trim();
   const endDate = (queryParams.endDate ?? '').trim();
 
-  const reportResult = await fetchReportData(startDate, endDate);
+  const [reportResult, renewedMembersResult] = await Promise.all([
+    fetchReportData(startDate, endDate),
+    fetchRenewedMembers(startDate, endDate),
+  ]);
 
   if (!reportResult.success || !reportResult.data) {
     return (
@@ -37,5 +40,17 @@ export default async function ReportsPage({
     );
   }
 
-  return <ReportsView reportData={reportResult.data} startDate={startDate} endDate={endDate} />;
+  return (
+    <ReportsView
+      reportData={reportResult.data}
+      renewedMembers={renewedMembersResult.success ? (renewedMembersResult.data ?? []) : []}
+      renewedMembersError={
+        renewedMembersResult.success
+          ? null
+          : (renewedMembersResult.error ?? 'Unable to load renewed members.')
+      }
+      startDate={startDate}
+      endDate={endDate}
+    />
+  );
 }

@@ -42,6 +42,7 @@ import {
   type CreateMemberInput,
   createMemberPhotoUploadSchema,
   createMemberSchema,
+  markMembershipPaymentPaidSchema,
   renewMembershipSchema,
   setMemberLifetimeSchema,
   updateMemberPhotoSchema,
@@ -883,7 +884,52 @@ export async function renewMembership(
     return { success: false, error: 'Unable to process renewal. Please try again.' };
   }
 }
+export async function markMembershipPaymentPaid(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const validationResult = markMembershipPaymentPaidSchema.safeParse(input);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return { success: false, error: firstError?.message ?? 'Invalid input' };
+    }
 
+    const { transactionId, paymentMode } = validationResult.data;
+
+    const existing = await db.query.transactions.findFirst({
+      where: eq(transactions.id, transactionId),
+      columns: { id: true, payment_mode: true, entry_kind: true, member_id: true },
+    });
+
+    if (!existing) {
+      return { success: false, error: 'Transaction not found.' };
+    }
+
+    if (existing.entry_kind !== 'regular' || existing.payment_mode !== 'pending') {
+      return { success: false, error: 'This transaction is not a pending payment.' };
+    }
+
+    const updated = await db
+      .update(transactions)
+      .set({ payment_mode: paymentMode, updated_at: new Date() })
+      .where(and(eq(transactions.id, transactionId), eq(transactions.payment_mode, 'pending')))
+      .returning({ id: transactions.id });
+
+    if (updated.length === 0) {
+      return { success: false, error: 'This transaction is no longer pending.' };
+    }
+
+    revalidatePath('/transactions');
+    if (existing.member_id) {
+      revalidatePath(`/members/${existing.member_id}`);
+    }
+
+    return { success: true, data: { id: transactionId } };
+  } catch (error) {
+    console.error('Error marking payment as paid:', error);
+    return { success: false, error: 'Unable to update payment status. Please try again.' };
+  }
+}
 export async function updateMember(
   memberId: string,
   input: unknown,

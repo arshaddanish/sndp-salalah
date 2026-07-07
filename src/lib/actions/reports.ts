@@ -3,16 +3,16 @@
 import { and, eq, gte, lte, sql } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
-import { transactionCategories, transactions } from '@/lib/db/schema';
+import { members, shakhas, transactionCategories, transactions } from '@/lib/db/schema';
 import { parseEndOfDayOrNull, parseStartOfDayOrNull } from '@/lib/utils/date';
 import type { ActionResult } from '@/types/actions';
 import type {
   CategoryBreakdownItem,
   FundAccountMetrics,
   MonthlyDataPoint,
+  RenewedMemberRow,
   ReportData,
 } from '@/types/reports';
-
 function sortBreakdownItems(items: CategoryBreakdownItem[]) {
   return items.sort((left, right) => {
     if (right.total !== left.total) {
@@ -160,6 +160,52 @@ export async function fetchReportData(
     return {
       success: false,
       error: 'Unable to load report data. Please try again.',
+    };
+  }
+}
+export async function fetchRenewedMembers(
+  startDate?: string,
+  endDate?: string,
+): Promise<ActionResult<RenewedMemberRow[]>> {
+  try {
+    const start = parseStartOfDayOrNull(startDate);
+    const end = parseEndOfDayOrNull(endDate);
+
+    const conditions = [sql`${members.active_from} > ${members.first_joined_at}`];
+
+    if (start) {
+      conditions.push(gte(members.active_from, start));
+    }
+
+    if (end) {
+      conditions.push(lte(members.active_from, end));
+    }
+
+    const rows = await db
+      .select({
+        id: members.id,
+        memberCode: members.member_code,
+        name: members.name,
+        civilIdNo: members.civil_id_no,
+        shakhaName: shakhas.name,
+        firstJoinedAt: sql<string>`to_char(${members.first_joined_at}, 'YYYY-MM-DD')`,
+        activeFrom: sql<string>`to_char(${members.active_from}, 'YYYY-MM-DD')`,
+        expiry: sql<string | null>`to_char(${members.expiry}, 'YYYY-MM-DD')`,
+      })
+      .from(members)
+      .leftJoin(shakhas, eq(members.shakha_id, shakhas.id))
+      .where(and(...conditions))
+      .orderBy(sql`${members.active_from} desc`);
+
+    return {
+      success: true,
+      data: rows,
+    };
+  } catch (error) {
+    console.error('Error fetching renewed members:', error);
+    return {
+      success: false,
+      error: 'Unable to load renewed members. Please try again.',
     };
   }
 }

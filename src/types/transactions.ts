@@ -2,8 +2,13 @@ export type TransactionType = 'income' | 'expense';
 
 export type TransactionEntryKind = 'regular' | 'opening_balance';
 
-export type TransactionPaymentMode = 'cash' | 'bank' | 'online_transaction' | 'cheque';
-
+export type TransactionPaymentMode =
+  | 'cash'
+  | 'bank'
+  | 'online_transaction'
+  | 'cheque'
+  | 'pending'
+  | 'card';
 export type TransactionFundAccount = 'cash' | 'bank';
 
 export type TransactionStatementRow = {
@@ -37,6 +42,7 @@ export type RegularTransactionRow = Omit<
   categoryName: string;
   type: TransactionType;
   paymentMode: TransactionPaymentMode;
+  memberName?: string | null;
 };
 
 export type ExistingOpeningBalance = {
