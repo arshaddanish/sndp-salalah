@@ -1,9 +1,13 @@
 'use client';
 
 import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
+import { Loader2 } from 'lucide-react';
+import { useMemo, useState, useTransition } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { DataTableBase } from '@/components/ui/data-table-base';
+import { markMembershipPaymentPaid } from '@/lib/actions/members';
 import type { MemberTransaction } from '@/types/members';
 
 const PAYMENT_MODE_LABELS: Record<string, string> = {
@@ -11,6 +15,7 @@ const PAYMENT_MODE_LABELS: Record<string, string> = {
   bank: 'Bank',
   online_transaction: 'Online',
   cheque: 'Cheque',
+  pending: 'Pending',
 };
 
 const FUND_LABELS: Record<string, string> = {
@@ -22,70 +27,6 @@ function formatDate(date: Date): string {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-const memberPaymentHistoryColumns: ColumnDef<MemberTransaction>[] = [
-  {
-    accessorKey: 'transactionCode',
-    header: 'Transaction ID',
-    cell: ({ row }) => (
-      <span className="text-text-primary font-medium">{row.original.transactionCode}</span>
-    ),
-    size: 80,
-  },
-  {
-    accessorKey: 'transactionDate',
-    header: 'Date',
-    cell: ({ row }) => (
-      <span className="text-text-primary font-medium">
-        {formatDate(row.original.transactionDate)}
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'amount',
-    header: 'Amount (OMR)',
-    cell: ({ row }) => {
-      const numericAmount = Number.parseFloat(row.original.amount);
-      return <span className="text-success font-medium">+{numericAmount.toFixed(3)}</span>;
-    },
-  },
-  {
-    accessorKey: 'paymentMode',
-    header: 'Payment Method',
-    cell: ({ row }) => (
-      <span className="text-text-primary font-medium">
-        {PAYMENT_MODE_LABELS[row.original.paymentMode] ?? row.original.paymentMode}
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'fundAccount',
-    header: 'Fund Account',
-    cell: ({ row }) => (
-      <span className="text-text-primary font-medium">
-        {row.original.fundAccount
-          ? (FUND_LABELS[row.original.fundAccount] ?? row.original.fundAccount)
-          : '—'}
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'remarks',
-    header: 'Remarks',
-    cell: ({ row }) => {
-      const remarks = row.original.remarks;
-      const hasRemarks = Boolean(remarks && remarks.trim().length > 0);
-      return (
-        <span
-          className={`${hasRemarks ? 'text-text-primary font-medium' : 'text-text-muted'} max-w-[200px] truncate`}
-          title={remarks}
-        >
-          {hasRemarks ? remarks : '—'}
-        </span>
-      );
-    },
-  },
-];
-
 type MemberPaymentHistoryProps = {
   transactions: MemberTransaction[];
   errorMessage: string | null;
@@ -95,8 +36,127 @@ export function MemberPaymentHistory({
   transactions,
   errorMessage,
 }: Readonly<MemberPaymentHistoryProps>) {
+  const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
+
+  const handleMarkAsPaid = (transactionId: string, mode: 'cash' | 'card') => {
+    setActionError(null);
+    setActiveTransactionId(transactionId);
+    startTransition(async () => {
+      const result = await markMembershipPaymentPaid({
+        transactionId,
+        paymentMode: mode,
+      });
+      setActiveTransactionId(null);
+      if (!result.success) {
+        setActionError(result.error ?? 'Unable to update payment status.');
+      }
+    });
+  };
+
+  const columns = useMemo<ColumnDef<MemberTransaction>[]>(
+    () => [
+      {
+        accessorKey: 'transactionCode',
+        header: 'Transaction ID',
+        cell: ({ row }) => (
+          <span className="text-text-primary font-medium">{row.original.transactionCode}</span>
+        ),
+        size: 80,
+      },
+      {
+        accessorKey: 'transactionDate',
+        header: 'Date',
+        cell: ({ row }) => (
+          <span className="text-text-primary font-medium">
+            {formatDate(row.original.transactionDate)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'amount',
+        header: 'Amount (OMR)',
+        cell: ({ row }) => {
+          const numericAmount = Number.parseFloat(row.original.amount);
+          return <span className="text-success font-medium">+{numericAmount.toFixed(3)}</span>;
+        },
+      },
+      {
+        accessorKey: 'paymentMode',
+        header: 'Payment Method',
+        cell: ({ row }) => (
+          <span className="text-text-primary font-medium">
+            {PAYMENT_MODE_LABELS[row.original.paymentMode] ?? row.original.paymentMode}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'fundAccount',
+        header: 'Fund Account',
+        cell: ({ row }) => (
+          <span className="text-text-primary font-medium">
+            {row.original.fundAccount
+              ? (FUND_LABELS[row.original.fundAccount] ?? row.original.fundAccount)
+              : '—'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'remarks',
+        header: 'Remarks',
+        cell: ({ row }) => {
+          const remarks = row.original.remarks;
+          const hasRemarks = Boolean(remarks && remarks.trim().length > 0);
+          return (
+            <span
+              className={`${hasRemarks ? 'text-text-primary font-medium' : 'text-text-muted'} max-w-[200px] truncate`}
+              title={remarks}
+            >
+              {hasRemarks ? remarks : '—'}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => {
+          const isPendingRow = row.original.paymentMode === 'pending';
+          if (!isPendingRow) return null;
+          const isCurrentLoading = isPending && activeTransactionId === row.original.id;
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <span className="text-text-secondary mr-1 text-xs font-medium">Mark paid:</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-xs font-medium"
+                disabled={isPending}
+                onClick={() => handleMarkAsPaid(row.original.id, 'cash')}
+              >
+                {isCurrentLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Cash'}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-xs font-medium"
+                disabled={isPending}
+                onClick={() => handleMarkAsPaid(row.original.id, 'card')}
+              >
+                {isCurrentLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Card'}
+              </Button>
+            </div>
+          );
+        },
+        size: 200,
+      },
+    ],
+    [isPending, activeTransactionId],
+  );
+
   const table = useReactTable({
-    columns: memberPaymentHistoryColumns,
+    columns,
     data: transactions,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -115,13 +175,7 @@ export function MemberPaymentHistory({
   } else if (transactions.length === 0) {
     content = <p className="text-text-muted text-sm">No payments recorded.</p>;
   } else {
-    content = (
-      <DataTableBase
-        table={table}
-        columns={memberPaymentHistoryColumns}
-        skeletonRowCount={skeletonRowCount}
-      />
-    );
+    content = <DataTableBase table={table} columns={columns} skeletonRowCount={skeletonRowCount} />;
   }
 
   return (
@@ -129,6 +183,11 @@ export function MemberPaymentHistory({
       <div className="mb-4">
         <h2 className="text-text-primary text-lg font-semibold">Payment History</h2>
       </div>
+      {actionError && (
+        <div className="border-danger/20 bg-danger-bg mb-4 rounded-lg border px-4 py-3">
+          <p className="text-danger text-sm font-medium">{actionError}</p>
+        </div>
+      )}
       {content}
     </Card>
   );
