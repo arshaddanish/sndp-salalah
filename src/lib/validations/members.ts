@@ -92,7 +92,12 @@ export const renewMembershipSchema = z
   });
 export const markMembershipPaymentPaidSchema = z.object({
   transactionId: requiredText('Transaction ID'),
-  paymentMode: z.enum(['cash', 'card'], { error: 'Select Cash or Card' }),
+  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque', 'card'], {
+    error: 'Payment mode is required',
+  }),
+  fundAccount: z.enum(['cash', 'bank'], {
+    error: 'Fund account is required',
+  }),
 });
 
 export type MarkMembershipPaymentPaidInput = z.infer<typeof markMembershipPaymentPaidSchema>;

@@ -18,6 +18,7 @@ import { DeleteMemberDialog } from './delete-member-dialog';
 import { MemberCardExportButton, type MemberCardExportPayload } from './member-card-export-button';
 import { RenewMembershipDialog } from './renew-membership-dialog';
 import { SetMemberLifetimeDialog } from './set-member-lifetime-dialog';
+import { CollectPendingPaymentDialog } from './collect-pending-payment-dialog';
 
 type MemberProfileActionsProps = {
   memberId: string;
@@ -27,6 +28,8 @@ type MemberProfileActionsProps = {
   isLifetime: boolean;
   hasTransactions: boolean;
   cardExportPayload: MemberCardExportPayload;
+  pendingTransactionId: string | null;
+  pendingTransactionAmount: string | null;
 };
 
 export function MemberProfileActions({
@@ -37,22 +40,36 @@ export function MemberProfileActions({
   isLifetime,
   hasTransactions,
   cardExportPayload,
+  pendingTransactionId,
+  pendingTransactionAmount,
 }: Readonly<MemberProfileActionsProps>) {
   const router = useRouter();
   const [renewOpen, setRenewOpen] = useState(false);
+  const [collectPendingOpen, setCollectPendingOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [lifetimeOpen, setLifetimeOpen] = useState(false);
   const isPendingMembership = expiry === null && !isLifetime;
-  const membershipActionLabel = isPendingMembership ? 'Register Membership' : 'Renew Membership';
+  const hasPendingPayment = Boolean(pendingTransactionId);
+  const membershipActionLabel = hasPendingPayment
+    ? 'Collect Pending Payment'
+    : isPendingMembership
+      ? 'Register Membership'
+      : 'Renew Membership';
 
   return (
     <>
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
         <Button
           size="sm"
-          onClick={() => setRenewOpen(true)}
+          onClick={() => {
+            if (hasPendingPayment) {
+              setCollectPendingOpen(true);
+            } else {
+              setRenewOpen(true);
+            }
+          }}
           aria-label={membershipActionLabel}
-          className="h-8 whitespace-nowrap"
+          className="bg-accent hover:bg-accent-hover h-8 whitespace-nowrap text-white"
           disabled={isLifetime}
         >
           <CreditCard className="h-4 w-4" />
@@ -105,6 +122,14 @@ export function MemberProfileActions({
         open={renewOpen}
         onOpenChange={setRenewOpen}
       />
+      {pendingTransactionId && pendingTransactionAmount && (
+        <CollectPendingPaymentDialog
+          transactionId={pendingTransactionId}
+          amount={pendingTransactionAmount}
+          open={collectPendingOpen}
+          onOpenChange={setCollectPendingOpen}
+        />
+      )}
       {lifetimeOpen ? (
         <SetMemberLifetimeDialog
           memberId={memberId}

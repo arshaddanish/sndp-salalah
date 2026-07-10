@@ -47,6 +47,7 @@ export function MemberPaymentHistory({
       const result = await markMembershipPaymentPaid({
         transactionId,
         paymentMode: mode,
+        fundAccount: mode === 'cash' ? 'cash' : 'bank',
       });
       setActiveTransactionId(null);
       if (!result.success) {

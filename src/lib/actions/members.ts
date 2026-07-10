@@ -896,7 +896,7 @@ export async function markMembershipPaymentPaid(
       return { success: false, error: firstError?.message ?? 'Invalid input' };
     }
 
-    const { transactionId, paymentMode } = validationResult.data;
+    const { transactionId, paymentMode, fundAccount } = validationResult.data;
 
     const existing = await db.query.transactions.findFirst({
       where: eq(transactions.id, transactionId),
@@ -911,13 +911,11 @@ export async function markMembershipPaymentPaid(
       return { success: false, error: 'This transaction is not a pending payment.' };
     }
 
-    const fundAccountValue = paymentMode === 'cash' ? 'cash' : 'bank';
-
     const updated = await db
       .update(transactions)
       .set({
         payment_mode: paymentMode,
-        fund_account: fundAccountValue,
+        fund_account: fundAccount,
         updated_at: new Date(),
       })
       .where(and(eq(transactions.id, transactionId), eq(transactions.payment_mode, 'pending')))
