@@ -1,6 +1,6 @@
 'use server';
 
-import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte, or, sql, not } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -410,7 +410,10 @@ export async function fetchTransactions(
     const startDateFilter = parseStartOfDayOrNull(query?.startDate);
     const endDateFilter = parseEndOfDayOrNull(query?.endDate);
 
-    const conditions = [eq(transactions.entry_kind, 'regular')];
+    const conditions = [
+      eq(transactions.entry_kind, 'regular'),
+      not(eq(transactions.payment_mode, 'pending')),
+    ];
 
     if (searchQuery) {
       conditions.push(
@@ -481,6 +484,7 @@ export async function fetchTransactions(
             ELSE 0
           END) OVER (ORDER BY transaction_date, created_at) AS bank_balance
         FROM transactions
+        WHERE (payment_mode IS DISTINCT FROM 'pending')
         ORDER BY transaction_date, created_at
       `),
     ]);
