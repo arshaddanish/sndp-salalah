@@ -65,14 +65,6 @@ This document serves as a map for developers and AI to understand the required u
 
 ## Transaction Detail Drawer Notes
 
-- Trigger: clicking anywhere on a transaction row in the statement list.
-- Presentation: a side drawer (sheet) that slides in from the right edge of the viewport.
-- Content: read-only display of the full transaction record — date, category, type badge, payment mode, fund account, amount (OMR with 3 decimals, color-coded), fund balances (cash balance and bank balance), payee/merchant, paid/receipt by, remarks (full text), attachment action (open/download via pre-signed URL when available), and created/updated timestamps.
-- Impact projection: drawer must clearly indicate the impacted fund account for the selected transaction.
-- Drawer is controlled by local React state (not URL params).
-- Close paths: overlay click, close (X) icon, and Escape key.
-- Scope: read-only; edit/delete actions are not included in this iteration.
-
 ## Record Transaction Form Notes
 
 - Entry point: dialog triggered from the **New Transaction** button in the `/transactions` page header. There is no dedicated `/transactions/new` route.
@@ -179,15 +171,6 @@ _To fulfill the requirement for a "Premium, State-of-the-Art Design":_
 - Missing data behavior: export must still succeed for members with no photo, no family members, or pending/no-expiry membership.
 
 ---
-
-## Liquidity Tracking UI Logic
-
-On the Dashboard and Transactions view, the "Cash in Bank" and "Cash in Hand" numbers are derived on the fly:
-
-- **Cash in Hand** = `Total Income (mode: cash) - Total Expense (mode: cash)`
-- **Cash in Bank** = `Total Income (mode: bank) - Total Expense (mode: bank)`
-
-_Note: The frontend should never calculate these manually from raw arrays to save memory; it should strictly render the aggregated results provided by the server database query._
 
 ## Opening Balance UI Logic
 

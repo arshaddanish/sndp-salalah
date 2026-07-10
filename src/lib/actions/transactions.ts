@@ -21,12 +21,14 @@ import type {
   CreateTransactionInput,
   UpdateTransactionInput,
 } from '@/lib/validations/transactions';
+import type { MarkTransactionAsPaidInput } from '@/lib/validations/transactions';
 import {
   createOpeningBalanceSchema,
   createTransactionAttachmentUploadSchema,
   createTransactionSchema,
   updateTransactionSchema,
 } from '@/lib/validations/transactions';
+import { markTransactionAsPaidSchema } from '@/lib/validations/transactions';
 import type { ActionResult } from '@/types/actions';
 import type { TransactionsQuery } from '@/types/filters/transactions';
 import type { PaginationResponse } from '@/types/pagination';
@@ -638,8 +640,6 @@ export async function updateTransaction(
         amount: Number(validationResult.data.amount).toFixed(3),
         transaction_date: new Date(validationResult.data.transactionDate),
         category_id: validationResult.data.categoryId,
-        payment_mode: validationResult.data.paymentMode,
-        fund_account: validationResult.data.fundAccount,
         payee_merchant: validationResult.data.payeeMerchant,
         paid_receipt_by: validationResult.data.paidReceiptBy,
         remarks: validationResult.data.remarks ?? '',
@@ -647,7 +647,6 @@ export async function updateTransaction(
         updated_at: new Date(),
       })
       .where(eq(transactions.id, id));
-
     // Cleanup S3: If attachment changed, delete the old one
     if (oldAttachmentKey && oldAttachmentKey !== newAttachmentKey) {
       await deleteS3Object('transactions', oldAttachmentKey);
@@ -657,6 +656,54 @@ export async function updateTransaction(
     return { success: true, data: null };
   } catch (error) {
     console.error('Error updating transaction:', error);
+    return {
+      success: false,
+      error: 'Unable to update transaction. Please try again.',
+    };
+  }
+}
+
+/**
+ * Marks a pending transaction as paid by updating its payment mode and fund account.
+ */
+export async function markTransactionAsPaid(
+  input: MarkTransactionAsPaidInput,
+): Promise<ActionResult<null>> {
+  try {
+    const validationResult = markTransactionAsPaidSchema.safeParse(input);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0];
+      return {
+        success: false,
+        error: firstError?.message ?? 'Invalid input.',
+      };
+    }
+
+    const existing = await db.query.transactions.findFirst({
+      where: eq(transactions.id, validationResult.data.transactionId),
+    });
+
+    if (!existing) {
+      return { success: false, error: 'Transaction not found.' };
+    }
+
+    if (existing.payment_mode !== 'pending') {
+      return { success: false, error: 'Only pending transactions can be marked as paid.' };
+    }
+
+    await db
+      .update(transactions)
+      .set({
+        payment_mode: validationResult.data.paymentMode,
+        fund_account: validationResult.data.fundAccount,
+        updated_at: new Date(),
+      })
+      .where(eq(transactions.id, validationResult.data.transactionId));
+
+    revalidatePath('/transactions');
+    return { success: true, data: null };
+  } catch (error) {
+    console.error('Error marking transaction as paid:', error);
     return {
       success: false,
       error: 'Unable to update transaction. Please try again.',

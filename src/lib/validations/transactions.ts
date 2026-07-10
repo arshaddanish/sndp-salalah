@@ -91,17 +91,22 @@ export const updateTransactionSchema = z.object({
       message: 'Transaction date is invalid',
     }),
   categoryId: z.string().trim().min(1, 'Category is required'),
-  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque'], {
-    message: 'Please select a payment method.',
-  }),
-  fundAccount: z.enum(['cash', 'bank'], { message: 'Please select a fund account.' }),
   payeeMerchant: transactionPartySchema.optional().default(''),
   paidReceiptBy: transactionPartySchema.optional().default(''),
   remarks: transactionRemarksSchema,
   attachmentKey: z.string().trim().optional().or(z.literal('')),
 });
 
+export const markTransactionAsPaidSchema = z.object({
+  transactionId: z.string().min(1, 'Transaction ID is required'),
+  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque', 'card'], {
+    message: 'Please select a payment method.',
+  }),
+  fundAccount: z.enum(['cash', 'bank'], { message: 'Please select a fund account.' }),
+});
+
 export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
+export type MarkTransactionAsPaidInput = z.infer<typeof markTransactionAsPaidSchema>;
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 export type CreateOpeningBalanceInput = z.infer<typeof createOpeningBalanceSchema>;
 export type CreateTransactionAttachmentUploadInput = z.infer<
