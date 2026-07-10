@@ -319,19 +319,34 @@ function buildSearchCondition(query: string): MembersWhereCondition | null {
 }
 
 function buildStatusCondition(status: string): MembersWhereCondition | null {
+  const hasPendingPayment = sql`exists (
+    select 1 from ${transactions}
+    where ${transactions.member_id} = ${members.id}
+      and ${transactions.payment_mode} = 'pending'
+  )`;
+
   switch (status) {
     case 'lifetime':
       return eq(members.is_lifetime, true);
     case 'pending':
-      return and(eq(members.is_lifetime, false), isNull(members.expiry)) ?? null;
+      return (
+        and(eq(members.is_lifetime, false), or(isNull(members.expiry), hasPendingPayment)) ?? null
+      );
     case 'expired':
-      return and(eq(members.is_lifetime, false), lt(members.expiry, sql`CURRENT_DATE`)) ?? null;
+      return (
+        and(
+          eq(members.is_lifetime, false),
+          lt(members.expiry, sql`CURRENT_DATE`),
+          not(hasPendingPayment),
+        ) ?? null
+      );
     case 'near-expiry':
       return (
         and(
           eq(members.is_lifetime, false),
           gte(members.expiry, sql`CURRENT_DATE`),
           lte(members.expiry, sql`CURRENT_DATE + INTERVAL '30 days'`),
+          not(hasPendingPayment),
         ) ?? null
       );
     case 'active':
@@ -339,6 +354,7 @@ function buildStatusCondition(status: string): MembersWhereCondition | null {
         and(
           eq(members.is_lifetime, false),
           gt(members.expiry, sql`CURRENT_DATE + INTERVAL '30 days'`),
+          not(hasPendingPayment),
         ) ?? null
       );
     default:
@@ -505,6 +521,11 @@ export async function fetchMembers(
           expiry: members.expiry,
           created_at: members.created_at,
           updated_at: members.updated_at,
+          hasPendingPayment: sql<boolean>`exists (
+            select 1 from ${transactions}
+            where ${transactions.member_id} = ${members.id}
+              and ${transactions.payment_mode} = 'pending'
+          )`.as('has_pending_payment'),
         })
         .from(members)
         .leftJoin(shakhas, eq(shakhas.id, members.shakha_id))
@@ -654,12 +675,18 @@ export async function fetchMemberById(id: string): Promise<ActionResult<MemberDe
       where: eq(shakhas.id, member.shakha_id),
     });
 
+    const pendingPaymentTx = await db.query.transactions.findFirst({
+      where: and(eq(transactions.member_id, member.id), eq(transactions.payment_mode, 'pending')),
+    });
+    const hasPendingPayment = Boolean(pendingPaymentTx);
+
     return {
       success: true,
       data: {
         ...member,
         shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
-        status: getMemberStatus(member.expiry, member.is_lifetime),
+        hasPendingPayment,
+        status: getMemberStatus(member.expiry, member.is_lifetime, hasPendingPayment),
         photo_url: member.photo_key
           ? await getPresignedDownloadUrl('members', member.photo_key)
           : null,
@@ -704,13 +731,19 @@ export async function fetchMemberProfileByIdentifier(
       where: eq(shakhas.id, member.shakha_id),
     });
 
+    const pendingPaymentTx = await db.query.transactions.findFirst({
+      where: and(eq(transactions.member_id, member.id), eq(transactions.payment_mode, 'pending')),
+    });
+    const hasPendingPayment = Boolean(pendingPaymentTx);
+
     return {
       success: true,
       data: {
         member: {
           ...member,
           shakhaName: shakha?.name ?? `Shakha ${member.shakha_id}`,
-          status: getMemberStatus(member.expiry, member.is_lifetime),
+          hasPendingPayment,
+          status: getMemberStatus(member.expiry, member.is_lifetime, hasPendingPayment),
           photo_url: member.photo_key
             ? await getPresignedDownloadUrl('members', member.photo_key)
             : null,
@@ -1300,6 +1333,11 @@ export async function fetchMembersForExport(
         expiry: members.expiry,
         created_at: members.created_at,
         updated_at: members.updated_at,
+        hasPendingPayment: sql<boolean>`exists (
+          select 1 from ${transactions}
+          where ${transactions.member_id} = ${members.id}
+            and ${transactions.payment_mode} = 'pending'
+        )`.as('has_pending_payment'),
       })
       .from(members)
       .leftJoin(shakhas, eq(shakhas.id, members.shakha_id))

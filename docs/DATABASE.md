@@ -27,10 +27,10 @@ Based on the new requirements (Finance Module, Membership Duplicate Prevention, 
     - _Best Practice:_ We use a single `transactions` table. If the transaction is a membership fee, the `member_id` foreign key is populated. This makes cash flow reporting, pagination, and date-range filtering extremely efficient.
 2.  **Derived Timeline Data (No Stale Statuses)**
     - _Problem:_ "No immediate way to distinguish between active and expired memberships." If we store a `status` column (Active/Expired), we have to run a daily cron job to update it when an expiry date passes. If the job fails, data becomes inaccurate.
-      - _Best Practice:_ We do **not** store an `is_active` boolean or status string in the database. Instead, status is a _derived property_ calculated at query time using `is_lifetime` and `expiry`:
+      - _Best Practice:_ We do **not** store an `is_active` boolean or status string in the database. Instead, status is a _derived property_ calculated at query time using `is_lifetime`, `expiry`, and presence of pending payment transactions:
         - `Lifetime` when `is_lifetime = true`
-        - `Pending` when `is_lifetime = false` and `expiry IS NULL`
-        - Date-based (`Active` / `Near Expiry` / `Expired`) when `is_lifetime = false` and `expiry IS NOT NULL`
+        - `Pending` when `is_lifetime = false` and (`expiry IS NULL` or a pending payment transaction exists)
+        - Date-based (`Active` / `Near Expiry` / `Expired`) when `is_lifetime = false`, `expiry IS NOT NULL`, and no pending payment transaction exists
           This guarantees accuracy while remaining legacy-safe for members created before transaction linkage.
 3.  **Strict Data Integrity & Duplicate Prevention**
     - _Problem:_ "Multiple branches can accidentally create duplicate entries."
@@ -373,13 +373,13 @@ The members module (`src/lib/actions/members.ts`) is fully integrated with the d
 - `fetchMemberTransactions()` — Mocked; awaits transactions table integration
 
 **Status Derivation:**
-Status is computed at query time using `is_lifetime` and `expiry`:
+Status is computed at query time using `is_lifetime`, `expiry`, and presence of pending payment transactions:
 
 - `lifetime` — `is_lifetime = true`
-- `pending` — `is_lifetime = false AND expiry IS NULL`
-- `active` — `is_lifetime = false AND expiry > (CURRENT_DATE + INTERVAL '30 days')` (SQL-derived)
-- `near-expiry` — `is_lifetime = false AND expiry >= CURRENT_DATE AND expiry <= (CURRENT_DATE + INTERVAL '30 days')` (SQL-derived)
-- `expired` — `is_lifetime = false AND expiry < CURRENT_DATE` (SQL-derived)
+- `pending` — `is_lifetime = false AND (expiry IS NULL OR pending_payment_exists)`
+- `active` — `is_lifetime = false AND expiry > (CURRENT_DATE + INTERVAL '30 days') AND NOT pending_payment_exists` (SQL-derived)
+- `near-expiry` — `is_lifetime = false AND expiry >= CURRENT_DATE AND expiry <= (CURRENT_DATE + INTERVAL '30 days') AND NOT pending_payment_exists` (SQL-derived)
+- `expired` — `is_lifetime = false AND expiry < CURRENT_DATE AND NOT pending_payment_exists` (SQL-derived)
 
 **UI Integration:**
 

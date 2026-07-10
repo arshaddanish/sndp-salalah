@@ -40,6 +40,7 @@ export type Member = {
   active_from: Date | null;
   expiry: Date | null;
   created_at: Date;
+  hasPendingPayment?: boolean;
 };
 
 /** Extended member with resolved shakha name and computed status */
