@@ -77,21 +77,16 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
   const transactionsError = transactionsResult.success
     ? null
     : (transactionsResult.error ?? 'Unable to load payment history.');
-
-  const pendingTransaction = transactions.find((t) => t.paymentMode === 'pending');
-  const pendingTransactionId = pendingTransaction?.id ?? null;
-  const pendingTransactionAmount = pendingTransaction?.amount ?? null;
-
   const cardExportPayload: MemberCardExportPayload = {
     memberCode: member.member_code,
     name: member.name,
-    photoSrc: member.photo_url ?? null,
+    photoSrc: member.photo_key,
     statusLabel: getMemberStatusLabel(member.status),
     officeShakha: member.shakhaName,
     expiryLabel: member.is_lifetime ? 'Lifetime' : (formatCardDate(member.expiry) ?? 'Pending'),
     dateOfBirthLabel: formatDateLabel(member.dob),
     bloodGroup: member.blood_group,
-    phoneLabel: member.whatsapp_no || member.gsm_no,
+    phoneLabel: member.whatsapp_no ?? member.gsm_no,
     familyMemberNames: member.familyMembersList.map((familyMember) => familyMember.name),
     civilIdNo: member.civil_id_no,
     passportNo: member.passport_no ?? null,
@@ -134,8 +129,6 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
           isLifetime={member.is_lifetime}
           hasTransactions={transactions.length > 0}
           cardExportPayload={cardExportPayload}
-          pendingTransactionId={pendingTransactionId}
-          pendingTransactionAmount={pendingTransactionAmount}
         />
       </div>
 

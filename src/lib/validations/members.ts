@@ -76,7 +76,9 @@ export const renewMembershipSchema = z
     paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque', 'pending'], {
       error: 'Payment mode is required',
     }),
-    fundAccount: z.enum(['cash', 'bank']).optional().nullable(),
+    fundAccount: z
+      .union([z.enum(['cash', 'bank']), z.literal(''), z.null(), z.undefined()])
+      .transform((val) => (val === '' || val === null || val === undefined ? null : val)),
     newExpiry: requiredDate('New expiry date'),
     remarks: optionalTextMax('Remarks', 500),
     attachmentKey: optionalText(),

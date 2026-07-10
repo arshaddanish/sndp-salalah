@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { db } from '@/lib/db';
-import { members, transactionCategories, transactions } from '@/lib/db/schema';
+import { transactionCategories, transactions } from '@/lib/db/schema';
 import { getTransactionAttachmentLimits } from '@/lib/env';
 import {
   buildTransactionAttachmentKey,
@@ -413,13 +413,10 @@ export async function fetchTransactions(
     const conditions = [eq(transactions.entry_kind, 'regular')];
 
     if (searchQuery) {
-      const isStrictlyNumeric = /^\d+$/.test(searchQuery);
-      const memberCodeNum = isStrictlyNumeric ? Number.parseInt(searchQuery, 10) : NaN;
       conditions.push(
         or(
           ilike(transactions.remarks, `%${searchQuery}%`),
           sql`${transactions.transaction_code}::text ilike ${'%' + searchQuery + '%'}`,
-          ...(Number.isNaN(memberCodeNum) ? [] : [eq(members.member_code, memberCodeNum)]),
         )!,
       );
     }
@@ -450,8 +447,6 @@ export async function fetchTransactions(
           fundAccount: transactions.fund_account,
           payeeMerchant: transactions.payee_merchant,
           paidReceiptBy: transactions.paid_receipt_by,
-          memberId: transactions.member_id,
-          memberName: members.name,
           amount: transactions.amount,
           remarks: transactions.remarks,
           attachmentKey: transactions.attachment_key,
@@ -460,7 +455,6 @@ export async function fetchTransactions(
         })
         .from(transactions)
         .leftJoin(transactionCategories, eq(transactions.category_id, transactionCategories.id))
-        .leftJoin(members, eq(transactions.member_id, members.id))
         .where(and(...conditions))
         .orderBy(
           desc(transactions.transaction_date),
@@ -472,19 +466,18 @@ export async function fetchTransactions(
       db
         .select({ count: sql<number>`count(*)` })
         .from(transactions)
-        .leftJoin(members, eq(transactions.member_id, members.id))
         .where(and(...conditions)),
       db.execute(sql`
         SELECT
           id,
           SUM(CASE
-            WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') AND (payment_mode IS DISTINCT FROM 'pending') THEN amount::numeric
-            WHEN fund_account = 'cash' AND type = 'expense' AND (payment_mode IS DISTINCT FROM 'pending') THEN -amount::numeric
+            WHEN fund_account = 'cash' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+            WHEN fund_account = 'cash' AND type = 'expense' THEN -amount::numeric
             ELSE 0
           END) OVER (ORDER BY transaction_date, created_at) AS cash_balance,
           SUM(CASE
-            WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') AND (payment_mode IS DISTINCT FROM 'pending') THEN amount::numeric
-            WHEN fund_account = 'bank' AND type = 'expense' AND (payment_mode IS DISTINCT FROM 'pending') THEN -amount::numeric
+            WHEN fund_account = 'bank' AND (entry_kind = 'opening_balance' OR type = 'income') THEN amount::numeric
+            WHEN fund_account = 'bank' AND type = 'expense' THEN -amount::numeric
             ELSE 0
           END) OVER (ORDER BY transaction_date, created_at) AS bank_balance
         FROM transactions
