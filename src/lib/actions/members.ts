@@ -911,9 +911,15 @@ export async function markMembershipPaymentPaid(
       return { success: false, error: 'This transaction is not a pending payment.' };
     }
 
+    const fundAccountValue = paymentMode === 'cash' ? 'cash' : 'bank';
+
     const updated = await db
       .update(transactions)
-      .set({ payment_mode: paymentMode, updated_at: new Date() })
+      .set({
+        payment_mode: paymentMode,
+        fund_account: fundAccountValue,
+        updated_at: new Date(),
+      })
       .where(and(eq(transactions.id, transactionId), eq(transactions.payment_mode, 'pending')))
       .returning({ id: transactions.id });
 
