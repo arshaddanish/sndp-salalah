@@ -20,7 +20,7 @@ export type TransactionStatementRow = {
   categoryName: string | null;
   type: TransactionType | null;
   paymentMode: TransactionPaymentMode | null;
-  fundAccount: TransactionFundAccount;
+  fundAccount: TransactionFundAccount | null;
   payeeMerchant?: string;
   paidReceiptBy?: string;
   memberId?: string | null;

@@ -50,6 +50,7 @@ export const createMemberSchema = z.object({
   secretary: optionalText(),
   president: optionalText(),
   photoKey: requiredText('Photo'),
+  expiry: optionalDate,
 });
 
 export type FamilyMemberInput = z.infer<typeof familyMemberInputSchema>;
@@ -57,7 +58,6 @@ export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
 export const updateMemberSchema = createMemberSchema.extend({
   photoKey: z.string().trim().optional().or(z.literal('')),
-  expiry: optionalDate,
 });
 
 export const setMemberLifetimeSchema = z.object({
@@ -69,19 +69,27 @@ export type SetMemberLifetimeInput = z.infer<typeof setMemberLifetimeSchema>;
 
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 
-export const renewMembershipSchema = z.object({
-  memberId: requiredText('Member ID'),
-  amount: z.number({ error: 'Amount must be a number' }).positive('Amount must be positive'),
-  paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque', 'pending'], {
-    error: 'Payment mode is required',
-  }),
-  fundAccount: z.enum(['cash', 'bank'], {
-    error: 'Fund account is required',
-  }),
-  newExpiry: requiredDate('New expiry date'),
-  remarks: optionalTextMax('Remarks', 500),
-  attachmentKey: optionalText(),
-});
+export const renewMembershipSchema = z
+  .object({
+    memberId: requiredText('Member ID'),
+    amount: z.number({ error: 'Amount must be a number' }).positive('Amount must be positive'),
+    paymentMode: z.enum(['cash', 'bank', 'online_transaction', 'cheque', 'pending'], {
+      error: 'Payment mode is required',
+    }),
+    fundAccount: z.enum(['cash', 'bank']).optional().nullable(),
+    newExpiry: requiredDate('New expiry date'),
+    remarks: optionalTextMax('Remarks', 500),
+    attachmentKey: optionalText(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.paymentMode !== 'pending' && !data.fundAccount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Fund account is required',
+        path: ['fundAccount'],
+      });
+    }
+  });
 export const markMembershipPaymentPaidSchema = z.object({
   transactionId: requiredText('Transaction ID'),
   paymentMode: z.enum(['cash', 'card'], { error: 'Select Cash or Card' }),

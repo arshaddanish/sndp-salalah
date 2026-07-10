@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/sheet';
 import { markMembershipPaymentPaid } from '@/lib/actions/members';
 import { getTransactionAttachmentDownload } from '@/lib/actions/transactions';
-import type { RegularTransactionRow } from '@/types/transactions';
+import type { RegularTransactionRow, TransactionFundAccount } from '@/types/transactions';
 
 import { DeleteTransactionDialog } from './delete-transaction-dialog';
 import { EditTransactionDialog } from './edit-transaction-dialog';
@@ -35,7 +35,7 @@ const paymentModeLabel: Record<RegularTransactionRow['paymentMode'], string> = {
   card: 'Card',
 };
 
-const fundAccountLabel: Record<RegularTransactionRow['fundAccount'], string> = {
+const fundAccountLabel: Record<TransactionFundAccount, string> = {
   cash: 'Cash',
   bank: 'Bank',
 };
@@ -142,7 +142,9 @@ export function TransactionDetailDrawer({
             <DetailField label="Payment Method">
               {paymentModeLabel[transaction.paymentMode]}
             </DetailField>
-            <DetailField label="Fund">{fundAccountLabel[transaction.fundAccount]}</DetailField>
+            <DetailField label="Fund">
+              {transaction.fundAccount ? fundAccountLabel[transaction.fundAccount] : '—'}
+            </DetailField>
             <DetailField label="Amount">
               <span
                 className={`font-semibold tabular-nums ${isIncome ? 'text-success' : 'text-danger'}`}

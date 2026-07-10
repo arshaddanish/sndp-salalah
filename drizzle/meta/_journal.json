@@ -99,6 +99,13 @@
       "when": 1776601499130,
       "tag": "0013_flimsy_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783671474755,
+      "tag": "0014_vengeful_masque",
+      "breakpoints": true
     }
   ]
 }

@@ -20,19 +20,19 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { useQueryPagination } from '@/hooks/use-query-pagination';
 import { useQuerySearch } from '@/hooks/use-query-search';
 import type { PaginatedTableProps } from '@/types/pagination';
-import type { RegularTransactionRow } from '@/types/transactions';
+import type { RegularTransactionRow, TransactionFundAccount } from '@/types/transactions';
 
 import { TransactionDetailDrawer } from './transaction-detail-drawer';
 
 const MAX_REMARKS_PREVIEW_LENGTH = 30;
 
-const fundAccountLabelMap: Record<RegularTransactionRow['fundAccount'], string> = {
+const fundAccountLabelMap: Record<TransactionFundAccount, string> = {
   cash: 'Cash',
   bank: 'Bank',
 };
 
 function formatFundAccountLabel(fundAccount: RegularTransactionRow['fundAccount']): string {
-  return fundAccountLabelMap[fundAccount];
+  return fundAccount ? (fundAccountLabelMap[fundAccount] ?? fundAccount) : '—';
 }
 
 const typeOptions = [

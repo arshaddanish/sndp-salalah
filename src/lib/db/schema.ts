@@ -148,7 +148,7 @@ export const transactions = pgTable(
     payment_mode: text('payment_mode', {
       enum: ['cash', 'bank', 'online_transaction', 'cheque', 'pending', 'card'],
     }),
-    fund_account: text('fund_account', { enum: ['cash', 'bank'] }).notNull(),
+    fund_account: text('fund_account', { enum: ['cash', 'bank'] }),
     payee_merchant: text('payee_merchant'),
     paid_receipt_by: text('paid_receipt_by'),
     member_id: text('member_id').references(() => members.id),

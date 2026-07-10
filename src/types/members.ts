@@ -66,7 +66,7 @@ export type MemberTransaction = {
   transactionDate: Date;
   amount: string;
   paymentMode: TransactionPaymentMode;
-  fundAccount: TransactionFundAccount;
+  fundAccount: TransactionFundAccount | null;
   remarks: string;
   createdAt: Date;
 };
