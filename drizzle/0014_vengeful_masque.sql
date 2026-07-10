@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ALTER COLUMN "fund_account" DROP NOT NULL;

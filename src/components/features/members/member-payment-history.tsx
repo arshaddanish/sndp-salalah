@@ -62,7 +62,9 @@ const memberPaymentHistoryColumns: ColumnDef<MemberTransaction>[] = [
     header: 'Fund Account',
     cell: ({ row }) => (
       <span className="text-text-primary font-medium">
-        {FUND_LABELS[row.original.fundAccount] ?? row.original.fundAccount}
+        {row.original.fundAccount
+          ? (FUND_LABELS[row.original.fundAccount] ?? row.original.fundAccount)
+          : '—'}
       </span>
     ),
   },

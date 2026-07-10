@@ -220,9 +220,7 @@ export function RenewMembershipDialog({
               ) : null}
             </div>
 
-            {paymentMode === 'pending' ? (
-              <input type="hidden" name="fundAccount" value="cash" />
-            ) : (
+            {paymentMode === 'pending' ? null : (
               <div className="space-y-1.5">
                 <label
                   className="text-text-secondary text-sm font-medium"

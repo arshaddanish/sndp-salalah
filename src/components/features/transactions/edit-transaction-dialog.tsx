@@ -322,7 +322,7 @@ export function EditTransactionDialog({
                 id="edit-fund-account"
                 name="fundAccount"
                 required
-                defaultValue={transaction.fundAccount}
+                defaultValue={transaction.fundAccount ?? ''}
                 disabled={isPending}
                 onChange={handleChange}
                 className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -400,9 +400,7 @@ export function EditTransactionDialog({
                 className="border-border text-text-primary focus:border-accent focus:ring-accent/20 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none file:mr-3 file:rounded file:border-0 file:bg-transparent file:text-sm file:font-medium focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
               {attachmentFile && (
-                <p className="text-success text-xs">
-                  New file selected: {attachmentFile.name}
-                </p>
+                <p className="text-success text-xs">New file selected: {attachmentFile.name}</p>
               )}
               {!attachmentFile && transaction.attachmentKey && (
                 <p className="text-text-secondary text-xs">
