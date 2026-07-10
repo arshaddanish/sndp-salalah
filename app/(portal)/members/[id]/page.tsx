@@ -77,17 +77,20 @@ export default async function MemberProfilePage({ params }: Readonly<MemberProfi
   const transactionsError = transactionsResult.success
     ? null
     : (transactionsResult.error ?? 'Unable to load payment history.');
+  let expiryLabel = 'Pending';
+  if (member.is_lifetime) {
+    expiryLabel = 'Lifetime';
+  } else if (!member.hasPendingPayment && member.expiry) {
+    expiryLabel = formatCardDate(member.expiry) ?? 'Pending';
+  }
+
   const cardExportPayload: MemberCardExportPayload = {
     memberCode: member.member_code,
     name: member.name,
     photoSrc: member.photo_key,
     statusLabel: getMemberStatusLabel(member.status),
     officeShakha: member.shakhaName,
-    expiryLabel: member.is_lifetime
-      ? 'Lifetime'
-      : member.hasPendingPayment
-        ? 'Pending'
-        : (formatCardDate(member.expiry) ?? 'Pending'),
+    expiryLabel,
     dateOfBirthLabel: formatDateLabel(member.dob),
     bloodGroup: member.blood_group,
     phoneLabel: member.whatsapp_no ?? member.gsm_no,
