@@ -581,6 +581,8 @@ export async function createMember(
             secretary: parsedData.secretary,
             union_name: parsedData.unionName,
             district: parsedData.district,
+            expiry: parseDateOrNull(parsedData.expiry),
+            ...(parsedData.expiry ? { active_from: new Date() } : {}),
           })
           .returning({ id: members.id, member_code: members.member_code });
 
@@ -996,7 +998,7 @@ export async function updateMember(
           approved_by: data.approvedBy.trim(),
           received_on: new Date(data.receivedOn),
           checked_by: data.checkedBy.trim(),
-          expiry: parseDateOrNull(data.expiry) ?? existing.expiry,
+          expiry: parseDateOrNull(data.expiry),
           application_no: data.applicationNo.trim(),
           secretary: data.secretary,
           president: data.president,

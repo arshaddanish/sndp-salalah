@@ -50,6 +50,7 @@ export const createMemberSchema = z.object({
   secretary: optionalText(),
   president: optionalText(),
   photoKey: requiredText('Photo'),
+  expiry: optionalDate,
 });
 
 export type FamilyMemberInput = z.infer<typeof familyMemberInputSchema>;
@@ -57,7 +58,6 @@ export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
 export const updateMemberSchema = createMemberSchema.extend({
   photoKey: z.string().trim().optional().or(z.literal('')),
-  expiry: optionalDate,
 });
 
 export const setMemberLifetimeSchema = z.object({

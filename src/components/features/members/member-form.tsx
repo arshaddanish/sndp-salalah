@@ -313,6 +313,7 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
       secretary: getFormValue(formData, 'secretary'),
       president: getFormValue(formData, 'president'),
       photoKey: '',
+      expiry: getFormValue(formData, 'expiry'),
     };
 
     // Resolve photoKey: file selected takes priority; edit mode preserves existing key.
@@ -950,6 +951,23 @@ export function MemberForm({ shakhaOptions, initialData }: Readonly<MemberFormPr
               defaultValue={initialData?.president ?? ''}
               disabled={isPending}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-text-secondary text-sm font-medium" htmlFor="expiry">
+              Expiry Date
+            </label>
+            <Input
+              id="expiry"
+              name="expiry"
+              type="date"
+              defaultValue={
+                initialData?.expiry ? initialData.expiry.toISOString().slice(0, 10) : ''
+              }
+              disabled={isPending}
+              aria-invalid={Boolean(fieldErrors['expiry'])}
+            />
+            <FormFieldError fieldErrors={fieldErrors} fieldKey="expiry" errorId="expiry-error" />
           </div>
         </div>
       </fieldset>

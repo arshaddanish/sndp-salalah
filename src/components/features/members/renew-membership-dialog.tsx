@@ -67,6 +67,7 @@ export function RenewMembershipDialog({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isDirty, setIsDirty] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<string>('');
 
   const defaultExpiry = useMemo(() => getDefaultExpiry(currentExpiry), [currentExpiry]);
 
@@ -92,6 +93,7 @@ export function RenewMembershipDialog({
       setIsDirty(false);
       setErrorMessage(null);
       setFieldErrors({});
+      setPaymentMode('');
     }
     onOpenChange?.(next);
   };
@@ -199,6 +201,10 @@ export function RenewMembershipDialog({
                 disabled={isPending || isAlreadyRenewed}
                 className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
                 defaultValue=""
+                onChange={(e) => {
+                  setPaymentMode(e.target.value);
+                  setIsDirty(true);
+                }}
               >
                 <option value="" disabled>
                   Select mode
@@ -214,34 +220,38 @@ export function RenewMembershipDialog({
               ) : null}
             </div>
 
-            <div className="space-y-1.5">
-              <label
-                className="text-text-secondary text-sm font-medium"
-                htmlFor="renew-fundAccount"
-              >
-                Fund Account *
-              </label>
-              <select
-                id="renew-fundAccount"
-                name="fundAccount"
-                required
-                disabled={isPending || isAlreadyRenewed}
-                className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  Select fund
-                </option>
-                {FUND_ACCOUNT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
+            {paymentMode === 'pending' ? (
+              <input type="hidden" name="fundAccount" value="cash" />
+            ) : (
+              <div className="space-y-1.5">
+                <label
+                  className="text-text-secondary text-sm font-medium"
+                  htmlFor="renew-fundAccount"
+                >
+                  Fund Account *
+                </label>
+                <select
+                  id="renew-fundAccount"
+                  name="fundAccount"
+                  required
+                  disabled={isPending || isAlreadyRenewed}
+                  className="border-border bg-surface text-text-primary focus:border-accent focus:ring-accent-border h-10 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2"
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Select fund
                   </option>
-                ))}
-              </select>
-              {fieldErrors['fundAccount'] ? (
-                <p className="text-danger text-xs">{fieldErrors['fundAccount']}</p>
-              ) : null}
-            </div>
+                  {FUND_ACCOUNT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {fieldErrors['fundAccount'] ? (
+                  <p className="text-danger text-xs">{fieldErrors['fundAccount']}</p>
+                ) : null}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -287,7 +297,7 @@ export function RenewMembershipDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isPending || !isDirty || isAlreadyRenewed}>
-              {isPending ? 'Saving...' : 'Save Payment'}
+              {isPending ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

@@ -175,17 +175,32 @@ export async function fetchRenewedMembers(
     const start = parseStartOfDayOrNull(startDate);
     const end = parseEndOfDayOrNull(endDate);
 
+    const category = await db.query.transactionCategories.findFirst({
+      where: and(
+        eq(transactionCategories.name, 'Membership Fee'),
+        eq(transactionCategories.type, 'income'),
+      ),
+    });
+
+    if (!category) {
+      return {
+        success: true,
+        data: [],
+      };
+    }
+
     const conditions = [
-      sql`${members.active_from} > ${members.first_joined_at}`,
+      eq(transactions.category_id, category.id),
       eq(members.is_archived, false),
+      sql`${transactions.transaction_date} > ${members.first_joined_at}`,
     ];
 
     if (start) {
-      conditions.push(gte(members.active_from, start));
+      conditions.push(gte(transactions.transaction_date, start));
     }
 
     if (end) {
-      conditions.push(lte(members.active_from, end));
+      conditions.push(lte(transactions.transaction_date, end));
     }
 
     const rows = await db
@@ -196,13 +211,14 @@ export async function fetchRenewedMembers(
         civilIdNo: members.civil_id_no,
         shakhaName: shakhas.name,
         firstJoinedAt: sql<string>`to_char(${members.first_joined_at}, 'YYYY-MM-DD')`,
-        activeFrom: sql<string>`to_char(${members.active_from}, 'YYYY-MM-DD')`,
+        activeFrom: sql<string>`to_char(${transactions.transaction_date}, 'YYYY-MM-DD')`,
         expiry: sql<string | null>`to_char(${members.expiry}, 'YYYY-MM-DD')`,
       })
-      .from(members)
+      .from(transactions)
+      .innerJoin(members, eq(transactions.member_id, members.id))
       .leftJoin(shakhas, eq(members.shakha_id, shakhas.id))
       .where(and(...conditions))
-      .orderBy(sql`${members.active_from} desc`);
+      .orderBy(sql`${transactions.transaction_date} desc`);
 
     return {
       success: true,
@@ -225,12 +241,31 @@ export async function fetchMembershipActivity(
     const start = parseStartOfDayOrNull(startDate);
     const end = parseEndOfDayOrNull(endDate);
 
+    const category = await db.query.transactionCategories.findFirst({
+      where: and(
+        eq(transactionCategories.name, 'Membership Fee'),
+        eq(transactionCategories.type, 'income'),
+      ),
+    });
+
+    if (!category) {
+      return {
+        success: true,
+        data: {
+          totalRenewed: 0,
+          totalExpired: 0,
+          monthlyBreakdown: [],
+        },
+      };
+    }
+
     const renewedConditions = [
-      sql`${members.active_from} > ${members.first_joined_at}`,
+      eq(transactions.category_id, category.id),
       eq(members.is_archived, false),
+      sql`${transactions.transaction_date} > ${members.first_joined_at}`,
     ];
-    if (start) renewedConditions.push(gte(members.active_from, start));
-    if (end) renewedConditions.push(lte(members.active_from, end));
+    if (start) renewedConditions.push(gte(transactions.transaction_date, start));
+    if (end) renewedConditions.push(lte(transactions.transaction_date, end));
 
     const expiredConditions = [
       sql`${members.expiry} < CURRENT_DATE`,
@@ -242,11 +277,12 @@ export async function fetchMembershipActivity(
     const [renewedRows, expiredRows] = await Promise.all([
       db
         .select({
-          month: sql<string>`to_char(${members.active_from}, 'YYYY-MM')`,
-          monthLabel: sql<string>`to_char(${members.active_from}, 'Mon YY')`,
-          count: sql<number>`count(*)`,
+          month: sql<string>`to_char(${transactions.transaction_date}, 'YYYY-MM')`,
+          monthLabel: sql<string>`to_char(${transactions.transaction_date}, 'Mon YY')`,
+          count: sql<number>`count(distinct ${transactions.member_id})`,
         })
-        .from(members)
+        .from(transactions)
+        .innerJoin(members, eq(transactions.member_id, members.id))
         .where(and(...renewedConditions))
         .groupBy(sql`1`, sql`2`)
         .orderBy(sql`1`),
