@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns';
 import { Edit2, ExternalLink, FileText, Loader2, Trash2 } from 'lucide-react';
-import { type Dispatch, type SetStateAction, useState, useTransition } from 'react';
+import { type Dispatch, type SetStateAction, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -12,7 +12,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { markMembershipPaymentPaid } from '@/lib/actions/members';
 import { getTransactionAttachmentDownload } from '@/lib/actions/transactions';
 import type { RegularTransactionRow, TransactionFundAccount } from '@/types/transactions';
 
@@ -59,8 +58,7 @@ export function TransactionDetailDrawer({
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [isMarkingPaid, startMarkPaidTransition] = useTransition();
-  const [markPaidError, setMarkPaidError] = useState<string | null>(null);
+
   if (!transaction) {
     return null;
   }
@@ -96,25 +94,12 @@ export function TransactionDetailDrawer({
       setIsDownloading(false);
     }
   };
-  const handleMarkAsPaid = (mode: 'cash' | 'card') => {
-    setMarkPaidError(null);
-    startMarkPaidTransition(async () => {
-      const result = await markMembershipPaymentPaid({
-        transactionId: transaction.id,
-        paymentMode: mode,
-      });
-      if (!result.success) {
-        setMarkPaidError(result.error ?? 'Unable to update payment status.');
-        return;
-      }
-      onOpenChange(false);
-    });
-  };
+
   return (
     <Sheet
       open={isOpen}
       onOpenChange={(open) => {
-        if (!isDeleteOpen && !isEditOpen && !isMarkingPaid) onOpenChange(open);
+        if (!isDeleteOpen && !isEditOpen) onOpenChange(open);
       }}
     >
       <SheetContent>
@@ -143,7 +128,7 @@ export function TransactionDetailDrawer({
               {paymentModeLabel[transaction.paymentMode]}
             </DetailField>
             <DetailField label="Fund">
-              {transaction.fundAccount ? fundAccountLabel[transaction.fundAccount] : '—'}
+              {transaction.fundAccount ? fundAccountLabel[transaction.fundAccount] : '\u2014'}
             </DetailField>
             <DetailField label="Amount">
               <span
@@ -218,52 +203,28 @@ export function TransactionDetailDrawer({
           </dl>
         </div>
 
-        <div className="flex flex-col gap-2 px-6 py-4">
-          {transaction.paymentMode === 'pending' ? (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-text-muted text-xs">Mark payment received as:</span>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={isMarkingPaid}
-                  onClick={() => handleMarkAsPaid('cash')}
-                >
-                  Cash
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={isMarkingPaid}
-                  onClick={() => handleMarkAsPaid('card')}
-                >
-                  Card
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          {markPaidError && <p className="text-danger text-xs">{markPaidError}</p>}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={isDeleteOpen || isEditOpen || isMarkingPaid}
-              onClick={() => setIsDeleteOpen(true)}
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </Button>
+        <div className="flex justify-end gap-2 px-6 py-4">
+          <Button
+            variant="danger"
+            size="sm"
+            // EXACT FIX: Added || isEditOpen to disabled condition
+            disabled={isDeleteOpen || isEditOpen}
+            onClick={() => setIsDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </Button>
 
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={isDeleteOpen || isEditOpen || isMarkingPaid}
-              onClick={() => setIsEditOpen(true)}
-            >
-              <Edit2 className="h-4 w-4" />
-              Edit
-            </Button>
-          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            // For symmetry, disabling edit while delete is open (already in your code, but kept here for clarity)
+            disabled={isDeleteOpen || isEditOpen}
+            onClick={() => setIsEditOpen(true)}
+          >
+            <Edit2 className="h-4 w-4" />
+            Edit
+          </Button>
         </div>
 
         {isEditOpen && (

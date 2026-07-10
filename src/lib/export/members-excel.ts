@@ -9,7 +9,7 @@ function formatDate(date: Date | string | null | undefined): string {
 }
 
 function formatStatus(member: Member): string {
-  const status = getMemberStatus(member.expiry, member.is_lifetime);
+  const status = getMemberStatus(member.expiry, member.is_lifetime, member.hasPendingPayment);
   if (status === 'near-expiry') return 'Near Expiry';
   return status.charAt(0).toUpperCase() + status.slice(1);
 }

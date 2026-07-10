@@ -68,6 +68,9 @@ const columns: ColumnDef<Member>[] = [
       if (row.original.is_lifetime) {
         return 'Lifetime';
       }
+      if (row.original.hasPendingPayment) {
+        return 'Pending';
+      }
       const expiry = row.original.expiry;
       return expiry ? format(expiry, 'dd MMM yyyy') : 'Pending';
     },
@@ -85,7 +88,11 @@ const columns: ColumnDef<Member>[] = [
     id: 'status',
     header: 'Status',
     cell: ({ row }) => {
-      const status = getMemberStatus(row.original.expiry, row.original.is_lifetime);
+      const status = getMemberStatus(
+        row.original.expiry,
+        row.original.is_lifetime,
+        row.original.hasPendingPayment,
+      );
       let statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
       if (status === 'near-expiry') {
         statusLabel = 'Near Expiry';

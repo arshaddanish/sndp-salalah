@@ -16,9 +16,16 @@ type MemberProfileHeaderProps = {
   member: MemberDetail;
 };
 
-function formatExpiry(expiry: Date | null, isLifetime: boolean): string {
+function formatExpiry(
+  expiry: Date | null,
+  isLifetime: boolean,
+  hasPendingPayment?: boolean,
+): string {
   if (isLifetime) {
     return 'Lifetime';
+  }
+  if (hasPendingPayment) {
+    return 'Pending';
   }
   if (!expiry) {
     return 'Pending';
@@ -65,7 +72,7 @@ export function MemberProfileHeader({ member }: Readonly<MemberProfileHeaderProp
             <span>
               Expiry:{' '}
               <span className="text-text-primary font-medium">
-                {formatExpiry(member.expiry, member.is_lifetime)}
+                {formatExpiry(member.expiry, member.is_lifetime, member.hasPendingPayment)}
               </span>
             </span>
           </div>

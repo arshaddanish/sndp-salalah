@@ -127,6 +127,7 @@ export async function getDashboardFinancialKpis(): Promise<{
       SUM(CASE WHEN entry_kind = 'regular' AND transaction_date >= DATE_TRUNC('year', CURRENT_DATE) AND type = 'expense'
                THEN amount::numeric ELSE 0 END) AS ytd_expense
     FROM transactions
+    WHERE (payment_mode IS DISTINCT FROM 'pending')
   `);
 
   const row = result.rows[0] as
@@ -153,6 +154,7 @@ export async function getDashboardFinancialActivity(balances: {
       SUM(CASE WHEN type = 'expense' THEN amount::numeric ELSE 0 END) AS expense
     FROM transactions
     WHERE entry_kind = 'regular'
+      AND (payment_mode IS DISTINCT FROM 'pending')
       AND transaction_date >= DATE_TRUNC('month', CURRENT_DATE)
       AND transaction_date <  DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
   `);
@@ -188,6 +190,7 @@ export async function getDashboardFinancialTrend(): Promise<FinancialTrendData> 
         SUM(CASE WHEN type = 'expense' THEN amount::numeric ELSE 0 END) AS expense
       FROM transactions
       WHERE entry_kind = 'regular'
+        AND (payment_mode IS DISTINCT FROM 'pending')
         AND transaction_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months'
         AND transaction_date <  DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
       GROUP BY DATE_TRUNC('month', transaction_date)

@@ -11,8 +11,13 @@ import type { MemberStatus } from '@/types/members';
  * - If TODAY <= expiry <= TODAY+30days → 'near-expiry'
  * - Otherwise → 'active'
  */
-export const getMemberStatus = (expiry: Date | null, isLifetime: boolean): MemberStatus => {
+export const getMemberStatus = (
+  expiry: Date | null,
+  isLifetime: boolean,
+  hasPendingPayment?: boolean,
+): MemberStatus => {
   if (isLifetime) return 'lifetime';
+  if (hasPendingPayment) return 'pending';
   if (!expiry) return 'pending';
 
   // Normalize today to start-of-day for day-granularity comparison

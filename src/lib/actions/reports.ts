@@ -1,6 +1,6 @@
 'use server';
 
-import { and, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, eq, gte, lte, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { members, shakhas, transactionCategories, transactions } from '@/lib/db/schema';
@@ -49,7 +49,10 @@ export async function fetchReportData(
     const start = parseStartOfDayOrNull(startDate);
     const end = parseEndOfDayOrNull(endDate);
 
-    const conditions = [eq(transactions.entry_kind, 'regular')];
+    const conditions = [
+      eq(transactions.entry_kind, 'regular'),
+      ne(transactions.payment_mode, 'pending'),
+    ];
 
     if (start) {
       conditions.push(gte(transactions.transaction_date, start));
@@ -193,6 +196,7 @@ export async function fetchRenewedMembers(
       eq(transactions.category_id, category.id),
       eq(members.is_archived, false),
       sql`${transactions.transaction_date} > ${members.first_joined_at}`,
+      ne(transactions.payment_mode, 'pending'),
     ];
 
     if (start) {
@@ -263,6 +267,7 @@ export async function fetchMembershipActivity(
       eq(transactions.category_id, category.id),
       eq(members.is_archived, false),
       sql`${transactions.transaction_date} > ${members.first_joined_at}`,
+      ne(transactions.payment_mode, 'pending'),
     ];
     if (start) renewedConditions.push(gte(transactions.transaction_date, start));
     if (end) renewedConditions.push(lte(transactions.transaction_date, end));

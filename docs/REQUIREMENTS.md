@@ -28,10 +28,10 @@
 
 - **Duplicate Prevention:** Enforced strictly via unique `civil_id_no`.
 - **Status Calculation:**
-  - `Pending` if `expiry` is null and lifetime is not enabled.
-  - `Active` if `expiry` > today and lifetime is not enabled.
-  - `Near Expiry` if `expiry` is within the next 30 days and lifetime is not enabled.
-  - `Expired` if `expiry` < today and lifetime is not enabled.
+  - `Pending` if `expiry` is null and lifetime is not enabled, or if they have a pending payment transaction (payment mode is 'pending').
+  - `Active` if `expiry` > today, lifetime is not enabled, and they do not have a pending payment transaction.
+  - `Near Expiry` if `expiry` is within the next 30 days, lifetime is not enabled, and they do not have a pending payment transaction.
+  - `Expired` if `expiry` < today, lifetime is not enabled, and they do not have a pending payment transaction.
   - `Lifetime` if lifetime is explicitly enabled for the member.
 - **Members Activity Window Filter:** Members list date filtering is based on membership activity window bounds, not member creation date. The filter UI uses `Active From` and `Active Until`.
 - **Activity Window Matching Rule:** A member matches only when they are active for the full selected window. This means membership period start is on or before the selected start date, and membership expiry is on or after the selected end date.

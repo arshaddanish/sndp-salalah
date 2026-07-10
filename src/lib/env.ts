@@ -20,7 +20,7 @@ const clientSchema = z.object({
   MEMBER_PHOTO_MAX_BYTES: z.coerce.number().int().positive().optional(),
 });
 
-const isServer = typeof window === 'undefined';
+const isServer = globalThis.window === undefined;
 
 const serverEnv = isServer
   ? serverSchema.parse({
