@@ -51,8 +51,6 @@ export function EditTransactionDialog({
     const currentRemarks = formData.get('remarks') as string;
     const currentDate = formData.get('transactionDate') as string;
     const currentCategory = formData.get('categoryId') as string;
-    const currentPaymentMode = formData.get('paymentMode') as string;
-    const currentFundAccount = formData.get('fundAccount') as string;
     const currentPayee = formData.get('payeeMerchant') as string;
     const currentPaidBy = formData.get('paidReceiptBy') as string;
 
@@ -63,8 +61,6 @@ export function EditTransactionDialog({
         currentRemarks !== transaction.remarks ||
         currentDate !== originalDate ||
         currentCategory !== transaction.categoryId ||
-        currentPaymentMode !== transaction.paymentMode ||
-        currentFundAccount !== transaction.fundAccount ||
         currentPayee !== (transaction.payeeMerchant ?? '') ||
         currentPaidBy !== (transaction.paidReceiptBy ?? '') ||
         type !== transaction.type ||
@@ -122,12 +118,6 @@ export function EditTransactionDialog({
           amount: formData.get('amount') as string,
           transactionDate: formData.get('transactionDate') as string,
           categoryId: formData.get('categoryId') as string,
-          paymentMode: formData.get('paymentMode') as
-            | 'cash'
-            | 'bank'
-            | 'online_transaction'
-            | 'cheque',
-          fundAccount: formData.get('fundAccount') as 'cash' | 'bank',
           payeeMerchant: formData.get('payeeMerchant') as string,
           paidReceiptBy: formData.get('paidReceiptBy') as string,
           remarks: formData.get('remarks') as string,
@@ -284,55 +274,9 @@ export function EditTransactionDialog({
             </div>
 
             {/* Payment Method */}
-            <div className="space-y-1.5">
-              <label
-                className="text-text-secondary text-sm font-medium"
-                htmlFor="edit-payment-mode"
-              >
-                Payment Method *
-              </label>
-              <select
-                id="edit-payment-mode"
-                name="paymentMode"
-                required
-                defaultValue={transaction.paymentMode}
-                disabled={isPending}
-                onChange={handleChange}
-                className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Select method</option>
-                <option value="cash">Cash</option>
-                <option value="bank">Bank</option>
-                <option value="online_transaction">Online Transaction</option>
-                <option value="cheque">Cheque</option>
-              </select>
-            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* Fund Account */}
-            <div className="space-y-1.5">
-              <label
-                className="text-text-secondary text-sm font-medium"
-                htmlFor="edit-fund-account"
-              >
-                Fund Account *
-              </label>
-              <select
-                id="edit-fund-account"
-                name="fundAccount"
-                required
-                defaultValue={transaction.fundAccount ?? ''}
-                disabled={isPending}
-                onChange={handleChange}
-                className="border-border text-text-primary focus:border-accent focus:ring-accent/20 h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Select account</option>
-                <option value="cash">Cash</option>
-                <option value="bank">Bank</option>
-              </select>
-            </div>
-
             {/* Payee/Merchant */}
             <div className="space-y-1.5">
               <label className="text-text-secondary text-sm font-medium" htmlFor="edit-payee">

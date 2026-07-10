@@ -17,6 +17,7 @@ import type { RegularTransactionRow, TransactionFundAccount } from '@/types/tran
 
 import { DeleteTransactionDialog } from './delete-transaction-dialog';
 import { EditTransactionDialog } from './edit-transaction-dialog';
+import { MarkAsPaidDialog } from './mark-as-paid-dialog';
 
 type TransactionDetailDrawerProps = {
   transaction: RegularTransactionRow | null;
@@ -59,10 +60,12 @@ export function TransactionDetailDrawer({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
+  const [isMarkAsPaidOpen, setIsMarkAsPaidOpen] = useState(false);
   if (!transaction) {
     return null;
   }
 
+  const isPending = transaction.paymentMode === 'pending';
   const isIncome = transaction.type === 'income';
   const amount = Number(transaction.amount).toFixed(3);
   const cashBalance = Number(transaction.cashBalance).toFixed(3);
@@ -208,19 +211,28 @@ export function TransactionDetailDrawer({
             variant="danger"
             size="sm"
             // EXACT FIX: Added || isEditOpen to disabled condition
-            disabled={isDeleteOpen || isEditOpen}
+            disabled={isDeleteOpen || isEditOpen || isMarkAsPaidOpen}
             onClick={() => setIsDeleteOpen(true)}
           >
             <Trash2 className="h-4 w-4" />
             Delete
           </Button>
 
+          {isPending && (
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={isDeleteOpen || isEditOpen || isMarkAsPaidOpen}
+              onClick={() => setIsMarkAsPaidOpen(true)}
+            >
+              Mark as Paid
+            </Button>
+          )}
           <Button
             variant="primary"
             size="sm"
             // For symmetry, disabling edit while delete is open (already in your code, but kept here for clarity)
-            disabled={isDeleteOpen || isEditOpen}
-            onClick={() => setIsEditOpen(true)}
+            disabled={isDeleteOpen || isEditOpen || isMarkAsPaidOpen}
           >
             <Edit2 className="h-4 w-4" />
             Edit
@@ -247,6 +259,18 @@ export function TransactionDetailDrawer({
             transaction={transaction}
             onSuccess={() => {
               setIsDeleteOpen(false);
+              onOpenChange(false);
+            }}
+          />
+        )}
+
+        {isMarkAsPaidOpen && (
+          <MarkAsPaidDialog
+            open={isMarkAsPaidOpen}
+            onOpenChange={setIsMarkAsPaidOpen}
+            transaction={transaction}
+            onSuccess={() => {
+              setIsMarkAsPaidOpen(false);
               onOpenChange(false);
             }}
           />
