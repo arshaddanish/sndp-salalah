@@ -14,10 +14,11 @@ import {
 } from '@/components/ui/dialog';
 import { markTransactionAsPaid } from '@/lib/actions/transactions';
 import { markTransactionAsPaidSchema } from '@/lib/validations/transactions';
+import type { MemberTransaction } from '@/types/members';
 import type { RegularTransactionRow } from '@/types/transactions';
 
 type MarkAsPaydDialogProps = {
-  transaction: RegularTransactionRow | null;
+  transaction: RegularTransactionRow | MemberTransaction | null;
   open: boolean;
   onOpenChange: ComponentProps<typeof Dialog>['onOpenChange'];
   onSuccess?: () => void;
