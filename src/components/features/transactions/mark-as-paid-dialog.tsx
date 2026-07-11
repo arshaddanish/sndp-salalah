@@ -1,6 +1,7 @@
 'use client';
 
 import type { ComponentProps } from 'react';
+import type { MemberTransaction } from '@/types/members';
 import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import { markTransactionAsPaidSchema } from '@/lib/validations/transactions';
 import type { RegularTransactionRow } from '@/types/transactions';
 
 type MarkAsPaydDialogProps = {
-  transaction: RegularTransactionRow | null;
+  transaction: RegularTransactionRow | MemberTransaction | null;
   open: boolean;
   onOpenChange: ComponentProps<typeof Dialog>['onOpenChange'];
   onSuccess?: () => void;

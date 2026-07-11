@@ -1,13 +1,13 @@
 'use client';
 
 import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { Loader2 } from 'lucide-react';
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { DataTableBase } from '@/components/ui/data-table-base';
-import { markMembershipPaymentPaid } from '@/lib/actions/members';
+import { useRouter } from 'next/navigation';
+import { MarkAsPaidDialog } from '@/components/features/transactions/mark-as-paid-dialog';
 import type { MemberTransaction } from '@/types/members';
 
 const PAYMENT_MODE_LABELS: Record<string, string> = {
@@ -36,24 +36,15 @@ export function MemberPaymentHistory({
   transactions,
   errorMessage,
 }: Readonly<MemberPaymentHistoryProps>) {
-  const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
-  const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<MemberTransaction | null>(null);
+  const [isMarkAsPaidOpen, setIsMarkAsPaidOpen] = useState(false);
+  const router = useRouter();
 
-  const handleMarkAsPaid = (transactionId: string, mode: 'cash' | 'card') => {
+  const openMarkAsPaid = (transaction: MemberTransaction) => {
     setActionError(null);
-    setActiveTransactionId(transactionId);
-    startTransition(async () => {
-      const result = await markMembershipPaymentPaid({
-        transactionId,
-        paymentMode: mode,
-        fundAccount: mode === 'cash' ? 'cash' : 'bank',
-      });
-      setActiveTransactionId(null);
-      if (!result.success) {
-        setActionError(result.error ?? 'Unable to update payment status.');
-      }
-    });
+    setSelectedTransaction(transaction);
+    setIsMarkAsPaidOpen(true);
   };
 
   const columns = useMemo<ColumnDef<MemberTransaction>[]>(
@@ -125,27 +116,15 @@ export function MemberPaymentHistory({
         cell: ({ row }) => {
           const isPendingRow = row.original.paymentMode === 'pending';
           if (!isPendingRow) return null;
-          const isCurrentLoading = isPending && activeTransactionId === row.original.id;
           return (
             <div className="flex items-center justify-end gap-1.5">
-              <span className="text-text-secondary mr-1 text-xs font-medium">Mark paid:</span>
               <Button
                 variant="secondary"
                 size="sm"
                 className="h-7 px-2.5 text-xs font-medium"
-                disabled={isPending}
-                onClick={() => handleMarkAsPaid(row.original.id, 'cash')}
+                onClick={() => openMarkAsPaid(row.original)}
               >
-                {isCurrentLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Cash'}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-7 px-2.5 text-xs font-medium"
-                disabled={isPending}
-                onClick={() => handleMarkAsPaid(row.original.id, 'card')}
-              >
-                {isCurrentLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Card'}
+                Mark as Paid
               </Button>
             </div>
           );
@@ -153,7 +132,7 @@ export function MemberPaymentHistory({
         size: 200,
       },
     ],
-    [isPending, activeTransactionId],
+    [],
   );
 
   const table = useReactTable({
@@ -190,6 +169,25 @@ export function MemberPaymentHistory({
         </div>
       )}
       {content}
+      {isMarkAsPaidOpen && selectedTransaction && (
+        <MarkAsPaidDialog
+          open={isMarkAsPaidOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsMarkAsPaidOpen(false);
+              setSelectedTransaction(null);
+            } else {
+              setIsMarkAsPaidOpen(true);
+            }
+          }}
+          transaction={selectedTransaction}
+          onSuccess={() => {
+            setIsMarkAsPaidOpen(false);
+            setSelectedTransaction(null);
+            router.refresh();
+          }}
+        />
+      )}
     </Card>
   );
 }
