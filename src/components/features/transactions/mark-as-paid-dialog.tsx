@@ -1,7 +1,6 @@
 'use client';
 
 import type { ComponentProps } from 'react';
-import type { MemberTransaction } from '@/types/members';
 import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -15,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { markTransactionAsPaid } from '@/lib/actions/transactions';
 import { markTransactionAsPaidSchema } from '@/lib/validations/transactions';
+import type { MemberTransaction } from '@/types/members';
 import type { RegularTransactionRow } from '@/types/transactions';
 
 type MarkAsPaydDialogProps = {

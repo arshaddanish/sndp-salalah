@@ -61,16 +61,19 @@ const columns: ColumnDef<RegularTransactionRow>[] = [
   {
     accessorKey: 'categoryName',
     header: 'Category',
+    cell: ({ row }) => (
+      <span className="text-text-primary font-medium">{row.original.categoryName}</span>
+    ),
+  },
+  {
+    accessorKey: 'memberName',
+    header: 'Member',
     cell: ({ row }) => {
       const { categoryName, memberName } = row.original;
-      const showMemberName = categoryName === 'Membership Fee' && memberName;
-      return (
-        <span className="text-text-primary font-medium">
-          {categoryName}
-          {showMemberName ? (
-            <span className="text-text-muted ml-1 text-xs font-normal">({memberName})</span>
-          ) : null}
-        </span>
+      return categoryName === 'Membership Fee' ? (
+        <span className="text-text-primary font-medium">{memberName ?? '—'}</span>
+      ) : (
+        ''
       );
     },
   },
