@@ -1,7 +1,8 @@
 'use client';
 
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useTransition } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 import {
   Bar,
   BarChart,
@@ -13,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { formatCurrency } from '@/lib/utils';
@@ -214,48 +216,98 @@ function RenewalsTable({
   rows,
   error,
 }: Readonly<{ rows: RenewedMemberRow[]; error: string | null }>) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  if (error) {
+    return (
+      <Card className="p-0">
+        <div className="border-border border-b px-4 py-3">
+          <h3 className="text-text-primary text-base font-semibold">Renewed Members</h3>
+        </div>
+        <div className="px-4 py-4">
+          <p className="text-danger text-sm">{error}</p>
+        </div>
+      </Card>
+    );
+  }
+
+  const totalRows = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+
+  // Guard current page bounds
+  const activePage = Math.min(currentPage, totalPages);
+
+  const startIndex = (activePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalRows);
+  const paginatedRows = rows.slice(startIndex, endIndex);
+
   return (
     <Card className="p-0">
       <div className="border-border border-b px-4 py-3">
         <h3 className="text-text-primary text-base font-semibold">Renewed Members</h3>
       </div>
 
-      {error ? (
-        <div className="px-4 py-4">
-          <p className="text-danger text-sm">{error}</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 text-text-secondary border-border border-b text-left text-xs tracking-wide uppercase">
-                <th className="px-4 py-2.5 font-medium">Member Code</th>
-                <th className="px-4 py-2.5 font-medium">Name</th>
-                <th className="px-4 py-2.5 font-medium">Shakha</th>
-                <th className="px-4 py-2.5 font-medium">Renewed On</th>
-                <th className="px-4 py-2.5 font-medium">Expiry</th>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="bg-muted/40 text-text-secondary border-border border-b text-left text-xs tracking-wide uppercase">
+              <th className="px-4 py-2.5 font-medium">Member Code</th>
+              <th className="px-4 py-2.5 font-medium">Name</th>
+              <th className="px-4 py-2.5 font-medium">Shakha</th>
+              <th className="px-4 py-2.5 font-medium">Renewed On</th>
+              <th className="px-4 py-2.5 font-medium">Expiry</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedRows.length === 0 ? (
+              <tr>
+                <td className="text-text-muted px-4 py-4" colSpan={5}>
+                  No renewed members for selected date range.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td className="text-text-muted px-4 py-4" colSpan={5}>
-                    No renewed members for selected date range.
-                  </td>
+            ) : (
+              paginatedRows.map((row) => (
+                <tr key={row.id} className="border-border border-b last:border-b-0">
+                  <td className="text-text-primary px-4 py-2.5 font-medium">{row.memberCode}</td>
+                  <td className="text-text-primary px-4 py-2.5">{row.name}</td>
+                  <td className="text-text-secondary px-4 py-2.5">{row.shakhaName ?? '—'}</td>
+                  <td className="text-text-secondary px-4 py-2.5">{row.activeFrom}</td>
+                  <td className="text-text-secondary px-4 py-2.5">{row.expiry ?? '—'}</td>
                 </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id} className="border-border border-b last:border-b-0">
-                    <td className="text-text-primary px-4 py-2.5 font-medium">{row.memberCode}</td>
-                    <td className="text-text-primary px-4 py-2.5">{row.name}</td>
-                    <td className="text-text-secondary px-4 py-2.5">{row.shakhaName ?? '—'}</td>
-                    <td className="text-text-secondary px-4 py-2.5">{row.activeFrom}</td>
-                    <td className="text-text-secondary px-4 py-2.5">{row.expiry ?? '—'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {totalRows > 0 && (
+        <div className="border-border flex items-center justify-between border-t px-4 py-3">
+          <div className="text-text-secondary text-xs">
+            Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+            <span className="font-medium">{endIndex}</span> of{' '}
+            <span className="font-medium">{totalRows}</span> renewed members
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={activePage === 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={activePage === totalPages}
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
     </Card>
